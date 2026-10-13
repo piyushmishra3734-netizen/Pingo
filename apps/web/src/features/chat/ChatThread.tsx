@@ -95,12 +95,13 @@ import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Headphones } from 'lucide-react';
+import { Headphones, Menu, Phone } from 'lucide-react';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
 const AiProfileSheet = lazyNamed(() => import('../ai/AiProfileSheet.js'), 'AiProfileSheet');
 const VoiceCall = lazyNamed(() => import('../ai/VoiceCall.js'), 'VoiceCall');
+const AiSettingsPage = lazyNamed(() => import('../ai/room/AiSettingsPage.js'), 'AiSettingsPage');
 const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
 const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
 const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
@@ -975,6 +976,7 @@ export function ChatThread({
   });
   const flowColour = useFlowColour();
   const [composerPrefill, setComposerPrefill] = useState<{ text: string }>();
+  const [aiMenu, setAiMenu] = useState<'menu' | 'settings'>();
 
   /*
    * The "Seen" line, the way Instagram does it.
@@ -1447,7 +1449,7 @@ export function ChatThread({
           selection || searching
             ? 'glass-water mx-2 mt-2 rounded-xl px-3 py-2.5'
             : // Telegram's header, in glass: back, the name in a capsule, the face. Three objects, not a bar.
-              cn('mx-2 mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2', isAi && 'items-start'),
+              cn('mx-2 mt-2 grid gap-2', isAi ? 'grid-cols-[1fr_auto_1fr] items-start' : 'grid-cols-[auto_minmax(0,1fr)_auto]'),
           'mt-[max(0.5rem,env(safe-area-inset-top))]',
         )}
       >
@@ -1522,29 +1524,37 @@ export function ChatThread({
           works, what it is doing. The capsule opens its settings.
         */
         <>
-          {showBack ? (
-            <Link
-              to="/chats"
-              aria-label="Back to conversations"
-              className="relative grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
+          <div className="flex shrink-0 items-center gap-1.5">
+            {showBack && (
+              <Link
+                to="/chats"
+                aria-label="Back to conversations"
+                className="relative grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
+              >
+                <ChevronLeftIcon size={22} />
+                {otherUnread > 0 && (
+                  <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--room-accent)] px-1.5 text-[11px] font-bold tabular-nums text-on-brand">
+                    {otherUnread > 99 ? '99+' : otherUnread}
+                  </span>
+                )}
+              </Link>
+            )}
+            <button
+              type="button"
+              aria-label="PINGO AI menu"
+              onClick={() => setAiMenu('menu')}
+              className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
             >
-              <ChevronLeftIcon size={22} />
-              {otherUnread > 0 && (
-                <span className="absolute -top-1 -right-2 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--room-accent)] px-1.5 text-[11px] font-bold tabular-nums text-white">
-                  {otherUnread > 99 ? '99+' : otherUnread}
-                </span>
-              )}
-            </Link>
-          ) : (
-            <span className="size-11" aria-hidden />
-          )}
+              <Menu size={21} aria-hidden />
+            </button>
+          </div>
           <div className="flex min-w-0 flex-col items-center">
             <span className="relative z-[1] -mb-4 grid size-[62px] place-items-center overflow-hidden rounded-full bg-[var(--room-plate)] shadow-[0_2px_10px_rgb(0_0_0/0.18)]">
               <PingoFlow face={flow.face} mode={flow.mode} colour={flowColour} label="Pingo Flow" className="size-[68px]" />
             </span>
             <button
               type="button"
-              onClick={openInfo}
+              onClick={() => setAiMenu('settings')}
               aria-label={`${conversation.title}, settings`}
               className="flex min-w-[11rem] max-w-full flex-col items-center rounded-[26px] border border-[var(--room-capsule-line)] bg-[var(--room-capsule)] px-7 pb-3 pt-5 shadow-[0_6px_20px_-8px_rgb(0_0_0/0.25)] focus-ring active:scale-[0.98]"
             >
@@ -1563,7 +1573,16 @@ export function ChatThread({
               )}
             </button>
           </div>
-          <span className="size-11" aria-hidden />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              aria-label={`Call ${conversation.title}`}
+              onClick={() => setVoiceCall(true)}
+              className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
+            >
+              <Phone size={20} aria-hidden />
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -2119,7 +2138,7 @@ export function ChatThread({
           ) : (
           <Composer
             mentions={mentionOptions}
-            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true, onLive: () => setVoiceCall(true) } : {})}
+            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.
@@ -2424,6 +2443,11 @@ export function ChatThread({
         />
       )}
 
+      {isAi && aiMenu === 'settings' && (
+        <Suspense fallback={null}>
+          <AiSettingsPage conversationId={conversation.id} onClose={() => setAiMenu(undefined)} />
+        </Suspense>
+      )}
       {isAi && aiProfileOpen && (
         <Suspense fallback={null}>
         <AiProfileSheet

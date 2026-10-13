@@ -1111,12 +1111,13 @@ video {
   --room-capsule-line: rgb(0 0 0 / 0.07);
   --room-plate: #f6f3ee;
   --room-panel: #ffffff;
-  --room-mine: #d3e5ff;
-  --room-on-mine: #0b1f3a;
+  /* Yours take the person's own accent, like everywhere else in PINGO. */
+  --room-mine: var(--color-brand);
+  --room-on-mine: var(--color-on-brand);
   --room-ink: #111113;
   --room-sub: #6d6f78;
   --room-hair: rgb(0 0 0 / 0.07);
-  --room-accent: #0a7cff;
+  --room-accent: var(--color-brand);
   --room-tile: #dbe8ff;
   --room-tile-ink: #0a66e0;
   --room-bar: #ffffff;
@@ -1134,12 +1135,12 @@ video {
   --room-capsule-line: rgb(255 255 255 / 0.1);
   --room-plate: #f2efea;
   --room-panel: #ffffff;
-  --room-mine: #0a7cff;
-  --room-on-mine: #ffffff;
+  --room-mine: var(--color-brand);
+  --room-on-mine: var(--color-on-brand);
   --room-ink: #f5f5f7;
   --room-sub: #a0a0a6;
   --room-hair: rgb(255 255 255 / 0.08);
-  --room-accent: #0a7cff;
+  --room-accent: var(--color-brand);
   --room-tile: #0b3a8a;
   --room-tile-ink: #3d8bff;
   --room-bar: #3a3a3c;
@@ -1179,7 +1180,7 @@ video {
 .ai-room .room-composer textarea::placeholder { color: var(--room-sub); }
 .ai-room .room-icon { color: var(--room-ink); background: transparent; }
 .ai-room .room-sub { color: var(--room-sub); }
-.ai-room .room-send { background: var(--room-accent); color: #fff; }
+.ai-room .room-send { background: var(--room-accent); color: var(--color-on-brand); }
 
 /* Cards: a raised tile, a white panel inside, a pill under it. */
 .room-card {
@@ -1216,3 +1217,6 @@ video {
 @media (prefers-reduced-motion: reduce) {
   .room-dots span { animation: none; opacity: 0.6; }
 }
+
+/* PINGO AI's menu and settings share the room's face. */
+.ai-room-ui { font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
