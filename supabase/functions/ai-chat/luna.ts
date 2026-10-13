@@ -315,7 +315,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const t0 = Date.now();
   t.emit('reading');
 
-  const [{ data: profile }, { data: rows }, { count: total }, { data: chat }] = await Promise.all([
+  const [{ data: profile }, { data: rows }, { count: total }, { data: chat }, { data: saved }] = await Promise.all([
     t.db
       .from('ai_profiles')
       .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled')
@@ -340,6 +340,15 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
           (r: { data: unknown }) => r,
           () => ({ data: null }),
         ),
+    /*
+     * What they asked PINGO AI to remember, in the prompt itself. Left to
+     * `recall_memory`, the model skipped the lookup on plain questions ("which
+     * chai do I like?") and said it did not know. Never in a group: one
+     * person's memories are not the room's.
+     */
+    t.isGroup
+      ? Promise.resolve({ data: null })
+      : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_CAP),
   ]);
   const needsTitle = !!d.nameChat && sideChatNeedsTitle(chat as ChatRow);
   const p = (profile ?? null) as LunaProfile | null;
@@ -452,6 +461,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         : 'They prefer concise answers: complete, but no padding. Small talk gets a line or two.',
   );
   if (!memoryOn) about.push('Memory is switched off by them: do not save or recall anything, and say so if they ask you to remember.');
+  const remembered = memoryOn ? ((saved ?? []) as { value: string }[]).map((m) => `- ${m.value}`) : [];
+  // Oldest first, so a new memory only adds to the end of this block.
+  if (remembered.length) {
+    about.push(['What they asked you to remember (use it naturally; no need to call recall_memory for these):', ...remembered].join('\n'));
+  }
   /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
   const command = t.command ? COMMANDS[t.command] : undefined;
@@ -921,6 +935,7 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
       const { count } = await t.db.from('ai_goals').select('id', { count: 'exact', head: true }).eq('user_id', t.userId);
       if ((count ?? 0) >= GOAL_CAP) return 'Their goals list is full. Ask them to clear some done goals first.';
       const { error } = await t.db.from('ai_goals').insert({ user_id: t.userId, title });
+      if (error) console.error('[luna] add_goal', error.message);
       return error ? 'Could not add it right now.' : `Added: ${title}`;
     }
     if (call.name === 'list_goals' && !t.isGroup) {
