@@ -126,6 +126,12 @@ verify_jwt = false
 [functions.turn-credentials]
 verify_jwt = false
 
+# PINGO AI voice calls (OpenAI Realtime). Same shape as `ai-chat`: the caller's
+# JWT is checked in code (`auth.getUser()` on a user-scoped client) and the
+# conversation must be their own `ai` thread before a client secret is minted.
+[functions.ai-realtime]
+verify_jwt = false
+
 # Live streaming. Same shape as `livekit-token`: the browser cannot join a room
 # without a signed grant, and the grant is authorised against `live_streams`
 # with the caller's own JWT in code - host publishes, mutual viewers subscribe.

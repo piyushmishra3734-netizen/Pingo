@@ -22,6 +22,7 @@ export function PingoFlow({
   className,
   label = 'PINGO AI',
   onTap,
+  levelRef,
 }: {
   face?: FlowFace;
   mode?: FlowMode;
@@ -31,6 +32,8 @@ export function PingoFlow({
   className?: string;
   label?: string;
   onTap?: () => void;
+  /** A live voice level (0..1), read every frame without re-rendering: the call's audio. */
+  levelRef?: { current: number } | undefined;
 }) {
   const hostRef = useRef<HTMLSpanElement>(null);
   const flow = useRef<FlowController | null>(null);
@@ -67,6 +70,19 @@ export function PingoFlow({
   }, [shadow]);
 
   useEffect(() => flow.current?.setFace(face), [face, ready]);
+  useEffect(() => {
+    if (!ready || !levelRef) return;
+    let raf = 0;
+    const tick = () => {
+      flow.current?.setVoice(Math.min(1, levelRef.current * 1.6));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      flow.current?.setVoice(null);
+    };
+  }, [ready, levelRef]);
   useEffect(() => flow.current?.setMode(mode), [mode, ready]);
   useEffect(() => {
     if (colour) flow.current?.setColour(colour);

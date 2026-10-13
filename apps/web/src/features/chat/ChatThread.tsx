@@ -95,7 +95,9 @@ import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Headphones, Menu, Phone } from 'lucide-react';
+import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
+import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
+import { useAiVoice } from '../ai/room/ai-prefs.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -192,6 +194,9 @@ const AI_STAGES = {
   looking: 'looking at your photo',
   reading_file: 'reading your file',
 } as const;
+
+/** Under the call's controls: who has the floor. */
+const ACTIVITY_LINE: Record<string, string> = { listening: 'Listening…', thinking: 'Thinking…', talking: 'Speaking…' };
 
 /** What PINGO AI is doing, as Muse says it under its name: a small picture and a few words. */
 const ROOM_STATUS: Record<string, [string, string]> = {
@@ -975,6 +980,37 @@ export function ChatThread({
     lastReplyMood: liveMood ?? lastAiReply?.aiMeta?.mood,
   });
   const flowColour = useFlowColour();
+
+  /* A live call with PINGO AI over OpenAI Realtime: Pingo Flow listens and talks with the audio. */
+  const call = useRealtimeCall({ trackLevels: false });
+  const callVoice = useAiVoice();
+  const onCall = call.state === 'connecting' || call.state === 'connected';
+  // A failed call says why for a few seconds, then the capsule goes back to normal.
+  const [callError, setCallError] = useState(false);
+  useEffect(() => {
+    if (call.state !== 'error') return;
+    setCallError(true);
+    const timer = window.setTimeout(() => setCallError(false), 6000);
+    return () => window.clearTimeout(timer);
+  }, [call.state]);
+  const callLevel = useMemo(
+    () => ({
+      get current() {
+        const l = call.levelsRef.current;
+        return Math.max(l.ai, l.me * 0.5);
+      },
+    }),
+    [call.levelsRef],
+  );
+  const flowNow = onCall
+    ? call.state === 'connecting'
+      ? { face: 'default' as const, mode: 'idle' as const }
+      : call.activity === 'talking'
+        ? { face: 'talking' as const, mode: 'talking' as const }
+        : call.activity === 'thinking'
+          ? { face: 'thinking' as const, mode: 'idle' as const }
+          : { face: 'listening' as const, mode: 'listening' as const }
+    : flow;
   const [composerPrefill, setComposerPrefill] = useState<{ text: string }>();
   const [aiMenu, setAiMenu] = useState<'menu' | 'settings'>();
 
@@ -1550,7 +1586,7 @@ export function ChatThread({
           </div>
           <div className="flex min-w-0 flex-col items-center">
             <span className="relative z-[1] -mb-4 grid size-[62px] place-items-center overflow-hidden rounded-full bg-[var(--room-plate)] shadow-[0_2px_10px_rgb(0_0_0/0.18)]">
-              <PingoFlow face={flow.face} mode={flow.mode} colour={flowColour} label="Pingo Flow" className="size-[68px]" />
+              <PingoFlow face={flowNow.face} mode={flowNow.mode} colour={flowColour} label="Pingo Flow" className="size-[68px]" {...(onCall ? { levelRef: callLevel } : {})} />
             </span>
             <button
               type="button"
@@ -1559,7 +1595,20 @@ export function ChatThread({
               className="flex min-w-[11rem] max-w-full flex-col items-center rounded-[26px] border border-[var(--room-capsule-line)] bg-[var(--room-capsule)] px-7 pb-3 pt-5 shadow-[0_6px_20px_-8px_rgb(0_0_0/0.25)] focus-ring active:scale-[0.98]"
             >
               <span className="max-w-full truncate text-[21px] font-bold leading-tight tracking-[-0.01em] text-[var(--room-ink)]">{headerTitle}</span>
-              {(netTitle || aiStage || aiDraft) && (
+              {onCall || (call.state === 'error' && callError) ? (
+                <span className="mt-0.5 flex max-w-full items-center gap-1.5 text-[16.5px] leading-tight text-[var(--room-sub)]" role="status">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'grid size-[18px] shrink-0 place-items-center rounded-full text-white',
+                      call.state === 'connected' ? 'bg-[#22c55e]' : call.state === 'error' ? 'bg-[#e5484d]' : 'bg-[var(--room-sub)]',
+                    )}
+                  >
+                    <Zap size={11} fill="currentColor" strokeWidth={0} />
+                  </span>
+                  <span className="truncate">{call.state === 'connected' ? 'Connected' : call.state === 'error' ? (call.error?.message ?? 'Call failed') : 'Connecting…'}</span>
+                </span>
+              ) : (netTitle || aiStage || aiDraft) && (
                 <span className="mt-0.5 flex max-w-full items-center gap-1.5 text-[16.5px] leading-tight text-[var(--room-sub)]" role="status">
                   {!aiStage && !aiDraft ? (
                     netTitle
@@ -1576,11 +1625,15 @@ export function ChatThread({
           <div className="flex justify-end">
             <button
               type="button"
-              aria-label={`Call ${conversation.title}`}
-              onClick={() => setVoiceCall(true)}
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-[var(--room-bar)] text-[var(--room-ink)] shadow-[var(--room-bar-shadow)] focus-ring active:scale-95"
+              aria-label={onCall ? 'End call' : `Call ${conversation.title}`}
+              aria-pressed={onCall}
+              onClick={() => (onCall ? void call.end() : call.start(conversation.id, callVoice))}
+              className={cn(
+                'grid size-11 shrink-0 place-items-center rounded-full shadow-[var(--room-bar-shadow)] focus-ring active:scale-95',
+                onCall ? 'bg-[#e5484d] text-white' : 'bg-[var(--room-bar)] text-[var(--room-ink)]',
+              )}
             >
-              <Phone size={20} aria-hidden />
+              {onCall ? <PhoneOff size={20} aria-hidden /> : <Phone size={20} aria-hidden />}
             </button>
           </div>
         </>
@@ -2012,6 +2065,38 @@ export function ChatThread({
               </div>
             )}
 
+            {/*
+              What is said on a call, as it is said. The finished turns are
+              saved into the chat when the call ends and come back as ordinary
+              messages, so these show only while it is live.
+            */}
+            {isAi && onCall && call.turns.length > 0 && (
+              <div className="mt-1 flex flex-col gap-2" aria-live="polite">
+                {call.turns
+                  .filter((turn) => turn.text.trim())
+                  .map((turn) => (
+                    <MessageBubble
+                      key={`call-${turn.id}`}
+                      message={{
+                        id: `call-${turn.id}` as Message['id'],
+                        conversationId: conversation.id,
+                        authorId: turn.role === 'user' ? (currentUser?.id ?? '') : PINGO_AI_USER_ID,
+                        body: turn.text,
+                        createdAt: Date.now(),
+                        status: 'sent',
+                        attachments: [],
+                        reactions: [],
+                      }}
+                      mine={turn.role === 'user'}
+                      position="single"
+                      showMeta={false}
+                      room
+                      streaming={!turn.final}
+                    />
+                  ))}
+              </div>
+            )}
+
             {/* Its room is kept whenever the last word is mine, so 'Seen' arriving does not move anything. */}
             {(seen || messages[messages.length - 1]?.authorId === currentUser?.id) && (
               <p
@@ -2134,6 +2219,33 @@ export function ChatThread({
             <div className="flex items-center justify-between gap-3 rounded-[16px] bg-surface px-4 py-3 shadow-sm ring-1 ring-line">
               <span className="min-w-0 text-caption text-text-secondary">You blocked {partner.name}. They can't message or call you.</span>
               <button type="button" onClick={() => void profileService.setBlocked(partner.id, false).catch(() => undefined)} className="focus-ring shrink-0 rounded-full bg-brand px-3.5 py-1.5 text-caption font-semibold text-on-brand">Unblock</button>
+            </div>
+          ) : isAi && onCall ? (
+            /* On a call the pill becomes the call's controls: mute, and a red End. */
+            <div className="room-composer flex items-center justify-between gap-2" role="group" aria-label="Call controls">
+              <span className="flex min-w-0 items-center gap-2.5 pl-3 text-[16px] text-[var(--room-sub)]">
+                <span aria-hidden className={cn('size-2.5 shrink-0 rounded-full', call.state === 'connected' ? 'bg-[#22c55e]' : 'animate-pulse bg-[var(--room-sub)]')} />
+                <span className="truncate">{call.state === 'connected' ? (call.muted ? 'You are muted' : ACTIVITY_LINE[call.activity]) : 'Connecting…'}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label={call.muted ? 'Unmute' : 'Mute'}
+                  aria-pressed={call.muted}
+                  onClick={call.toggleMute}
+                  className={cn('grid size-11 place-items-center rounded-full active:scale-95', call.muted ? 'bg-[var(--room-ink)] text-[var(--room-bg)]' : 'text-[var(--room-ink)]')}
+                >
+                  {call.muted ? <MicOff size={21} aria-hidden /> : <Mic size={21} aria-hidden />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void call.end()}
+                  className="flex h-11 items-center gap-1.5 rounded-full bg-[#e5484d] px-4 text-[15px] font-semibold text-white active:scale-95"
+                >
+                  <PhoneOff size={18} aria-hidden />
+                  End
+                </button>
+              </span>
             </div>
           ) : (
           <Composer
