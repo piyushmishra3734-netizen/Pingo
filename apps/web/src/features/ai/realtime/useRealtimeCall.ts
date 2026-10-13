@@ -1,3 +1,4 @@
+import { playCallSound } from '../../../lib/audio/call-sfx.js';
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import {
@@ -68,6 +69,8 @@ export function useRealtimeCall(options: { trackLevels?: boolean } = {}): UseRea
         ...(voice ? { voice } : {}),
         onState: (next, detail) => {
           if (callRef.current !== call) return;
+          if (next === 'connected') playCallSound('connect');
+          if (next === 'ended' || next === 'error') playCallSound('end');
           setState(next);
           if (detail?.error) setError(detail.error);
           if (detail?.reason) setEndReason(detail.reason);
@@ -107,6 +110,7 @@ export function useRealtimeCall(options: { trackLevels?: boolean } = {}): UseRea
     const call = callRef.current;
     if (!call) return;
     call.setMuted(!call.muted);
+    playCallSound(call.muted ? 'mute' : 'unmute');
     setMuted(call.muted);
   }, []);
 

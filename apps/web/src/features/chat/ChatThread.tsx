@@ -95,7 +95,7 @@ import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Square, Zap } from 'lucide-react';
+import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 
@@ -2256,21 +2256,9 @@ export function ChatThread({
               </span>
             </div>
           ) : (
-          <>
-          {isAi && aiStoppable && (
-            <div className="flex justify-center pb-1.5">
-              <button
-                type="button"
-                onClick={() => stopAi(conversation.id)}
-                className="lq-glass flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[14px] font-semibold text-ink active:scale-95"
-              >
-                <Square size={12} fill="currentColor" aria-hidden />
-                Stop
-              </button>
-            </div>
-          )}
           <Composer
             mentions={mentionOptions}
+            {...(isAi && aiStoppable ? { onStop: () => stopAi(conversation.id) } : {})}
             {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
@@ -2370,7 +2358,6 @@ export function ChatThread({
             draftKey={conversation.id}
             ariaLabel={`Message ${conversation.title}`}
           />
-          </>
           )}
         </div>
       </div>

@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Volume2 } from 'lucide-react';
+import { callSoundsOn, setCallSounds } from '../../../lib/audio/call-sfx.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
@@ -44,6 +46,7 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
   const voice = useAiVoice();
   const motion = useFlowMotion();
   const [page, setPage] = useState<Page>('home');
+  const [callSfx, setCallSfx] = useState(callSoundsOn);
   const [profileOpen, setProfileOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
 
@@ -124,6 +127,15 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
             title="Profile"
             sub="Name, photo, bio and what it calls you"
             onClick={() => setProfileOpen(true)}
+          />
+        </Group>
+
+        <Group title="Calls">
+          <Row
+            icon={<Volume2 size={21} />}
+            title="Call sounds"
+            sub="A soft tone when a call connects, ends, mutes or unmutes"
+            end={<Toggle checked={callSfx} onChange={(on) => { setCallSounds(on); setCallSfx(on); }} label="Call sounds" />}
           />
         </Group>
 

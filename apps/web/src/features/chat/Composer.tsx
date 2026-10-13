@@ -1,6 +1,6 @@
 import type { Sticker } from '@pingo/core';
 import { Avatar, IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
-import { AudioLines } from 'lucide-react';
+import { AudioLines, Square } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
@@ -42,6 +42,8 @@ export interface MentionOption {
  */
 
 export interface ComposerProps {
+  /** PINGO AI is writing a reply: the send slot becomes Stop. */
+  onStop?: () => void;
   /**
    * The attach menu's six actions. Supplied together or not at all - a menu
    * with holes in it is the placeholder problem by another route.
@@ -144,6 +146,7 @@ const MAX_HEIGHT = 140;
 const HOLD_MS = 220;
 
 export function Composer({
+  onStop,
   attach,
   onSend,
   onSendVoice,
@@ -909,7 +912,18 @@ export function Composer({
         Send. Two buttons side by side would mean the primary action moves
         depending on whether you have started writing.
       */}
-      {hasText ? (
+      {onStop ? (
+        // PINGO AI is writing: this slot stops it, as it does in every AI app.
+        <IconButton
+          label="Stop generating"
+          variant={room ? 'ghost' : 'gradient'}
+          size="lg"
+          onClick={onStop}
+          className={room ? 'room-send size-[46px] rounded-full' : 'glass-lit glass-press size-[46px]'}
+        >
+          <Square size={16} fill="currentColor" aria-hidden />
+        </IconButton>
+      ) : hasText ? (
         <IconButton
           label="Send message"
           variant={room ? 'ghost' : 'gradient'}
