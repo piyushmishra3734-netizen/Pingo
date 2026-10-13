@@ -104,6 +104,7 @@ import { useAiVoice } from '../ai/room/ai-prefs.js';
 const AiProfileSheet = lazyNamed(() => import('../ai/AiProfileSheet.js'), 'AiProfileSheet');
 const VoiceCall = lazyNamed(() => import('../ai/VoiceCall.js'), 'VoiceCall');
 const AiSettingsPage = lazyNamed(() => import('../ai/room/AiSettingsPage.js'), 'AiSettingsPage');
+const AiDrawer = lazyNamed(() => import('../ai/room/AiDrawer.js'), 'AiDrawer');
 const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
 const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
 const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
@@ -2555,6 +2556,16 @@ export function ChatThread({
         />
       )}
 
+      {isAi && aiMenu === 'menu' && (
+        <Suspense fallback={null}>
+          <AiDrawer
+            currentId={conversation.id}
+            onClose={() => setAiMenu(undefined)}
+            onSettings={() => setAiMenu('settings')}
+            onIdea={(text) => setComposerPrefill({ text })}
+          />
+        </Suspense>
+      )}
       {isAi && aiMenu === 'settings' && (
         <Suspense fallback={null}>
           <AiSettingsPage conversationId={conversation.id} onClose={() => setAiMenu(undefined)} />

@@ -33,6 +33,9 @@ import {
   users as seedUsers,
 } from './seed.js';
 import type {
+  AiChatSummary,
+  AiGoal,
+  AiLibraryItem,
   AppNotification,
   CallOutcome,
   CallRecord,
@@ -41,6 +44,7 @@ import type {
   ConversationFlags,
   ConversationId,
   CurrentUser,
+  FileAttachment,
   GalleryItem,
   Message,
   MessageId,
@@ -69,6 +73,9 @@ function delay(ms: number): Promise<void> {
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
+
+/** PINGO AI's fixed sender id, the same as the database's `pingo_ai_user_id()`. */
+const MOCK_AI_BOT_ID = 'a1000000-0000-4000-8000-0000000000a1';
 
 let messageCounter = 0;
 function nextMessageId(): MessageId {
@@ -99,6 +106,10 @@ export class MockChatService implements ChatService {
   #conversations: Conversation[];
   #messages: Record<string, Message[]>;
   #notifications: AppNotification[] = clone(seedNotifications);
+  /** PINGO AI's goals list, for the drawer demo. */
+  #aiGoals: AiGoal[] = [];
+  /** Sample library items with no message behind them (pictures from "earlier"). */
+  #aiLibrarySamples: AiLibraryItem[] = [];
 
   #listeners = new Set<(event: ChatEvent) => void>();
   #connection: ConnectionState = 'connecting';
@@ -108,6 +119,7 @@ export class MockChatService implements ChatService {
   constructor({ seeded = true }: MockChatServiceOptions = {}) {
     this.#conversations = seeded ? clone(seedConversations) : [];
     this.#messages = seeded ? clone(seedMessages) : {};
+    if (seeded) this.#seedAi();
 
     // Mirror a real client: briefly connecting, then connected.
     this.#after(400, () => {
@@ -117,6 +129,97 @@ export class MockChatService implements ChatService {
   }
 
   // -- internals -----------------------------------------------------------
+
+  /** Two side chats, a few goals and library items, so PINGO AI's drawer has something in it. */
+  #seedAi(): void {
+    const bot = MOCK_AI_BOT_ID;
+    const me = this.#currentUser.id;
+    const now = Date.now();
+    const side = (id: string, title: string, at: number, lines: [string, string][]): void => {
+      const messages: Message[] = lines.map(([who, body], i) => ({
+        id: `${id}-m${i}`,
+        conversationId: id,
+        authorId: who === 'me' ? me : bot,
+        body,
+        createdAt: at - (lines.length - i) * 60_000,
+        status: 'read',
+        attachments: [],
+        reactions: [],
+      }));
+      this.#messages[id] = messages;
+      this.#conversations.push({
+        id,
+        kind: 'ai',
+        title: 'PINGO',
+        aiSide: true,
+        aiChatTitle: title,
+        participantIds: [me],
+        unreadCount: 0,
+        updatedAt: messages.at(-1)?.createdAt ?? at,
+        typingUserIds: [],
+        muted: false,
+        pinned: false,
+        favorite: false,
+        archived: false,
+        listIds: [],
+        ...(messages.at(-1) ? { lastMessage: clone(messages.at(-1)!) } : {}),
+      });
+    };
+    side('conversation-ai-side-goa', 'Goa trip packing list', now - 2 * 3_600_000, [
+      ['me', 'Help me pack for a 4 day Goa trip'],
+      ['bot', 'Light cotton clothes, sunscreen, flip flops, a hat and a reusable water bottle. Want a checklist?'],
+    ]);
+    side('conversation-ai-side-tennis', 'Learning tennis basics', now - 26 * 3_600_000, [
+      ['me', 'How do I start learning tennis?'],
+      ['bot', 'Start with a beginner racket, a few group lessons, and 20 minutes of wall practice twice a week.'],
+    ]);
+    this.#aiGoals = [
+      { id: 'goal-tennis', title: 'Learn tennis', done: false, createdAt: now - 26 * 3_600_000 },
+      { id: 'goal-read', title: 'Read 12 books this year', done: false, createdAt: now - 5 * 86_400_000 },
+      { id: 'goal-run', title: 'Run a 5K', done: true, createdAt: now - 20 * 86_400_000, doneAt: now - 3 * 86_400_000 },
+    ];
+    this.#aiLibrarySamples = [
+      {
+        messageId: 'ai-lib-1',
+        conversationId: 'conversation-ai-side-goa',
+        kind: 'image',
+        path: `${bot}/sample-flow.webp`,
+        url: '/ai/pingo-flow.webp',
+        mime: 'image/webp',
+        createdAt: now - 3 * 3_600_000,
+      },
+      {
+        messageId: 'ai-lib-2',
+        conversationId: 'conversation-ai-side-tennis',
+        kind: 'photo',
+        path: `${me}/sample-avatar.png`,
+        url: '/pingo-avatar.png',
+        mime: 'image/png',
+        createdAt: now - 27 * 3_600_000,
+      },
+      {
+        messageId: 'ai-lib-3',
+        conversationId: 'conversation-ai-side-tennis',
+        kind: 'file',
+        path: `${me}/training-plan.pdf`,
+        name: 'training-plan.pdf',
+        mime: 'application/pdf',
+        size: 182_000,
+        createdAt: now - 28 * 3_600_000,
+      },
+    ];
+  }
+
+  /** One line for Recents: the last message, or what it carried. */
+  #snippet(message: Message | undefined): string {
+    if (!message) return '';
+    const text = message.body.replace(/\s+/g, ' ').trim();
+    if (text) return text.slice(0, 140);
+    if (message.photo) return 'Photo';
+    const file = message.attachments.find((a) => a.kind === 'file');
+    if (file) return 'File';
+    return '';
+  }
 
   #emit(event: ChatEvent): void {
     for (const listener of this.#listeners) listener(event);
@@ -290,7 +393,8 @@ export class MockChatService implements ChatService {
   async listConversations(): Promise<Conversation[]> {
     await delay(READ_LATENCY_MS);
     this.#sortConversations();
-    return clone(this.#conversations);
+    // Side chats live in PINGO AI's drawer, not in the chat list.
+    return clone(this.#conversations.filter((c) => !c.aiSide));
   }
 
   async getConversation(id: ConversationId): Promise<Conversation | undefined> {
@@ -866,7 +970,7 @@ export class MockChatService implements ChatService {
 
   async ensureAiConversation(): Promise<ConversationId> {
     await delay(READ_LATENCY_MS);
-    const existing = this.#conversations.find((c) => c.kind === 'ai');
+    const existing = this.#conversations.find((c) => c.kind === 'ai' && !c.aiSide);
     if (existing) return existing.id;
 
     const conversation: Conversation = {
@@ -898,6 +1002,137 @@ export class MockChatService implements ChatService {
     ];
     this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
     return conversation.id;
+  }
+
+  // -- PINGO AI: Recents, goals, library ------------------------------------
+
+  async listAiChats(): Promise<AiChatSummary[]> {
+    await delay(READ_LATENCY_MS);
+    const ai = this.#conversations.filter((c) => c.kind === 'ai');
+    const main = ai.filter((c) => !c.aiSide);
+    const side = ai.filter((c) => c.aiSide).sort((a, b) => b.updatedAt - a.updatedAt);
+    return [...main, ...side].map((c) => ({
+      id: c.id,
+      title: c.aiSide ? (c.aiChatTitle ?? 'New chat') : c.title,
+      snippet: this.#snippet(c.lastMessage),
+      updatedAt: c.updatedAt,
+      main: !c.aiSide,
+      unreadCount: c.unreadCount,
+    }));
+  }
+
+  async createAiChat(): Promise<ConversationId> {
+    await delay(READ_LATENCY_MS);
+    const conversation: Conversation = {
+      id: `conversation-ai-side-${Date.now().toString(36)}`,
+      kind: 'ai',
+      title: 'PINGO',
+      aiSide: true,
+      aiChatTitle: 'New chat',
+      participantIds: [this.#currentUser.id],
+      unreadCount: 0,
+      updatedAt: Date.now(),
+      typingUserIds: [],
+      muted: false,
+      pinned: false,
+      favorite: false,
+      archived: false,
+      listIds: [],
+    };
+    this.#conversations.push(conversation);
+    this.#messages[conversation.id] = [];
+    this.#emit({ type: 'conversation:updated', conversation: clone(conversation) });
+    return conversation.id;
+  }
+
+  async renameAiChat(conversationId: ConversationId, title: string): Promise<void> {
+    await delay(120);
+    const clean = title.replace(/\s+/g, ' ').trim();
+    if (clean.length < 1 || clean.length > 80) throw new Error('A chat name is 1 to 80 characters.');
+    const conversation = this.#conversation(conversationId);
+    if (!conversation?.aiSide) throw new Error('Chat not found.');
+    this.#updateConversation(conversationId, { aiChatTitle: clean });
+  }
+
+  async deleteAiChat(conversationId: ConversationId): Promise<void> {
+    await delay(120);
+    const conversation = this.#conversation(conversationId);
+    if (!conversation?.aiSide) throw new Error('Chat not found.');
+    this.#conversations = this.#conversations.filter((c) => c.id !== conversationId);
+    delete this.#messages[conversationId];
+    this.#aiLibrarySamples = this.#aiLibrarySamples.filter((item) => item.conversationId !== conversationId);
+    this.#emit({ type: 'conversation:removed', conversationId });
+  }
+
+  async listAiGoals(): Promise<AiGoal[]> {
+    await delay(READ_LATENCY_MS);
+    return clone([...this.#aiGoals].sort((a, b) => b.createdAt - a.createdAt));
+  }
+
+  async addAiGoal(title: string): Promise<AiGoal> {
+    await delay(120);
+    const clean = title.replace(/\s+/g, ' ').trim();
+    if (clean.length < 1 || clean.length > 120) throw new Error('A goal is 1 to 120 characters.');
+    const goal: AiGoal = { id: `goal-${Date.now().toString(36)}`, title: clean, done: false, createdAt: Date.now() };
+    this.#aiGoals.unshift(goal);
+    return clone(goal);
+  }
+
+  async setAiGoalDone(goalId: string, done: boolean): Promise<void> {
+    await delay(120);
+    const goal = this.#aiGoals.find((g) => g.id === goalId);
+    if (!goal) throw new Error('Goal not found.');
+    goal.done = done;
+    if (done) goal.doneAt = Date.now();
+    else delete goal.doneAt;
+  }
+
+  async deleteAiGoal(goalId: string): Promise<void> {
+    await delay(120);
+    this.#aiGoals = this.#aiGoals.filter((g) => g.id !== goalId);
+  }
+
+  async listAiLibrary(options?: { before?: number; limit?: number }): Promise<AiLibraryItem[]> {
+    await delay(READ_LATENCY_MS);
+    const me = this.#currentUser.id;
+    const fromThreads: AiLibraryItem[] = [];
+    for (const conversation of this.#conversations) {
+      if (conversation.kind !== 'ai') continue;
+      for (const message of this.#messages[conversation.id] ?? []) {
+        if (message.authorId !== me && message.authorId !== MOCK_AI_BOT_ID) continue;
+        if (message.photo?.url && message.photo.viewLimit === undefined) {
+          fromThreads.push({
+            messageId: message.id,
+            conversationId: conversation.id,
+            kind: message.authorId === me ? 'photo' : 'image',
+            path: message.photo.url,
+            url: message.photo.url,
+            createdAt: message.createdAt,
+          });
+        }
+        const file = message.attachments.find((a): a is FileAttachment => a.kind === 'file');
+        if (file?.url) {
+          fromThreads.push({
+            messageId: message.id,
+            conversationId: conversation.id,
+            kind: 'file',
+            path: file.storagePath ?? file.url,
+            url: file.url,
+            name: file.fileName,
+            mime: file.mimeType,
+            ...(file.size ? { size: file.size } : {}),
+            createdAt: message.createdAt,
+          });
+        }
+      }
+    }
+    const limit = Math.min(Math.max(options?.limit ?? 60, 1), 100);
+    return clone(
+      [...fromThreads, ...this.#aiLibrarySamples]
+        .filter((item) => options?.before === undefined || item.createdAt < options.before)
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, limit),
+    );
   }
 
   // -- calls, gallery, moments --------------------------------------------

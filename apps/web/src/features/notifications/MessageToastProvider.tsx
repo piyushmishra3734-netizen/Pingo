@@ -53,7 +53,7 @@ interface LiveToast extends MessageToastData {
 }
 
 export function MessageToastProvider({ children }: { children: ReactNode }) {
-  const { service, ready, currentUser, users, conversations } = useChat();
+  const { service, ready, currentUser, users, conversations, aiSideChats } = useChat();
   const { preferences } = usePreferences();
   const { call } = useCall();
   const navigate = useNavigate();
@@ -77,7 +77,8 @@ export function MessageToastProvider({ children }: { children: ReactNode }) {
   const soundThrottle = useRef<ThrottleState>(FRESH_THROTTLE);
 
   usersRef.current = users;
-  conversationsRef.current = conversations;
+  // PINGO AI side chats are not in the list, but a reply in one is still PINGO AI's.
+  conversationsRef.current = aiSideChats.length ? [...conversations, ...aiSideChats] : conversations;
   currentUserRef.current = currentUser;
   prefsRef.current = preferences.notifications;
   locationRef.current = location.pathname;

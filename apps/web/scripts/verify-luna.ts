@@ -75,6 +75,15 @@ globalThis.fetch = async (url, init) => {
     ]);
   }
   if (said.includes('mood test')) return sse(textEvents('Wah, kya baat hai! [[mood:excited]]'));
+  if (said.includes('tennis') && !said.includes('goal')) return sse(textEvents('Start with a good racket and a coach. [[mood:happy]] [[title:Learning tennis basics]]'));
+  if (said.includes('goal') && !answered) {
+    return sse([
+      { type: 'response.output_item.added', output_index: 0, item: { type: 'function_call', id: 'fc_g', call_id: 'g1', name: 'add_goal', arguments: '' } },
+      { type: 'response.output_item.done', output_index: 0, item: { type: 'function_call', id: 'fc_g', call_id: 'g1', name: 'add_goal', arguments: '{"title":"Learn tennis"}' } },
+      { type: 'response.completed', response: { status: 'completed' } },
+    ]);
+  }
+  if (said.includes('goal') && answered) return sse(textEvents('Added it to your goals. [[mood:excited]]'));
   return sse(textEvents(answered ? 'Tera birthday 5 June hai. Party kab hai?' : 'Haan bhai, bilkul! Bata kya scene hai.'));
 };
 
@@ -109,8 +118,8 @@ const deps = {
   __images: [],
 };
 const nowIso = () => new Date().toISOString();
-async function run(live, extra = {}, rows) {
-  const state = { ai_profiles: [{ memory_enabled: true, preferred_name: 'Piyush', response_length: 'short' }], ai_memories: [{ value: 'birthday 5 June', created_at: '2026-10-01T00:00:00Z' }],
+async function run(live, extra = {}, rows, more = {}) {
+  const state = { ...more, ai_profiles: [{ memory_enabled: true, preferred_name: 'Piyush', response_length: 'short' }], ai_memories: [{ value: 'birthday 5 June', created_at: '2026-10-01T00:00:00Z' }],
     messages: rows ?? [{ id: 'm3', sender_id: 'me', body: live, created_at: nowIso() }, { id: 'm2', sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' }, { id: 'm1', sender_id: 'me', body: 'hi', created_at: '2026-10-08T09:59:59Z' }],
     inserted: [], posted: [], saved: [], rpcs: [] };
   const db = makeDb(state); db.__state = state;
@@ -132,9 +141,10 @@ assert.deepEqual(calls[0].reasoning, { effort: 'low' });
 assert.equal(calls[0].stream, true);
 assert.equal(calls[0].store, false);
 assert.equal(calls[0].prompt_cache_key, 'pingo-ai-me');
-assert.deepEqual(calls[0].tools.map((t) => t.type), ['function', 'function', 'function', 'web_search', 'image_generation']);
+assert.deepEqual(calls[0].tools.map((t) => t.type), ['function', 'function', 'function', 'function', 'function', 'function', 'web_search', 'image_generation']);
+assert.deepEqual(calls[0].tools.slice(3, 6).map((t) => t.name), ['add_goal', 'list_goals', 'complete_goal']);
 assert.equal(calls[0].tools[0].name, 'save_memory', 'function tools in the Responses (flat) shape');
-assert.equal(calls[0].tools[4].model, 'gpt-image-2');
+assert.equal(calls[0].tools[7].model, 'gpt-image-2');
 assert.deepEqual(r.state.rpcs[0].args.reply_meta, { mood: 'happy' }, 'no tag: happy, stored with the reply');
 assert.equal(r.out.body.mood, 'happy');
 console.log('plain turn ok, stages', r.stages.join('>'));
@@ -253,4 +263,41 @@ assert.deepEqual(r.state.saved, ['mera fav colour blue hai']);
 assert.equal(r.out.body.mood, 'happy');
 assert.equal(r.out.body.memorySaved, true);
 console.log('commands ok');
+
+// ---- side chats: named once, from the hidden tag, which never reaches the screen
+const named = [];
+deps.nameChat = async (title) => { named.push(title); return true; };
+calls.length = 0;
+r = await run('how do I get into tennis?', {}, undefined, { conversations: [{ kind: 'ai', ai_side: true, title: 'New chat' }] });
+assert.ok(JSON.stringify(calls[0].input.at(-1)).includes('[[title:'), 'first turn asks for a title, after the history');
+assert.equal(calls[0].input[0].content.includes('[[title:'), false, 'cached opening unchanged');
+assert.equal(r.state.posted[0], 'Start with a good racket and a coach.', 'title tag stripped from the reply');
+assert.ok(!r.deltas.join('').includes('title'), 'title tag never streamed');
+assert.deepEqual(named, ['Learning tennis basics']);
+assert.equal(r.out.body.chatTitle, 'Learning tennis basics');
+
+named.length = 0;
+calls.length = 0;
+r = await run('how do I get into tennis?', {}, undefined, { conversations: [{ kind: 'ai', ai_side: true, title: 'Tennis' }] });
+assert.equal(JSON.stringify(calls[0].input.at(-1)).includes('[[title:'), false, 'a named chat is not asked again');
+assert.deepEqual(named, []);
+
+r = await run('kal movie chalein?', {}, undefined, { conversations: [{ kind: 'ai', ai_side: false, title: 'PINGO' }] });
+assert.deepEqual(named, [], 'the main thread is never renamed');
+
+r = await run('kal movie chalein?', {}, undefined, { conversations: [{ kind: 'ai', ai_side: true, title: 'New chat' }] });
+assert.deepEqual(named, ['Kal movie chalein'], 'no tag: the first words');
+delete deps.nameChat;
+console.log('side chat titles ok');
+
+// ---- goals
+calls.length = 0;
+r = await run('add a goal to learn tennis');
+assert.equal(calls.length, 2, 'one tool round');
+assert.deepEqual(r.state.inserted.find((x) => x.table === 'ai_goals')?.row, { user_id: 'me', title: 'Learn tennis' });
+assert.equal(r.state.posted.at(-1), 'Added it to your goals.');
+calls.length = 0;
+r = await run('kal movie chalein?', { isGroup: true });
+assert.equal(calls[0].tools.some((t) => t.name === 'add_goal'), false, 'no goals in a group');
+console.log('goals ok');
 console.log('ALL OK');

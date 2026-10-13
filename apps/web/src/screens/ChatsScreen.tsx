@@ -4,6 +4,7 @@ import { Suspense, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
+import { useAiConversation } from '../features/ai/ai-data.js';
 import { InstallBanner } from '../features/install/InstallBanner.js';
 import { ConversationList } from '../features/conversations/ConversationList.js';
 import { useT } from '../features/i18n/useT.js';
@@ -45,7 +46,7 @@ export function ChatsScreen() {
   const t = useT();
   const { conversationId } = useParams<{ conversationId: string }>();
   const { profile } = useProfile();
-  const { conversations, ready } = useChat();
+  const { conversations, aiSideChats, ready } = useChat();
   const isDesktop = useIsDesktop();
   const missions = useDailyMissions();
   /*
@@ -59,14 +60,25 @@ export function ChatsScreen() {
     const timer = window.setTimeout(() => void ChatThread.preload(), 1200);
     return () => window.clearTimeout(timer);
   }, [ready]);
-  const conversation = conversationId
-    ? conversations.find((c) => c.id === conversationId)
+  const listed = conversationId
+    ? (conversations.find((c) => c.id === conversationId) ??
+      aiSideChats.find((c) => c.id === conversationId))
     : undefined;
+  /*
+   * A PINGO AI side chat is never in the list, so one the provider has not
+   * met yet (a deep link, a notification, Recents after a reload) is read by
+   * id before anyone decides the id is stale.
+   */
+  const side = useAiConversation(ready && conversationId && !listed ? conversationId : undefined);
+  const conversation = listed ?? side.conversation;
 
   // A stale or mistyped id should land the user somewhere useful, not on an error.
-  if (ready && conversationId && !conversation) {
+  if (ready && conversationId && !conversation && !side.pending) {
     return <Navigate to="/chats" replace />;
   }
+
+  // Reading a side chat by id: hold the thread's place rather than flash the list.
+  if (!isDesktop && conversationId && !conversation && side.pending) return <ThreadPending />;
 
   if (!isDesktop) {
     return conversation ? (

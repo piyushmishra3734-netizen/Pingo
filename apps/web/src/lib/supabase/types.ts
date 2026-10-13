@@ -156,6 +156,11 @@ export type ConversationRow = {
   wallpaper_photo_url?: string | null;
   /** Seconds a new message lives here. Null is off. See the disappearing migration. */
   disappear_seconds?: number | null;
+  /**
+   * A PINGO AI side chat (Recents), not the main AI thread. Optional until
+   * 20261025000000_ai_side_chats_goals is applied; absent reads as false.
+   */
+  ai_side?: boolean;
 };
 
 /** One row of `public.conversation_members`. Per-person state lives here. */
@@ -394,6 +399,19 @@ export type Database = {
         };
         Insert: { user_id: string; key: string; value: string };
         Update: { key?: string; value?: string };
+        Relationships: [];
+      };
+      ai_goals: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          done: boolean;
+          created_at: string;
+          done_at: string | null;
+        };
+        Insert: { title: string; user_id?: string; done?: boolean };
+        Update: { title?: string; done?: boolean };
         Relationships: [];
       };
       conversations: {
@@ -1208,6 +1226,35 @@ export type Database = {
       ensure_ai_conversation: {
         Args: Record<string, never>;
         Returns: string;
+      };
+      /** A new PINGO AI side chat, titled 'New chat'. Returns its id. */
+      create_ai_side_chat: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      rename_ai_side_chat: {
+        Args: { target: string; new_title: string };
+        Returns: undefined;
+      };
+      delete_ai_side_chat: {
+        Args: { target: string };
+        Returns: undefined;
+      };
+      /** Media in the caller's PINGO AI threads, newest first. Security invoker. */
+      ai_library_page: {
+        Args: { before_at?: string | null; page_size?: number };
+        Returns: {
+          message_id: string;
+          conversation_id: string;
+          sender_id: string;
+          kind: string;
+          photo_path: string | null;
+          file_path: string | null;
+          file_name: string | null;
+          file_mime: string | null;
+          file_size: number | null;
+          created_at: string;
+        }[];
       };
       post_ai_reply: {
         Args: { target_conversation: string; reply_body: string };

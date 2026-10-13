@@ -513,6 +513,59 @@ export interface Conversation {
    * only one side honoured would be a promise the other side had not made.
    */
   disappearSeconds?: number;
+  /**
+   * A PINGO AI side chat (Recents): `kind` is still `'ai'` and `title` is
+   * still PINGO AI's name, so the thread renders as PINGO AI's room. Side
+   * chats are listed only in PINGO AI's drawer, never in the main chat list.
+   * Absent on everything else, including the main PINGO AI thread.
+   */
+  aiSide?: boolean;
+  /** A side chat's own name ('New chat' until its first reply names it). Side chats only. */
+  aiChatTitle?: string;
+}
+
+/** One row of PINGO AI's Recents: the main thread first, then side chats, newest first. */
+export interface AiChatSummary {
+  id: ConversationId;
+  /** 'PINGO' (or the AI's name) for the main thread; the chat's own name for a side chat. */
+  title: string;
+  /** The last message, one line ('' when there is none yet). */
+  snippet: string;
+  updatedAt: number;
+  /** The main PINGO AI thread, the one in the chat list. */
+  main: boolean;
+  unreadCount: number;
+}
+
+/** A goal the person keeps with PINGO AI. */
+export interface AiGoal {
+  id: string;
+  title: string;
+  done: boolean;
+  createdAt: number;
+  doneAt?: number;
+}
+
+/**
+ * One piece of media from the person's PINGO AI threads.
+ *
+ * - `image`: a picture PINGO AI drew;
+ * - `photo`: a photo they sent PINGO AI;
+ * - `file`: a document they sent PINGO AI.
+ */
+export interface AiLibraryItem {
+  messageId: MessageId;
+  conversationId: ConversationId;
+  kind: 'image' | 'photo' | 'file';
+  /** Storage path (bucket `photos` for image/photo, `documents` for file). */
+  path: string;
+  /** A signed URL when it could be signed; absent otherwise. */
+  url?: string;
+  /** File name, for `file`. */
+  name?: string;
+  mime?: string;
+  size?: number;
+  createdAt: number;
 }
 
 /**

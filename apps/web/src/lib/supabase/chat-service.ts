@@ -27,7 +27,10 @@
  */
 
 import type {
+  AiChatSummary,
   AiCommand,
+  AiGoal,
+  AiLibraryItem,
   AiMood,
   AiSource,
   AppNotification,
@@ -114,6 +117,7 @@ import { clearFriendsListening, setFriendListening } from '../../features/music/
  * `verify:image-intent` reads it.
  */
 import { appendAiDraft, clearAiDraft, setAiDraftSources, setAiMood } from '../../features/ai/ai-draft.js';
+import { aiSnippet, toAiGoal } from '../../features/ai/ai-recents.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
@@ -2205,7 +2209,8 @@ export class SupabaseChatService implements ChatService {
         const aiTitle =
           aiProfile?.display_name?.trim() ||
           aiPublic?.display_name?.trim() ||
-          row.title ||
+          // A side chat's own name ('New chat', 'Goa trip') is not PINGO AI's name.
+          (row.ai_side ? undefined : row.title) ||
           'PINGO';
         const aiAvatar =
           aiProfile?.avatar_url || aiPublic?.avatar_url || undefined;
@@ -2213,6 +2218,14 @@ export class SupabaseChatService implements ChatService {
         return {
           id: row.id,
           kind: row.kind,
+          /*
+           * A PINGO AI side chat: still `kind: 'ai'` with PINGO AI's name and
+           * face, so the thread renders as PINGO AI's room. Its own name rides
+           * beside it for the drawer. The provider keeps these out of the list.
+           */
+          ...(row.kind === 'ai' && row.ai_side
+            ? { aiSide: true, aiChatTitle: row.title?.trim() || 'New chat' }
+            : {}),
           // A direct chat is titled by whoever else is in it, per viewer.
           // AI is a person-shaped row: name from prefs, not a "bot" label.
           title: row.kind === 'ai' ? aiTitle : (row.title ?? otherUser?.name ?? 'Conversation'),
@@ -2663,7 +2676,14 @@ export class SupabaseChatService implements ChatService {
 
     const ids = new Set((memberships ?? []).map((m) => m.conversation_id));
     if (ids.size === 0) return [];
-    return this.#hydrate((rows ?? []).filter((row) => ids.has(row.id)), me);
+    /*
+     * PINGO AI side chats are not in the chat list: they live in PINGO AI's
+     * drawer (`listAiChats`), and open by id like any thread.
+     */
+    return this.#hydrate(
+      (rows ?? []).filter((row) => ids.has(row.id) && !row.ai_side),
+      me,
+    );
   }
 
   // -- conversation management ----------------------------------------------
@@ -5603,6 +5623,201 @@ export class SupabaseChatService implements ChatService {
     const conversation = await this.getConversation(id);
     if (conversation) this.#emit({ type: 'conversation:updated', conversation });
     return id;
+  }
+
+  // -- PINGO AI: Recents, goals, library --------------------------------------
+  //
+  // Side chats are `kind = 'ai'` conversations with `ai_side = true`
+  // (20261025000000_ai_side_chats_goals). They are kept out of
+  // `listConversations` and come back from `getConversation` with
+  // `aiSide: true`, so /chats/:id renders them as PINGO AI's room.
+
+  async listAiChats(): Promise<AiChatSummary[]> {
+    /*
+     * The rows, and the previews beside them. RLS ("members read their
+     * conversations") scopes the first to this account; the second answers for
+     * the whole account in one call, which is what the chat list already pays.
+     */
+    const [{ data: rows, error }, { data: previews }] = await Promise.all([
+      this.#client
+        .from('conversations')
+        .select('*')
+        .eq('kind', 'ai')
+        .order('last_message_at', { ascending: false })
+        .limit(300),
+      this.#client.rpc('conversation_previews'),
+    ]);
+    if (error) throw error;
+    const all = (rows ?? []) as ConversationRow[];
+    for (const row of all) this.#aiConversationIds.add(row.id);
+
+    const previewById = new Map(
+      ((previews ?? []) as ConversationPreviewRow[]).map((row) => [row.conversation_id, row]),
+    );
+
+    // The newest message of each, through the same cache the chat list uses.
+    const lastIds = all
+      .map((row) => previewById.get(row.id)?.last_message_id)
+      .filter((id): id is string => Boolean(id));
+    const wanted = lastIds.filter((id) => !this.#previewRows.has(id));
+    const lastById = new Map<string, MessageRow>();
+    if (wanted.length > 0) {
+      const fetched = await this.#fetchMessagesById(wanted).catch(() => [] as MessageRow[]);
+      for (const row of fetched) {
+        if (row.encryption) continue; // AI threads are plaintext; anything else has no snippet.
+        lastById.set(row.id, row);
+      }
+    }
+    for (const id of lastIds) {
+      const cached = this.#previewRows.get(id);
+      if (cached && !lastById.has(id)) lastById.set(id, cached);
+    }
+
+    // The main thread is the oldest that is not a side chat (`ensure_ai_conversation`).
+    const mainId = all
+      .filter((row) => !row.ai_side)
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))[0]?.id;
+
+    const summaries = all
+      .filter((row) => row.ai_side || row.id === mainId)
+      .map((row): AiChatSummary => {
+        const preview = previewById.get(row.id);
+        const last = preview?.last_message_id ? lastById.get(preview.last_message_id) : undefined;
+        const main = row.id === mainId;
+        return {
+          id: row.id,
+          title: main
+            ? (this.#known.get(row.id)?.title ?? row.title ?? 'PINGO')
+            : row.title?.trim() || 'New chat',
+          snippet: aiSnippet(last, PINGO_AI_USER_ID),
+          updatedAt: Date.parse(last?.created_at ?? row.last_message_at),
+          main,
+          unreadCount:
+            last && heldRead(row.id) >= parseTimestamp(last.created_at) ? 0 : (preview?.unread_count ?? 0),
+        };
+      });
+
+    return [
+      ...summaries.filter((chat) => chat.main),
+      ...summaries.filter((chat) => !chat.main).sort((a, b) => b.updatedAt - a.updatedAt),
+    ];
+  }
+
+  async createAiChat(): Promise<ConversationId> {
+    const { data, error } = await this.#client.rpc('create_ai_side_chat');
+    if (error) throw error;
+    const id = data as ConversationId;
+    this.#aiConversationIds.add(id);
+    this.#rememberAiPerson();
+    // Announced before the caller navigates, so /chats/:id resolves at once.
+    const conversation = await this.getConversation(id);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+    return id;
+  }
+
+  async renameAiChat(conversationId: ConversationId, title: string): Promise<void> {
+    const { error } = await this.#client.rpc('rename_ai_side_chat', {
+      target: conversationId,
+      new_title: title,
+    });
+    if (error) throw error;
+    // A read from just before the rename would otherwise be handed back.
+    this.#conversationReads.delete(conversationId);
+    const conversation = await this.getConversation(conversationId);
+    if (conversation) this.#emit({ type: 'conversation:updated', conversation });
+  }
+
+  async deleteAiChat(conversationId: ConversationId): Promise<void> {
+    const { error } = await this.#client.rpc('delete_ai_side_chat', { target: conversationId });
+    if (error) throw error;
+    this.#known.delete(conversationId);
+    this.#conversationReads.delete(conversationId);
+    this.#aiConversationIds.delete(conversationId);
+    this.#emit({ type: 'conversation:removed', conversationId });
+  }
+
+  async listAiGoals(): Promise<AiGoal[]> {
+    const { data, error } = await this.#client
+      .from('ai_goals')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return (data ?? []).map(toAiGoal);
+  }
+
+  async addAiGoal(title: string): Promise<AiGoal> {
+    const clean = title.replace(/\s+/g, ' ').trim();
+    if (clean.length < 1 || clean.length > 120) throw new Error('A goal is 1 to 120 characters.');
+    const { data, error } = await this.#client
+      .from('ai_goals')
+      .insert({ title: clean })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return toAiGoal(data);
+  }
+
+  async setAiGoalDone(goalId: string, done: boolean): Promise<void> {
+    // `done_at` is stamped by the table's trigger.
+    const { error } = await this.#client.from('ai_goals').update({ done }).eq('id', goalId);
+    if (error) throw error;
+  }
+
+  async deleteAiGoal(goalId: string): Promise<void> {
+    const { error } = await this.#client.from('ai_goals').delete().eq('id', goalId);
+    if (error) throw error;
+  }
+
+  async listAiLibrary(options?: { before?: number; limit?: number }): Promise<AiLibraryItem[]> {
+    const { data, error } = await this.#client.rpc('ai_library_page', {
+      before_at: options?.before !== undefined ? new Date(options.before).toISOString() : null,
+      page_size: Math.min(Math.max(options?.limit ?? 60, 1), 100),
+    });
+    if (error) throw error;
+    const rows = (data ?? []) as Database['public']['Functions']['ai_library_page']['Returns'];
+
+    // Signed the same way, and through the same cache, as a thread's photos and files.
+    const photoPaths = [...new Set(rows.flatMap((r) => (r.kind === 'photo' && r.photo_path ? [r.photo_path] : [])))];
+    const filePaths = [...new Set(rows.flatMap((r) => (r.kind === 'document' && r.file_path ? [r.file_path] : [])))];
+    const [photoUrls, fileUrls] = await Promise.all([
+      this.#signStoragePaths(PHOTO_BUCKET, photoPaths).catch(() => new Map<string, string>()),
+      this.#signStoragePaths(DOCUMENT_BUCKET, filePaths).catch(() => new Map<string, string>()),
+    ]);
+
+    return rows.flatMap((row): AiLibraryItem[] => {
+      const createdAt = parseTimestamp(row.created_at);
+      if (row.kind === 'photo' && row.photo_path) {
+        const url = photoUrls.get(row.photo_path);
+        return [
+          {
+            messageId: row.message_id,
+            conversationId: row.conversation_id,
+            kind: row.sender_id === PINGO_AI_USER_ID ? 'image' : 'photo',
+            path: row.photo_path,
+            ...(url ? { url } : {}),
+            createdAt,
+          },
+        ];
+      }
+      if (row.kind === 'document' && row.file_path) {
+        const url = fileUrls.get(row.file_path);
+        return [
+          {
+            messageId: row.message_id,
+            conversationId: row.conversation_id,
+            kind: 'file',
+            path: row.file_path,
+            ...(url ? { url } : {}),
+            ...(row.file_name ? { name: row.file_name } : {}),
+            ...(row.file_mime ? { mime: row.file_mime } : {}),
+            ...(row.file_size ? { size: Number(row.file_size) } : {}),
+            createdAt,
+          },
+        ];
+      }
+      return [];
+    });
   }
 
   async markConversationRead(conversationId: ConversationId): Promise<void> {

@@ -31,6 +31,13 @@ interface ChatContextValue {
   /** Everyone the signed-in user knows. Needed to resolve names and presence. */
   users: User[];
   conversations: Conversation[];
+  /**
+   * PINGO AI side chats this session has seen (opened, created, or that a
+   * message arrived in). Kept apart from `conversations` so no list, badge or
+   * picker ever shows them; a thread route resolves its conversation from
+   * either. The full Recents list comes from `service.listAiChats()`.
+   */
+  aiSideChats: Conversation[];
   connection: ConnectionState;
   /** False until the first load of user + conversations settles. */
   ready: boolean;
@@ -70,6 +77,7 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
   const [currentUser, setCurrentUser] = useState<CurrentUser | undefined>();
   const [users, setUsers] = useState<User[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [aiSideChats, setAiSideChats] = useState<Conversation[]>([]);
   const [connection, setConnection] = useState<ConnectionState>(() =>
     service.connectionState(),
   );
@@ -108,7 +116,9 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
         setUsers(value);
         return value;
       }),
-      service.listConversations().then((value) => {
+      service.listConversations().then((all) => {
+        // Side chats never belong in the list, whatever a service or an old cache returns.
+        const value = all.filter((c) => !c.aiSide);
         fresh.current.list = true;
         setConversations(value);
         // The list is the screen; a current one is as ready as it gets.
@@ -147,7 +157,7 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
         if (!active || settled || !snapshot) return;
         if (!fresh.current.user) setCurrentUser(snapshot.currentUser);
         if (!fresh.current.users) setUsers(snapshot.users);
-        if (!fresh.current.list) setConversations(snapshot.conversations);
+        if (!fresh.current.list) setConversations(snapshot.conversations.filter((c) => !c.aiSide));
         // Ready, because there is a usable screen. Whether it is the final one
         // is not something a spinner can usefully communicate.
         setReady(true);
@@ -181,6 +191,14 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
     const unsubscribe = service.subscribe((event: ChatEvent) => {
       switch (event.type) {
         case 'conversation:updated': {
+          if (event.conversation.aiSide) {
+            setAiSideChats((previous) =>
+              previous.some((c) => c.id === event.conversation.id)
+                ? previous.map((c) => (c.id === event.conversation.id ? event.conversation : c))
+                : [...previous, event.conversation],
+            );
+            break;
+          }
           setConversations((previous) => {
             const next = previous.some((c) => c.id === event.conversation.id)
               ? previous.map((c) =>
@@ -201,6 +219,7 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
           setConversations((previous) =>
             previous.filter((c) => c.id !== event.conversationId),
           );
+          setAiSideChats((previous) => previous.filter((c) => c.id !== event.conversationId));
           break;
         }
 
@@ -214,13 +233,14 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
         }
 
         case 'typing:changed': {
-          setConversations((previous) =>
+          const typing = (previous: Conversation[]) =>
             previous.map((c) =>
               c.id === event.conversationId
                 ? { ...c, typingUserIds: event.userIds, typingActivity: event.activity }
                 : c,
-            ),
-          );
+            );
+          setConversations(typing);
+          setAiSideChats(typing);
           break;
         }
 
@@ -299,12 +319,13 @@ export function ChatProvider({ children, service: injected }: ChatProviderProps)
       currentUser,
       users,
       conversations,
+      aiSideChats,
       connection,
       ready,
       totalUnread,
       refresh: load,
     }),
-    [service, currentUser, users, conversations, connection, ready, totalUnread, load],
+    [service, currentUser, users, conversations, aiSideChats, connection, ready, totalUnread, load],
   );
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

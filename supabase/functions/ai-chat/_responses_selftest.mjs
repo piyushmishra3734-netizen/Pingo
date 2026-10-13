@@ -314,5 +314,23 @@ test('a forced tool that is refused is no longer forced', () => {
   assert.equal(b.tool_choice, 'auto');
 });
 
+test('side chat title tag: hidden while streaming, read at the end', () => {
+  const raw = 'Start small, hit against a wall. [[mood:happy]] [[title:Learning tennis basics]]';
+  for (const size of [1, 2, 3, 5, 9]) {
+    const f = new MoodFilter();
+    let shown = '';
+    for (let i = 0; i < raw.length; i += size) shown += f.push(raw.slice(i, i + size));
+    shown += f.end();
+    assert.equal(shown.trim(), 'Start small, hit against a wall.', `chunk ${size}`);
+    assert.equal(f.title, 'Learning tennis basics');
+    assert.equal(f.mood, 'happy');
+  }
+  assert.deepEqual(takeMood(raw), { text: 'Start small, hit against a wall.', mood: 'happy', title: 'Learning tennis basics' });
+  const cut = new MoodFilter();
+  assert.equal(cut.push('Done. [[title:Half a ti') + cut.end(), 'Done. ', 'an unfinished title tag is dropped');
+  const text = new MoodFilter();
+  assert.equal(text.push('See [the docs](https://x.y) [[to do]]') + text.end(), 'See [the docs](https://x.y) [[to do]]', 'other brackets are text');
+});
+
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAIL`);
 process.exit(fail === 0 ? 0 : 1);

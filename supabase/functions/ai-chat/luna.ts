@@ -45,6 +45,7 @@ import {
   type Tool,
 } from './openai.ts';
 import { asMood, MoodFilter, stripCitations, takeMood, type Mood } from './responses-events.ts';
+import { cleanTitle, firstWordsTitle, sideChatNeedsTitle, TITLE_NOTE, type ChatRow } from './side-chat-title.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -81,6 +82,11 @@ export interface LunaDeps {
   ) => Promise<{ messageId: string; path: string } | { error: string }>;
   /** The Cloudflare drawing path, whole: draws, posts, and says so if it cannot. */
   drawFallback?: (prompt: string) => Promise<{ status: number; body: Record<string, unknown> }>;
+  /**
+   * Names a side chat after its first reply (service role, see side-chat.ts).
+   * Absent: side chats keep 'New chat' until a turn that has it.
+   */
+  nameChat?: (title: string) => Promise<unknown>;
 }
 
 /** Stored with the bot's message as `messages.meta.ai`, so it survives a reload. */
@@ -252,6 +258,39 @@ const TOOLS: FunctionTool[] = [
   },
 ];
 
+/** Their goals list. Not offered in groups: a goal is private to its owner. */
+const GOAL_TOOLS: FunctionTool[] = [
+  {
+    type: 'function',
+    name: 'add_goal',
+    description: 'Add a goal they asked to add.',
+    parameters: {
+      type: 'object',
+      properties: { title: { type: 'string', description: 'The goal, short.' } },
+      required: ['title'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: 'list_goals',
+    description: 'List their goals.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    type: 'function',
+    name: 'complete_goal',
+    description: 'Mark a goal done.',
+    parameters: {
+      type: 'object',
+      properties: { goal: { type: 'string', description: 'Goal id or title.' } },
+      required: ['goal'],
+      additionalProperties: false,
+    },
+  },
+];
+const GOAL_CAP = 200;
+
 type Row = {
   id: string;
   sender_id: string;
@@ -273,7 +312,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const t0 = Date.now();
   t.emit('reading');
 
-  const [{ data: profile }, { data: rows }, { count: total }] = await Promise.all([
+  const [{ data: profile }, { data: rows }, { count: total }, { data: chat }] = await Promise.all([
     t.db
       .from('ai_profiles')
       .select('personality, custom_personality, response_length, preferred_name, display_name, language, country, memory_enabled')
@@ -291,7 +330,15 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       .select('id', { count: 'exact', head: true })
       .eq('conversation_id', t.conversationId)
       .is('encryption', null),
+    /* Whether this is a side chat still called 'New chat', which this turn names. Never a group. */
+    t.isGroup
+      ? Promise.resolve({ data: null })
+      : t.db.from('conversations').select('*').eq('id', t.conversationId).maybeSingle().then(
+          (r: { data: unknown }) => r,
+          () => ({ data: null }),
+        ),
   ]);
+  const needsTitle = !!d.nameChat && sideChatNeedsTitle(chat as ChatRow);
   const p = (profile ?? null) as LunaProfile | null;
   const memoryOn = p?.memory_enabled !== false;
   const newest = (rows ?? []) as Row[];
@@ -405,6 +452,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
   const command = t.command ? COMMANDS[t.command] : undefined;
   if (command) now.push(command(lang));
+  if (needsTitle) now.push(TITLE_NOTE);
   if (justSaved) now.push(`You just saved this to their memory, as they asked: "${justSaved}". Confirm briefly in your reply; do not call save_memory for it again.`);
   if (t.spoken) about.push('This reply will be SPOKEN aloud on a call: 1 to 3 natural sentences, no lists, no emojis, no markdown, no links.');
   if (t.isGroup) {
@@ -479,7 +527,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   };
 
   const maxTokens = t.spoken ? 700 : len === 'detailed' ? 3000 : len === 'balanced' ? 1600 : 1000;
-  let tools: Tool[] = [...(memoryOn ? TOOLS : TOOLS.filter((x) => x.name === 'search_chat')), ...builtinTools(t, p)];
+  let tools: Tool[] = [
+    ...(memoryOn ? TOOLS : TOOLS.filter((x) => x.name === 'search_chat')),
+    ...(t.isGroup ? [] : GOAL_TOOLS),
+    ...builtinTools(t, p),
+  ];
   const imageOffered = tools.some((x) => x.type === 'image_generation');
 
   stage(attached.files ? 'reading_file' : attached.photos ? 'looking' : 'thinking');
@@ -618,6 +670,13 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     messageId = data;
   }
 
+  /* A side chat's first reply names it: the hidden tag, or the first words they said. */
+  let chatTitle: string | undefined;
+  if (needsTitle && messageId) {
+    chatTitle = cleanTitle(tagged.title ?? moods.title) ?? firstWordsTitle(t.live);
+    if (chatTitle) await d.nameChat!(chatTitle).catch((err) => console.warn('[luna] title', err));
+  }
+
   /*
    * One line per turn in the function's logs (Supabase > Edge Functions >
    * ai-chat > Logs): which model answered, what it cost in tokens, how much of
@@ -641,6 +700,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       mood,
       ...(sources.length ? { sources } : {}),
       ...(image ? { image } : {}),
+      ...(chatTitle ? { chatTitle } : {}),
       ...(usage ? { usage } : {}),
       ms: { before: tModel - t0, firstWords: firstText ? firstText - tModel : null, model: tModelDone - tModel, total: Date.now() - t0 },
     },
@@ -832,7 +892,7 @@ function unlink(sentence: string): string {
 }
 
 async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: boolean, oldestInView: string): Promise<string> {
-  let args: { text?: string; query?: string } = {};
+  let args: { text?: string; query?: string; title?: string; goal?: string } = {};
   try {
     args = JSON.parse(call.arguments || '{}');
   } catch {
@@ -850,6 +910,48 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
       const { data } = await t.db.from('ai_memories').select('value, created_at').eq('user_id', t.userId).order('created_at', { ascending: false }).limit(MEMORY_CAP);
       const all = ((data ?? []) as { value: string; created_at: string }[]).map((m) => `- ${m.value} (saved ${m.created_at.slice(0, 10)})`);
       return all.length ? all.join('\n') : 'Nothing saved yet.';
+    }
+    if (call.name === 'add_goal' && !t.isGroup) {
+      const title = (args.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      if (!title) return 'No goal given.';
+      const { count } = await t.db.from('ai_goals').select('id', { count: 'exact', head: true }).eq('user_id', t.userId);
+      if ((count ?? 0) >= GOAL_CAP) return 'Their goals list is full. Ask them to clear some done goals first.';
+      const { error } = await t.db.from('ai_goals').insert({ user_id: t.userId, title });
+      return error ? 'Could not add it right now.' : `Added: ${title}`;
+    }
+    if (call.name === 'list_goals' && !t.isGroup) {
+      const { data } = await t.db
+        .from('ai_goals')
+        .select('id, title, done')
+        .eq('user_id', t.userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      const all = (data ?? []) as { id: string; title: string; done: boolean }[];
+      return all.length ? all.map((g) => `- ${g.done ? '[done] ' : ''}${g.title} (id ${g.id})`).join('\n') : 'No goals yet.';
+    }
+    if (call.name === 'complete_goal' && !t.isGroup) {
+      const want = (args.goal ?? '').trim();
+      if (!want) return 'Which goal?';
+      let id: string | undefined;
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(want)) id = want;
+      else {
+        const { data } = await t.db
+          .from('ai_goals')
+          .select('id, title')
+          .eq('user_id', t.userId)
+          .eq('done', false)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        const open = (data ?? []) as { id: string; title: string }[];
+        const w = want.toLowerCase();
+        const hit =
+          open.find((g) => g.title.toLowerCase() === w) ??
+          open.find((g) => g.title.toLowerCase().includes(w) || w.includes(g.title.toLowerCase()));
+        id = hit?.id;
+      }
+      if (!id) return 'No open goal matches that.';
+      const { error } = await t.db.from('ai_goals').update({ done: true }).eq('id', id).eq('user_id', t.userId);
+      return error ? 'Could not update it right now.' : 'Marked done.';
     }
     if (call.name === 'search_chat') {
       const words = [...new Set((args.query ?? '').toLowerCase().replace(/[^a-z0-9ऀ-ॿ\s]/gi, ' ').split(/\s+/).filter((w) => w.length >= 3))]

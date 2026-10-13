@@ -15,6 +15,9 @@
  */
 
 import type {
+  AiChatSummary,
+  AiGoal,
+  AiLibraryItem,
   AppNotification,
   CallOutcome,
   CallRecord,
@@ -618,6 +621,33 @@ export interface ChatService {
    * Same list and thread surfaces as any other chat. Not a separate AI product.
    */
   ensureAiConversation(): Promise<ConversationId>;
+
+  // -- PINGO AI: Recents, goals, library -------------------------------------
+  //
+  // Optional: a backend without them simply has no drawer content. Side chats
+  // are `kind: 'ai'` conversations with `aiSide: true`; they open at
+  // /chats/:id like any thread and are never in `listConversations()`.
+
+  /** The main PINGO AI thread first (`main: true`), then side chats, newest first. */
+  listAiChats?(): Promise<AiChatSummary[]>;
+  /** A new, empty side chat titled 'New chat'. Announced as `conversation:updated`. */
+  createAiChat?(): Promise<ConversationId>;
+  /** Owner only, side chats only. 1 to 80 characters. */
+  renameAiChat?(conversationId: ConversationId, title: string): Promise<void>;
+  /** Owner only, side chats only: the chat and its messages are gone for good. */
+  deleteAiChat?(conversationId: ConversationId): Promise<void>;
+
+  /** Newest first. */
+  listAiGoals?(): Promise<AiGoal[]>;
+  addAiGoal?(title: string): Promise<AiGoal>;
+  setAiGoalDone?(goalId: string, done: boolean): Promise<void>;
+  deleteAiGoal?(goalId: string): Promise<void>;
+
+  /**
+   * Media from all PINGO AI threads, newest first, 60 a page. Pass the last
+   * item's `createdAt` as `before` for the next page.
+   */
+  listAiLibrary?(options?: { before?: number; limit?: number }): Promise<AiLibraryItem[]>;
 
   // -- Groups ---------------------------------------------------------------
   //
