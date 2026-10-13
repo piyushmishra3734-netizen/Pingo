@@ -25,6 +25,10 @@ const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, x-client-info, x-pingo-client, apikey, content-type',
 };
+const fail = (step: string, error: unknown) => {
+  console.error(`[firebase-phone-login] ${step}:`, (error as { message?: string })?.message ?? error);
+  return json({ error: step }, 500);
+};
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
@@ -56,14 +60,14 @@ Deno.serve(async (request) => {
   let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | undefined;
   for (let page = 1; !user; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) return json({ error: 'lookup' }, 500);
+    if (error) return fail('lookup', error);
     user = data.users.find((u) => u.phone === phone);
     if (data.users.length < 1000) break;
   }
   if (!user && !create) return json({ error: 'no_account' }, 404);
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({ phone, phone_confirm: true });
-    if (error || !data.user) return json({ error: 'create' }, 500);
+    if (error || !data.user) return fail('create', error);
     user = data.user;
   }
 
@@ -76,18 +80,18 @@ Deno.serve(async (request) => {
       // Where the app reads a phone account's number for display.
       user_metadata: { ...(user.user_metadata ?? {}), pingo_phone: user.user_metadata?.pingo_phone ?? `+${phone}` },
     });
-    if (error) return json({ error: 'link' }, 500);
+    if (error) return fail('email', error);
   }
 
   const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   const tokenHash = link?.properties?.hashed_token;
-  if (linkError || !tokenHash) return json({ error: 'link' }, 500);
+  if (linkError || !tokenHash) return fail('link', linkError);
 
   const anon = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: signedIn, error: verifyError } = await anon.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
-  if (verifyError || !signedIn.session) return json({ error: 'session' }, 500);
+  if (verifyError || !signedIn.session) return fail('session', verifyError);
 
   return json({ access_token: signedIn.session.access_token, refresh_token: signedIn.session.refresh_token });
 });
