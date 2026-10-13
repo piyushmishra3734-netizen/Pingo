@@ -1,6 +1,19 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
-import type { FlowFace, FlowMode } from './engine.js';
+
+export type FlowFace =
+  | 'default'
+  | 'happy'
+  | 'excited'
+  | 'thinking'
+  | 'surprised'
+  | 'sleepy'
+  | 'confused'
+  | 'sad'
+  | 'angry'
+  | 'listening'
+  | 'talking';
+export type FlowMode = 'idle' | 'listening' | 'talking';
 
 /**
  * What Pingo Flow's face says, from what PINGO AI is doing.
@@ -101,54 +114,11 @@ export function useFlowFace({
   return { face: 'default', mode: 'idle' };
 }
 
-/* ---------- body colour, per device ---------- */
-
-export const FLOW_COLOURS = [
-  { name: 'Warm White', hex: '#efe8de' },
-  { name: 'Sky Blue', hex: '#5f8fe8' },
-  { name: 'Soft Red', hex: '#ef8a80' },
-  { name: 'Mint Green', hex: '#7fcca5' },
-  { name: 'Lavender', hex: '#a98ae4' },
-] as const;
-
-const COLOUR_KEY = 'pingo.flow.colour';
-const colourListeners = new Set<() => void>();
-
-function readColour(): string {
-  try {
-    const v = localStorage.getItem(COLOUR_KEY);
-    if (v && FLOW_COLOURS.some((c) => c.hex === v)) return v;
-  } catch {
-    /* private mode: the default */
-  }
-  return FLOW_COLOURS[0].hex;
-}
-
-export function setFlowColour(hex: string): void {
-  try {
-    localStorage.setItem(COLOUR_KEY, hex);
-  } catch {
-    /* kept for this session only */
-  }
-  colourListeners.forEach((l) => l());
-}
-
-export function useFlowColour(): string {
-  return useSyncExternalStore(
-    (l) => {
-      colourListeners.add(l);
-      return () => colourListeners.delete(l);
-    },
-    readColour,
-  );
-}
-
 /* ---------- motion, per device ---------- */
 
-/** Pingo Flow's motion, split the way people ask for it: the body (float, breathe, wobble) and the face (blinks, gaze). */
+/** Pingo's motion: the float, the hops and the bob while it talks. */
 export interface FlowMotion {
   body: boolean;
-  face: boolean;
 }
 
 const MOTION_KEY = 'pingo.flow.motion';
@@ -160,15 +130,15 @@ function readMotion(): FlowMotion {
   try {
     raw = localStorage.getItem(MOTION_KEY);
   } catch {
-    /* private mode: both on */
+    /* private mode: on */
   }
   if (motionCache && motionCache.raw === raw) return motionCache.value;
-  let value: FlowMotion = { body: true, face: true };
+  let value: FlowMotion = { body: true };
   try {
     const parsed = raw ? (JSON.parse(raw) as Partial<FlowMotion>) : {};
-    value = { body: parsed.body !== false, face: parsed.face !== false };
+    value = { body: parsed.body !== false };
   } catch {
-    /* a bad value: both on */
+    /* a bad value: on */
   }
   motionCache = { raw, value };
   return value;

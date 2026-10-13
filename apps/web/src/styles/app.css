@@ -1223,3 +1223,26 @@ video {
 .ai-room-ui { --room-plate: #f2efea; }
 :root[data-theme='dark'] .ai-room-ui { --room-plate: #000000; }
 .ai-room-ui { font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+/* Pingo, PINGO AI's character: a gentle float, a hop on a new mood or a tap, a bob while it talks. */
+@keyframes pingo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+@keyframes pingo-hop {
+  0% { transform: translateY(0) scale(1, 1); }
+  25% { transform: translateY(1px) scale(1.06, 0.92); }
+  55% { transform: translateY(-5px) scale(0.96, 1.05); }
+  80% { transform: translateY(0) scale(1.02, 0.98); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes pingo-talk {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.03, 0.97); }
+}
+.pingo-float { animation: pingo-float 3.2s ease-in-out infinite; }
+.pingo-hop { animation: pingo-hop 0.55s cubic-bezier(0.3, 0.7, 0.4, 1); transform-origin: 50% 90%; }
+.pingo-talk { animation: pingo-talk 0.42s ease-in-out infinite; transform-origin: 50% 90%; }
+@media (prefers-reduced-motion: reduce) {
+  .pingo-float, .pingo-hop, .pingo-talk { animation: none; }
+}

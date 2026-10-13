@@ -21,7 +21,6 @@ import { useNavigate } from 'react-router-dom';
 import { AiIdeas } from '../AiIdeas.js';
 import { useAiChats, useAiGoals, useAiLibrary } from '../ai-data.js';
 import { PingoFlow } from '../flow/PingoFlow.js';
-import { useFlowColour } from '../flow/flow-face.js';
 import { AiPanel, Group, PageHeader, Row } from './ui.js';
 
 type View = 'menu' | 'ideas' | 'goals' | 'library' | 'apps';
@@ -56,7 +55,6 @@ export function AiDrawer({
   onIdea: (text: string) => void;
 }) {
   const navigate = useNavigate();
-  const colour = useFlowColour();
   const chats = useAiChats();
   const [view, setView] = useState<View>('menu');
   const [allRecents, setAllRecents] = useState(false);
@@ -124,7 +122,7 @@ export function AiDrawer({
       <div className="flex-1 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <button type="button" onClick={onSettings} className="flex w-full items-center gap-3.5 px-5 py-3 text-left active:bg-hover">
           <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--room-plate)]">
-            <PingoFlow colour={colour} face="happy" className="size-[72px]" label="Pingo Flow" />
+            <PingoFlow face="happy" className="size-[60px]" label="Pingo" />
           </span>
           <span className="min-w-0">
             <span className="flex items-center gap-1 text-[22px] font-semibold tracking-[-0.01em] text-ink">

@@ -159,21 +159,14 @@ export function AppearanceScreen() {
           </p>
         </Group>
 
-        <Group title="Pingo Flow" hint="PINGO AI's character. Off keeps it still; its expressions still change.">
+        <Group title="Pingo" hint="PINGO AI's character. Off keeps it still.">
           <div className="overflow-hidden rounded-lg border border-line bg-surface">
             <label className="flex min-h-14 items-center gap-3 px-4 py-2.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-body font-medium text-ink">Body motion</span>
-                <span className="block text-caption text-text-secondary">Floating, breathing and the soft wobble</span>
+                <span className="block text-caption text-text-secondary">Floating, hopping and the bob while it talks</span>
               </span>
               <Toggle checked={flowMotion.body} onChange={(body) => setFlowMotion({ body })} label="Body motion" />
-            </label>
-            <label className="flex min-h-14 items-center gap-3 border-t border-line px-4 py-2.5">
-              <span className="min-w-0 flex-1">
-                <span className="block text-body font-medium text-ink">Face motion</span>
-                <span className="block text-caption text-text-secondary">Blinking and looking around</span>
-              </span>
-              <Toggle checked={flowMotion.face} onChange={(face) => setFlowMotion({ face })} label="Face motion" />
             </label>
           </div>
         </Group>

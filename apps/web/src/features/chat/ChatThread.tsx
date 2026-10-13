@@ -46,7 +46,7 @@ import { useAiDraft, useAiMood } from '../ai/ai-draft.js';
 import { AI_COMMANDS, parseAiCommand } from '../ai/ai-commands.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
-import { reactWith, useFlowColour, useFlowFace } from '../ai/flow/flow-face.js';
+import { reactWith, useFlowFace } from '../ai/flow/flow-face.js';
 import { AiStatus } from '../ai/AiStatus.js';
 import { AiPrivacyNotice } from '../ai/AiPrivacyNotice.js';
 import { useCall } from '../calls/CallProvider.js';
@@ -980,7 +980,6 @@ export function ChatThread({
     lastReplyId: lastAiReply?.id,
     lastReplyMood: liveMood ?? lastAiReply?.aiMeta?.mood,
   });
-  const flowColour = useFlowColour();
 
   /* A live call with PINGO AI over OpenAI Realtime: Pingo Flow listens and talks with the audio. */
   const call = useRealtimeCall({ trackLevels: false });
@@ -994,15 +993,6 @@ export function ChatThread({
     const timer = window.setTimeout(() => setCallError(false), 6000);
     return () => window.clearTimeout(timer);
   }, [call.state]);
-  const callLevel = useMemo(
-    () => ({
-      get current() {
-        const l = call.levelsRef.current;
-        return Math.max(l.ai, l.me * 0.5);
-      },
-    }),
-    [call.levelsRef],
-  );
   const flowNow = onCall
     ? call.state === 'connecting'
       ? { face: 'default' as const, mode: 'idle' as const }
@@ -1594,7 +1584,7 @@ export function ChatThread({
           </div>
           <div className="flex min-w-0 flex-col items-center">
             <span className="relative z-[1] -mb-4 grid size-[62px] place-items-center overflow-hidden rounded-full bg-[var(--room-plate)] shadow-[0_2px_10px_rgb(0_0_0/0.18)]">
-              <PingoFlow face={flowNow.face} mode={flowNow.mode} colour={flowColour} label="Pingo Flow" className="size-[68px]" {...(onCall ? { levelRef: callLevel } : {})} />
+              <PingoFlow face={flowNow.face} mode={flowNow.mode} label="Pingo" className="size-[60px]" />
             </span>
             <button
               type="button"

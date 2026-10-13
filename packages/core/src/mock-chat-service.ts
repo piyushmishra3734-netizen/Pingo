@@ -184,7 +184,7 @@ export class MockChatService implements ChatService {
         conversationId: 'conversation-ai-side-goa',
         kind: 'image',
         path: `${bot}/sample-flow.webp`,
-        url: '/ai/pingo-flow.webp',
+        url: '/ai/pingo.webp',
         mime: 'image/webp',
         createdAt: now - 3 * 3_600_000,
       },

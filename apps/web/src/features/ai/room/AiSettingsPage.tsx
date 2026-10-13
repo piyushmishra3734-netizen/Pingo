@@ -3,7 +3,6 @@ import { Toggle } from '@pingo/ui';
 import {
   Bell,
   Brain,
-  Eye,
   CircleHelp,
   Globe,
   Languages,
@@ -24,8 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConfirm } from '../../../components/ConfirmProvider.js';
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
-import { PingoFlow } from '../flow/PingoFlow.js';
-import { FLOW_COLOURS, setFlowColour, setFlowMotion, useFlowColour, useFlowMotion } from '../flow/flow-face.js';
+import { setFlowMotion, useFlowMotion } from '../flow/flow-face.js';
 import { orderedLanguages, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId } from '../personalities.js';
 import { AI_VOICES, setAiVoice, useAiPrefs, useAiVoice } from './ai-prefs.js';
 import { AiPanel, Choices, Group, PageHeader, Row } from './ui.js';
@@ -43,7 +41,6 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
   const confirm = useConfirm();
   const { service } = useChat();
   const { prefs, save, memoryCount, refreshMemoryCount, resetMemory } = useAiPrefs();
-  const flowColour = useFlowColour();
   const voice = useAiVoice();
   const motion = useFlowMotion();
   const [page, setPage] = useState<Page>('home');
@@ -128,40 +125,14 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
             sub="Name, photo, bio and what it calls you"
             onClick={() => setProfileOpen(true)}
           />
-          <div className="flex items-center gap-3.5 border-t border-line px-4 py-3">
-            <PingoFlow colour={flowColour} face="happy" className="size-12" label="Pingo Flow" />
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pingo Flow colour">
-              {FLOW_COLOURS.map((c) => (
-                <button
-                  key={c.hex}
-                  type="button"
-                  role="radio"
-                  aria-checked={flowColour === c.hex}
-                  aria-label={c.name}
-                  onClick={() => setFlowColour(c.hex)}
-                  className={
-                    'size-8 rounded-full ring-1 ring-line active:scale-95 ' +
-                    (flowColour === c.hex ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface' : '')
-                  }
-                  style={{ background: c.hex }}
-                />
-              ))}
-            </div>
-          </div>
         </Group>
 
-        <Group title="Animation" footer="Off keeps Pingo Flow still. Its expressions still change.">
+        <Group title="Animation" footer="Off keeps Pingo still.">
           <Row
             icon={<Waves size={21} />}
             title="Body motion"
-            sub="Floating, breathing and the soft wobble"
+            sub="Floating, hopping and the bob while it talks"
             end={<Toggle checked={motion.body} onChange={(body) => setFlowMotion({ body })} label="Body motion" />}
-          />
-          <Row
-            icon={<Eye size={21} />}
-            title="Face motion"
-            sub="Blinking and looking around"
-            end={<Toggle checked={motion.face} onChange={(face) => setFlowMotion({ face })} label="Face motion" />}
           />
         </Group>
 

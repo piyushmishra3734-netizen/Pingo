@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import type { ComposerCommand } from '../chat/Composer.js';
-import type { FlowFace } from './flow/engine.js';
+import type { FlowFace } from './flow/flow-face.js';
 
 /**
  * Slash commands in PINGO AI's chat.

@@ -15,8 +15,6 @@ import {
   type AiPublicIdentity,
 } from './ai-public.js';
 import { AiMemoriesSheet } from './AiMemoriesSheet.js';
-import { PingoFlow } from './flow/PingoFlow.js';
-import { FLOW_COLOURS, setFlowColour, useFlowColour } from './flow/flow-face.js';
 import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../profile/avatar-image.js';
 import {
   PERSONALITIES,
@@ -56,7 +54,6 @@ export function AiProfileSheet({
   const [error, setError] = useState<string>();
   const [memoriesOpen, setMemoriesOpen] = useState(false);
   const [picker, setPicker] = useState<'personality' | 'length' | 'language'>();
-  const flowColour = useFlowColour();
   const [memoryCount, setMemoryCount] = useState(0);
 
   const refreshMemoryCount = () => {
@@ -520,29 +517,6 @@ export function AiProfileSheet({
               {owner && (
                 <ActionRow label="Use this bio for everyone" onClick={() => void saveSharedDefaultBio((prefs.bio?.trim() || faceBio).slice(0, 160))} />
               )}
-            </Group>
-
-            <Group title="Pingo Flow" footer="Its colour on this device. Tap it to say hi.">
-              <div className="flex items-center gap-4 px-4 py-3">
-                <PingoFlow colour={flowColour} face="happy" className="size-16" label="Pingo Flow" />
-                <div className="flex flex-wrap gap-2.5" role="radiogroup" aria-label="Pingo Flow colour">
-                  {FLOW_COLOURS.map((c) => (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      role="radio"
-                      aria-checked={flowColour === c.hex}
-                      aria-label={c.name}
-                      onClick={() => setFlowColour(c.hex)}
-                      className={cn(
-                        'size-9 rounded-full ring-1 ring-line transition-transform active:scale-95',
-                        flowColour === c.hex && 'ring-2 ring-ink ring-offset-2 ring-offset-surface',
-                      )}
-                      style={{ background: c.hex }}
-                    />
-                  ))}
-                </div>
-              </div>
             </Group>
 
             <Group title="How they talk">
