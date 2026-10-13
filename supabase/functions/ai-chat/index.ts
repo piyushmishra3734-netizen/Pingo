@@ -30,7 +30,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 // Pure, and the one piece here with a right answer that can be stated - so it
 // lives where it can be asserted outside Deno. See `verify:ai-reply-shape`.
 import { characterPrompt } from './character.ts';
-import { languageLabel, lengthBlock, personalityBlock } from './profile-prompt.ts';
+import { instructionsBlock, languageLabel, lengthBlock, personalityBlock, profileVoiceBlock } from './profile-prompt.ts';
 import {
   replyBudget,
   salvageTruncatedEnvelope,
@@ -74,6 +74,7 @@ type AiProfile = {
   display_name?: string;
   personality?: string;
   custom_personality?: string | null;
+  custom_instructions?: string | null;
   response_length?: string;
   preferred_name?: string | null;
   language?: string | null;
@@ -288,6 +289,7 @@ async function runTurn(
         },
         {
           personalityBlock: (p) => personalityBlock(p as AiProfile | null),
+          profileVoiceBlock: (p) => profileVoiceBlock(p as AiProfile | null),
           lengthBlock,
           languageLabel,
           parseExplicitMemory,
@@ -1542,6 +1544,8 @@ function buildSystemPrompt(
     'Challenge / "maine kab kaha" → apologize once, no invented quote.',
     '',
     personalityBlock(profile),
+    '',
+    instructionsBlock(profile),
     '',
     lengthBlock(length),
     '',

@@ -25,7 +25,7 @@ import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
 import { setFlowMotion, useFlowMotion } from '../flow/flow-face.js';
 import { orderedLanguages, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId } from '../personalities.js';
-import { AI_VOICES, setAiVoice, useAiPrefs, useAiVoice } from './ai-prefs.js';
+import { AI_VOICES, useAiPrefs, useAiVoice } from './ai-prefs.js';
 import { AiPanel, Choices, Group, PageHeader, Row } from './ui.js';
 
 type Page = 'home' | 'behavior' | 'language' | 'voice' | 'data';
@@ -36,7 +36,7 @@ type Page = 'home' | 'behavior' | 'language' | 'voice' | 'data';
  * Every row does something real; the app-wide ones (theme, notifications)
  * open the app's own screens.
  */
-export function AiSettingsPage({ conversationId, onClose }: { conversationId?: string | undefined; onClose: () => void }) {
+export function AiSettingsPage({ conversationId, onClose, onCall }: { conversationId?: string | undefined; onClose: () => void; onCall?: () => void }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const { service } = useChat();
@@ -78,7 +78,7 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
       <Choices options={langs} value={prefs.language ?? 'en'} onPick={(id) => void save({ language: id })} />
     ) : page === 'voice' ? (
       <Group title="Voice on calls" footer="Used the next time you call PINGO AI.">
-        <Choices options={AI_VOICES} value={voice as (typeof AI_VOICES)[number]['id']} onPick={setAiVoice} />
+        <Choices options={AI_VOICES} value={voice as (typeof AI_VOICES)[number]['id']} onPick={(id) => void save({ voice: id })} />
       </Group>
     ) : page === 'data' ? (
       <div className="flex flex-col gap-6">
@@ -212,7 +212,25 @@ export function AiSettingsPage({ conversationId, onClose }: { conversationId?: s
         <PageHeader title={titles[page]} onBack={page === 'home' ? onClose : () => setPage('home')} />
         <div className="flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-2">{body}</div>
       </AiPanel>
-      {profileOpen && <AiProfileSheet {...(conversationId ? { conversationId } : {})} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && (
+        <AiProfileSheet
+          {...(conversationId ? { conversationId } : {})}
+          onClose={() => setProfileOpen(false)}
+          onExit={() => {
+            setProfileOpen(false);
+            onClose();
+          }}
+          {...(onCall
+            ? {
+                onCall: () => {
+                  setProfileOpen(false);
+                  onClose();
+                  onCall();
+                },
+              }
+            : {})}
+        />
+      )}
       {memoriesOpen && (
         <AiMemoriesSheet
           onClose={() => {

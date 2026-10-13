@@ -1246,3 +1246,59 @@ video {
 @media (prefers-reduced-motion: reduce) {
   .pingo-float, .pingo-hop, .pingo-talk { animation: none; }
 }
+
+/*
+ * PINGO AI's profile pages: a soft lavender world around the mascot. Light by
+ * default, with a night version that keeps the same hues, so the pages read as
+ * one place in either theme.
+ */
+.pingo-pastel {
+  --pp-bg: #f5f4fc;
+  --pp-bg-2: #eef0fd;
+  --pp-card: #ffffff;
+  --pp-ink: #1c1b2b;
+  --pp-sub: #6c6a82;
+  --pp-faint: #9a98ad;
+  --pp-line: #ecebf4;
+  --pp-accent: #5468f0;
+  --pp-accent-ink: #ffffff;
+  --pp-accent-soft: #e9ecff;
+  --pp-field: #f8f8fd;
+  --pp-cloud: #ffffff;
+  --pp-shadow: 0 1px 2px rgb(40 36 90 / 0.04), 0 6px 18px rgb(40 36 90 / 0.06);
+  --pp-online: #22c55e;
+  --pp-online-soft: #e3f8ea;
+  --pp-gold: #f5b81c;
+  --pp-pro: linear-gradient(120deg, #fff6e4 0%, #fdeefa 55%, #eef0ff 100%);
+  background: linear-gradient(180deg, var(--pp-bg-2) 0%, var(--pp-bg) 34%);
+  color: var(--pp-ink);
+  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+:root[data-theme='dark'] .pingo-pastel {
+  --pp-bg: #11111b;
+  --pp-bg-2: #191a2e;
+  --pp-card: #1b1b2a;
+  --pp-ink: #f2f1fa;
+  --pp-sub: #a6a4bb;
+  --pp-faint: #7c7a92;
+  --pp-line: #2a2a3e;
+  --pp-accent: #8794ff;
+  --pp-accent-ink: #0f1020;
+  --pp-accent-soft: #262a4d;
+  --pp-field: #222234;
+  --pp-cloud: #2a2b44;
+  --pp-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 22px rgb(0 0 0 / 0.25);
+  --pp-online-soft: #173325;
+  --pp-pro: linear-gradient(120deg, #3a3020 0%, #3a2234 55%, #23264a 100%);
+}
+.pp-card { background: var(--pp-card); border-radius: 20px; box-shadow: var(--pp-shadow); }
+.pp-cloud {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--pp-cloud);
+  filter: blur(7px);
+  opacity: 0.85;
+}
+@keyframes pp-twinkle { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
+.pp-twinkle { animation: pp-twinkle 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pp-twinkle { animation: none; } }

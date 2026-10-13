@@ -11,6 +11,10 @@
  * few of their saved memories, so nothing about them is sent from the client.
  * Answers `{ clientSecret, expiresAt, model, voice, maxSeconds, callsUrl }`.
  *
+ * `POST { action: 'preview', voice, speed?, language? }`: a few seconds of that
+ * voice saying hello, as MP3, for the profile page's voice picker. Same voices
+ * as a call, through `/v1/audio/speech`. No conversation needed.
+ *
  * `POST { conversationId, action: 'save', callId?, turns: [{ role, text }] }`:
  * posts a finished call's transcript into the thread, so the chat carries on
  * from what was said. Each turn is its own message, in order:
@@ -43,7 +47,9 @@ import {
   buildCallInstructions,
   capMemories,
   cleanTurns,
+  pickSpeed,
   pickVoice,
+  previewSpeechBody,
   realtimeSessionConfig,
   CALL_MEMORIES,
   type CallProfile,
@@ -82,8 +88,10 @@ function json(request: Request, body: unknown, status = 200): Response {
 
 type Body = {
   conversationId?: string;
-  action?: 'start' | 'save';
+  action?: 'start' | 'save' | 'preview';
   voice?: string;
+  speed?: number;
+  language?: string;
   callId?: string;
   turns?: unknown;
 };
@@ -111,6 +119,7 @@ Deno.serve(async (request) => {
     } catch {
       return json(request, { error: 'Expected a JSON body.' }, 400);
     }
+    if (body.action === 'preview') return await preview(request, body);
     const conversationId = body.conversationId?.trim();
     if (!conversationId || !UUID.test(conversationId)) return json(request, { error: 'conversationId required.' }, 400);
 
@@ -141,14 +150,15 @@ async function start(request: Request, db: Db, userId: string, body: Body): Prom
   const transcribeModel = Deno.env.get('OPENAI_TRANSCRIBE_MODEL') || DEFAULT_TRANSCRIBE;
   const vad = Deno.env.get('OPENAI_REALTIME_VAD') === 'server_vad' ? 'server_vad' : 'semantic_vad';
   const maxSeconds = Number(Deno.env.get('OPENAI_REALTIME_MAX_SECONDS')) || DEFAULT_MAX_SECONDS;
-  const voice = pickVoice(body.voice);
-
   const { data: profile } = await db
     .from('ai_profiles')
-    .select('personality, custom_personality, response_length, preferred_name, display_name, language, country, memory_enabled')
+    .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled, voice, voice_speed, voice_language')
     .eq('user_id', userId)
     .maybeSingle();
   const p = (profile ?? null) as CallProfile | null;
+  // The voice saved on their profile wins; the one the app sent is for rows from before it was saved there.
+  const voice = pickVoice(p?.voice ?? body.voice);
+  const speed = pickSpeed(p?.voice_speed);
 
   let memories: string[] = [];
   if (p?.memory_enabled !== false) {
@@ -170,7 +180,7 @@ async function start(request: Request, db: Db, userId: string, body: Body): Prom
       // OpenAI asks for a stable, non-identifying id per end user, for abuse handling.
       'OpenAI-Safety-Identifier': await hashed(userId),
     },
-    body: JSON.stringify(realtimeSessionConfig({ model, voice, instructions, transcribeModel, turnDetection: vad, secretSeconds: SECRET_SECONDS })),
+    body: JSON.stringify(realtimeSessionConfig({ model, voice, speed, instructions, transcribeModel, turnDetection: vad, secretSeconds: SECRET_SECONDS })),
   });
   const out = (await res.json().catch(() => ({}))) as {
     value?: string;
@@ -185,7 +195,7 @@ async function start(request: Request, db: Db, userId: string, body: Body): Prom
     console.error('[ai-realtime] client_secrets', res.status, out.error?.code ?? '', out.error?.message ?? '');
     return json(request, { error: 'Could not start the call. Try again in a moment.' }, 502);
   }
-  console.log(`[ai-realtime] start model=${model} voice=${voice} vad=${vad} memories=${memories.length} instructions_chars=${instructions.length}`);
+  console.log(`[ai-realtime] start model=${model} voice=${voice} speed=${speed} vad=${vad} memories=${memories.length} instructions_chars=${instructions.length}`);
   return json(request, {
     clientSecret: secret,
     expiresAt: out.expires_at ?? out.client_secret?.expires_at ?? Math.floor(Date.now() / 1000) + SECRET_SECONDS,
@@ -194,6 +204,37 @@ async function start(request: Request, db: Db, userId: string, body: Body): Prom
     maxSeconds,
     callsUrl: `${base}${CALLS_PATH}`,
   });
+}
+
+/* The same line in the same voice is the same sound: kept for as long as this instance lives. */
+const previews = new Map<string, ArrayBuffer>();
+
+async function preview(request: Request, body: Body): Promise<Response> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) return json(request, { error: 'Voice previews are not set up yet.' }, 503);
+  const base = (Deno.env.get('OPENAI_BASE_URL') || DEFAULT_BASE).replace(/\/$/, '');
+  const voice = pickVoice(body.voice);
+  const speed = pickSpeed(body.speed);
+  const language = typeof body.language === 'string' ? body.language.slice(0, 8) : null;
+  const payload = previewSpeechBody(voice, speed, language);
+  const key = JSON.stringify(payload);
+  let bytes = previews.get(key);
+  if (!bytes) {
+    const res = await fetch(`${base}/audio/speech`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: key,
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+      console.error('[ai-realtime] preview', res.status, err.error?.message ?? '');
+      return json(request, { error: 'Could not play that voice right now.' }, 502);
+    }
+    bytes = await res.arrayBuffer();
+    previews.set(key, bytes);
+    if (previews.size > 80) previews.delete(previews.keys().next().value!);
+  }
+  return new Response(bytes, { headers: { ...corsHeaders(request), 'Content-Type': 'audio/mpeg' } });
 }
 
 async function save(request: Request, db: Db, userId: string, conversationId: string, body: Body): Promise<Response> {

@@ -10,6 +10,8 @@
 export type ProfileVoice = {
   personality?: string;
   custom_personality?: string | null;
+  /** Their own standing instructions from the profile page, sent whatever the personality. */
+  custom_instructions?: string | null;
 };
 
 export function languageLabel(code: string | null | undefined): string | null {
@@ -94,6 +96,10 @@ export function personalityBlock(profile: ProfileVoice | null): string {
       'Encouraging without toxic positivity. Honest hope.',
     creative:
       'Ideas and playful imagination. Offer options and riffs.',
+    professional:
+      'Professional and focused. Clear, well-organised, courteous. No slang, no emojis, no small talk unless they start it. Lead with the answer.',
+    concise:
+      'Concise above all. Give the answer in as few words as it takes, then stop. No preamble, no recap, no follow-up question unless one is truly needed.',
     spicy:
       'Flirty, bold, teasing. Confident — never pushy or crude without invitation. Match their heat.',
   };
@@ -126,4 +132,30 @@ export function lengthBlock(length: string): string {
     'EXCEPTION: definitions, jokes, and explanations may use 2–4 lines so the answer is complete.',
     'No filler. No walls of text.',
   ].join('\n');
+}
+
+/** Their standing instructions, as a block of their own; empty when there are none. */
+export function instructionsBlock(profile: ProfileVoice | null): string {
+  const text = profile?.custom_instructions?.replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (!text) return '';
+  // A Custom personality written with the same words is already the voice law.
+  if (profile?.personality === 'custom' && profile.custom_personality?.replace(/\s+/g, ' ').trim() === text) return '';
+  return [
+    '## THEIR INSTRUCTIONS — follow these in every reply',
+    `They told you how to behave: "${text}"`,
+    'Follow it unless it asks for something unsafe or against these rules.',
+  ].join('\n');
+}
+
+/**
+ * Everything about how this person wants PINGO AI to sound: the personality
+ * (none for the default, which keeps the model's own voice) and their
+ * instructions. Empty when they chose nothing.
+ */
+export function profileVoiceBlock(profile: ProfileVoice | null): string {
+  const parts: string[] = [];
+  if (profile?.personality && profile.personality !== 'friendly') parts.push(personalityBlock(profile));
+  const own = instructionsBlock(profile);
+  if (own) parts.push(own);
+  return parts.join('\n\n');
 }

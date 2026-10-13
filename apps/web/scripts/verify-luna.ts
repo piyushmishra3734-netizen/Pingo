@@ -119,7 +119,7 @@ const deps = {
 };
 const nowIso = () => new Date().toISOString();
 async function run(live, extra = {}, rows, more = {}) {
-  const state = { ...more, ai_profiles: [{ memory_enabled: true, preferred_name: 'Piyush', response_length: 'short' }], ai_memories: [{ value: 'birthday 5 June', created_at: '2026-10-01T00:00:00Z' }],
+  const state = { ...more, ai_profiles: more.ai_profiles ?? [{ memory_enabled: true, preferred_name: 'Piyush', response_length: 'short' }], ai_memories: [{ value: 'birthday 5 June', created_at: '2026-10-01T00:00:00Z' }],
     messages: rows ?? [{ id: 'm3', sender_id: 'me', body: live, created_at: nowIso() }, { id: 'm2', sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' }, { id: 'm1', sender_id: 'me', body: 'hi', created_at: '2026-10-08T09:59:59Z' }],
     inserted: [], posted: [], saved: [], rpcs: [] };
   const db = makeDb(state); db.__state = state;
@@ -300,4 +300,29 @@ calls.length = 0;
 r = await run('kal movie chalein?', { isGroup: true });
 assert.equal(calls[0].tools.some((t) => t.name === 'add_goal'), false, 'no goals in a group');
 console.log('goals ok');
+// ---- the profile page's settings reach the request
+{
+  const { profileVoiceBlock } = await import('../../../supabase/functions/ai-chat/profile-prompt.ts');
+  deps.profileVoiceBlock = profileVoiceBlock;
+  calls.length = 0;
+  r = await run('kal movie chalein?', {}, undefined, { ai_profiles: [{ memory_enabled: true, personality: 'concise', custom_instructions: 'Always reply in Hinglish', response_length: 'short' }] });
+  const sent = JSON.stringify(calls[0]);
+  assert.ok(sent.includes('Concise above all'), 'the chosen personality is in the request');
+  assert.ok(sent.includes('Always reply in Hinglish'), 'their custom instructions are in the request');
+  calls.length = 0;
+  r = await run('kal movie chalein?', {}, undefined, { ai_profiles: [{ memory_enabled: true, personality: 'friendly', response_length: 'short' }] });
+  assert.ok(!JSON.stringify(calls[0]).includes('THEIR INSTRUCTIONS'), 'no instructions block when they wrote none');
+  delete deps.profileVoiceBlock;
+
+  // Memory off: nothing new is saved, by the command, by "yaad rakh", or by the tool.
+  r = await run('yaad rakh my bike is red', {}, undefined, { ai_profiles: [{ memory_enabled: false }] });
+  assert.deepEqual(r.state.saved, [], '"yaad rakh" saves nothing with memory off');
+  r = await run('my bike is red', { command: 'remember' }, undefined, { ai_profiles: [{ memory_enabled: false }] });
+  assert.deepEqual(r.state.saved, [], '/remember saves nothing with memory off');
+  assert.match(r.state.posted.at(-1), /switched off/);
+  calls.length = 0;
+  r = await run('kal movie chalein?', {}, undefined, { ai_profiles: [{ memory_enabled: false }] });
+  assert.ok(JSON.stringify(calls[0]).includes('Memory is switched off'), 'the model is told memory is off');
+  console.log('profile settings ok');
+}
 console.log('ALL OK');

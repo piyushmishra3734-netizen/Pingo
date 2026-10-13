@@ -15,7 +15,7 @@
  */
 
 import { characterPrompt } from '../ai-chat/character.ts';
-import { languageLabel, personalityBlock } from '../ai-chat/profile-prompt.ts';
+import { languageLabel, profileVoiceBlock } from '../ai-chat/profile-prompt.ts';
 
 /** OpenAI's built-in Realtime voices. `marin` and `cedar` are the ones OpenAI recommends. */
 export const REALTIME_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'] as const;
@@ -41,6 +41,11 @@ export const MAX_OUTPUT_TOKENS = 1500;
 export type CallProfile = {
   personality?: string;
   custom_personality?: string | null;
+  custom_instructions?: string | null;
+  /** The voice, speed and language they chose for calls on the profile page. */
+  voice?: string | null;
+  voice_speed?: number | null;
+  voice_language?: string | null;
   response_length?: string;
   preferred_name?: string | null;
   display_name?: string;
@@ -48,6 +53,12 @@ export type CallProfile = {
   country?: string | null;
   memory_enabled?: boolean;
 };
+
+/** The realtime API takes 0.25 to 1.5; the profile page offers 0.7 to 1.3. */
+export function pickSpeed(asked: unknown): number {
+  const n = typeof asked === 'number' && Number.isFinite(asked) ? asked : 1;
+  return Math.round(Math.min(1.3, Math.max(0.7, n)) * 100) / 100;
+}
 
 export function pickVoice(asked: unknown): RealtimeVoice {
   return typeof asked === 'string' && (REALTIME_VOICES as readonly string[]).includes(asked) ? (asked as RealtimeVoice) : DEFAULT_VOICE;
@@ -88,13 +99,21 @@ export function buildCallInstructions(p: CallProfile | null, memories: string[],
     characterPrompt(),
     '',
   ];
-  if (p?.personality && p.personality !== 'friendly') out.push(personalityBlock(p), '');
+  const voice = profileVoiceBlock(p);
+  if (voice) out.push(voice, '');
 
   const about: string[] = ['## About them'];
   const callThem = p?.preferred_name?.trim() || p?.display_name?.trim();
   if (callThem) about.push(`- Their name: ${callThem}. Use it rarely, the way a friend would.`);
+  const callLang = languageLabel(p?.voice_language);
   const lang = languageLabel(p?.language);
-  about.push(lang ? `- Their preferred language: ${lang}. Still answer in whatever language they actually speak.` : '- Answer in the language they speak; follow them if they switch.');
+  about.push(
+    callLang
+      ? `- Speak ${callLang} on this call; they chose it for calls. If they clearly switch language, follow them.`
+      : lang
+        ? `- Their preferred language: ${lang}. Still answer in whatever language they actually speak.`
+        : '- Answer in the language they speak; follow them if they switch.',
+  );
   if (p?.country) about.push(`- They are in ${p.country}.`);
   about.push(`- Today is ${today.toISOString().slice(0, 10)}.`);
   out.push(...about, '');
@@ -136,6 +155,8 @@ export interface SessionOptions {
   turnDetection?: 'semantic_vad' | 'server_vad';
   /** Seconds the minted client secret may be used to connect. The call itself may run longer. */
   secretSeconds?: number;
+  /** How fast it talks, 1 being normal. */
+  speed?: number;
 }
 
 /** The body for `POST /v1/realtime/client_secrets`. */
@@ -158,7 +179,7 @@ export function realtimeSessionConfig(o: SessionOptions): Record<string, unknown
           noise_reduction: { type: 'near_field' },
           turn_detection: vad,
         },
-        output: { voice: o.voice },
+        output: { voice: o.voice, ...(o.speed && o.speed !== 1 ? { speed: o.speed } : {}) },
       },
     },
   };
@@ -183,4 +204,35 @@ export function cleanTurns(raw: unknown): CallTurnIn[] {
     if (clean) out.push({ role, text: clean });
   }
   return out.slice(-SAVE_MAX_TURNS);
+}
+
+/* ---------- a voice preview, for the profile page ---------- */
+
+/** Text-to-speech for the preview: the same voices as a call. */
+export const PREVIEW_MODEL = 'gpt-4o-mini-tts';
+
+const PREVIEW_LINES: Record<string, string> = {
+  en: "Hi, I'm Pingo. This is how I'll sound when we talk.",
+  hi: 'नमस्ते, मैं पिंगो हूँ। हम बात करेंगे तो मैं ऐसे सुनाई दूँगा।',
+  es: 'Hola, soy Pingo. Así sonaré cuando hablemos.',
+  fr: "Salut, je suis Pingo. Voilà ma voix quand on parlera.",
+  de: 'Hallo, ich bin Pingo. So klinge ich, wenn wir reden.',
+  pt: 'Oi, eu sou o Pingo. É assim que vou soar quando a gente conversar.',
+  ar: 'مرحبًا، أنا بينغو. هكذا سيبدو صوتي عندما نتحدث.',
+  ja: 'こんにちは、ピンゴです。話すときはこんな声です。',
+  ko: '안녕하세요, 핑고예요. 우리가 이야기할 때 이런 목소리예요.',
+  zh: '你好，我是 Pingo。我们聊天时，我就是这个声音。',
+};
+
+/** The body for `POST /v1/audio/speech`: one short line in their call language, at their speed. */
+export function previewSpeechBody(voice: RealtimeVoice, speed: number, language: string | null | undefined): Record<string, unknown> {
+  const code = (language ?? 'en').slice(0, 2).toLowerCase();
+  const pace = speed <= 0.85 ? 'a little slower than usual' : speed >= 1.15 ? 'a little faster than usual' : 'a natural, relaxed pace';
+  return {
+    model: PREVIEW_MODEL,
+    voice,
+    input: PREVIEW_LINES[code] ?? PREVIEW_LINES.en,
+    instructions: `Warm and friendly, like greeting a friend. Speak at ${pace}.`,
+    response_format: 'mp3',
+  };
 }

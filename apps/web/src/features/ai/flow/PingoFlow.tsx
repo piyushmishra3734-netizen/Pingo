@@ -20,7 +20,10 @@ export function PingoFlow({
   className,
   label = 'PINGO AI',
   onTap,
+  src,
 }: {
+  /** The face this person picked for PINGO AI (a preset or a photo); none is the mascot. */
+  src?: string | null | undefined;
   face?: FlowFace;
   mode?: FlowMode;
   className?: string;
@@ -28,6 +31,7 @@ export function PingoFlow({
   onTap?: () => void;
 }) {
   const motion = useFlowMotion();
+  const own = src && src !== '/ai/avatars/classic.webp' ? src : undefined;
   const [hop, setHop] = useState(0);
   const first = useRef(true);
 
@@ -54,11 +58,11 @@ export function PingoFlow({
         <span className={cn('absolute inset-0', motion.body && mode === 'talking' && 'pingo-talk')}>
           <img
             key={hop}
-            src={PINGO_MASCOT}
+            src={own ?? PINGO_MASCOT}
             alt=""
             draggable={false}
             decoding="async"
-            className={cn('size-full select-none object-contain', motion.body && hop > 0 && 'pingo-hop')}
+            className={cn('size-full select-none', own ? 'rounded-full object-cover' : 'object-contain', motion.body && hop > 0 && 'pingo-hop')}
           />
         </span>
       </span>

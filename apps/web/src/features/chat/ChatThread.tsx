@@ -97,7 +97,7 @@ import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
 import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
-import { useAiVoice } from '../ai/room/ai-prefs.js';
+import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -974,6 +974,7 @@ export function ChatThread({
   /* Pingo Flow, at the top of PINGO AI's chat: its face follows what PINGO AI is doing. */
   const lastAiReply = isAi ? [...messages].reverse().find((m) => m.authorId === PINGO_AI_USER_ID) : undefined;
   const liveMood = useAiMood(conversation.id);
+  const aiPrefs = useAiPrefs();
   const flow = useFlowFace({
     stage: isAi ? aiStage : undefined,
     writing: isAi && Boolean(aiDraft),
@@ -1584,7 +1585,7 @@ export function ChatThread({
           </div>
           <div className="flex min-w-0 flex-col items-center">
             <span className="relative z-[1] -mb-4 grid size-[62px] place-items-center overflow-hidden rounded-full bg-[var(--room-plate)] shadow-[0_2px_10px_rgb(0_0_0/0.18)]">
-              <PingoFlow face={flowNow.face} mode={flowNow.mode} label="Pingo" className="size-[60px]" />
+              <PingoFlow face={flowNow.face} mode={flowNow.mode} src={aiPrefs.prefs.avatar_url} label="Pingo AI profile" onTap={() => setAiProfileOpen(true)} className="size-[60px]" />
             </span>
             <button
               type="button"
@@ -2589,7 +2590,13 @@ export function ChatThread({
       )}
       {isAi && aiMenu === 'settings' && (
         <Suspense fallback={null}>
-          <AiSettingsPage conversationId={conversation.id} onClose={() => setAiMenu(undefined)} />
+          <AiSettingsPage
+            conversationId={conversation.id}
+            onClose={() => setAiMenu(undefined)}
+            onCall={() => {
+              if (!onCall) call.start(conversation.id, callVoice);
+            }}
+          />
         </Suspense>
       )}
       {isAi && aiProfileOpen && (
@@ -2597,6 +2604,11 @@ export function ChatThread({
         <AiProfileSheet
           conversationId={conversation.id}
           onClose={() => setAiProfileOpen(false)}
+          onExit={() => setAiProfileOpen(false)}
+          onCall={() => {
+            setAiProfileOpen(false);
+            if (!onCall) call.start(conversation.id, callVoice);
+          }}
           onChanged={() => {
             // ensure re-hydrates AI title/avatar and emits conversation:updated.
             void service.ensureAiConversation().catch(() => undefined);

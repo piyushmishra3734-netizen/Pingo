@@ -53,6 +53,7 @@ type Db = any;
 export type LunaProfile = {
   personality?: string;
   custom_personality?: string | null;
+  custom_instructions?: string | null;
   response_length?: string;
   preferred_name?: string | null;
   display_name?: string;
@@ -63,6 +64,8 @@ export type LunaProfile = {
 
 export interface LunaDeps {
   personalityBlock: (p: LunaProfile | null) => string;
+  /** The personality and their own instructions together (`profile-prompt.ts`). */
+  profileVoiceBlock?: (p: LunaProfile | null) => string;
   lengthBlock: (length: string) => string;
   languageLabel: (code: string | null | undefined) => string | null;
   parseExplicitMemory: (message: string) => { key: string; value: string } | null;
@@ -315,7 +318,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const [{ data: profile }, { data: rows }, { count: total }, { data: chat }] = await Promise.all([
     t.db
       .from('ai_profiles')
-      .select('personality, custom_personality, response_length, preferred_name, display_name, language, country, memory_enabled')
+      .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled')
       .eq('user_id', t.userId)
       .maybeSingle(),
     t.db
@@ -437,8 +440,9 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const lang = d.languageLabel(p?.language);
   if (lang) about.push(`Their preferred language: ${lang}. Still mirror what they actually write.`);
   if (p?.country) about.push(`They are in ${p.country}.`);
-  // The default voice is ChatGPT's own; only a personality somebody chose changes it.
-  if (p?.personality && p.personality !== 'friendly') about.push(d.personalityBlock(p));
+  // The default voice is ChatGPT's own; only a personality somebody chose, or their own instructions, change it.
+  const voice = d.profileVoiceBlock ? d.profileVoiceBlock(p) : p?.personality && p.personality !== 'friendly' ? d.personalityBlock(p) : '';
+  if (voice) about.push(voice);
   const len = p?.response_length ?? 'short';
   about.push(
     len === 'detailed'

@@ -293,6 +293,16 @@ export type AiProfileRow = {
   country: string | null;
   memory_enabled: boolean;
   onboarded_at: string | null;
+  /** A short line under its name on the profile. */
+  tagline: string | null;
+  /** How it shows: online, away, or do not disturb (which also mutes its chat). */
+  status: 'online' | 'away' | 'dnd';
+  /** Sent with every request, whatever the personality. */
+  custom_instructions: string | null;
+  /** The realtime call voice, its speed, and the language it speaks on calls (null: follow the chat). */
+  voice: string | null;
+  voice_speed: number;
+  voice_language: string | null;
   created_at: string;
   updated_at: string;
 };
