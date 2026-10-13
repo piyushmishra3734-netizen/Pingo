@@ -71,15 +71,44 @@ export async function saveAiPrefs(patch: Prefs): Promise<string | undefined> {
   emit();
   if (patch.language) pushRecentLanguage(patch.language);
   if (patch.voice) setAiVoice(patch.voice);
-  const { error } = await getSupabaseClient().from('ai_profiles').upsert(toAiProfileUpsert(userId, next));
-  if (error) {
+  const row = toAiProfileUpsert(userId, next);
+  const first = await getSupabaseClient().from('ai_profiles').upsert(row);
+  let failed = first.error?.message;
+  if (first.error && isMissingColumn(first.error)) {
+    /*
+     * The profile page's columns arrive with a migration that may land after
+     * the app does. Until then the settings that already existed still save.
+     */
+    const { tagline: _t, status: _s, custom_instructions: _c, voice: _v, voice_speed: _vs, voice_language: _vl, ...older } = row;
+    const second = await getSupabaseClient().from('ai_profiles').upsert(older);
+    // Asked for something only the new columns can hold (not just their defaults)?
+    const needsNew = Object.entries(patch).some(
+      ([k, v]) => NEW_COLUMNS.includes(k) && v != null && v !== '' && !(k === 'status' && v === 'online') && !(k === 'voice_speed' && v === 1),
+    );
+    failed = second.error?.message;
+    if (!failed && needsNew) {
+      // What the older columns hold did save; only the new settings wait.
+      store.prefs = { ...next, ...Object.fromEntries(NEW_COLUMNS.map((k) => [k, before[k as keyof Prefs]])) };
+      store.error = 'Some of this needs an update on the server first. Try again later.';
+      emit();
+      return store.error;
+    }
+  }
+  if (failed) {
     // The row did not change, so neither does the screen.
     store.prefs = before;
-    store.error = error.message;
+    store.error = failed;
     emit();
-    return error.message;
+    return failed;
   }
   return undefined;
+}
+
+const NEW_COLUMNS = ['tagline', 'status', 'custom_instructions', 'voice', 'voice_speed', 'voice_language'];
+
+/** PostgREST's "no such column" (the migration has not run yet). */
+function isMissingColumn(error: { code?: string; message?: string }): boolean {
+  return error.code === 'PGRST204' || /column .* (does not exist|could not find)|could not find the '.*' column/i.test(error.message ?? '');
 }
 
 export function setAiMemoryCount(n: number): void {
