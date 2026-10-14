@@ -45,6 +45,7 @@ import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
 import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
+import { compactChat, serviceClient } from './compact.ts';
 import { nameSideChat, nameSideChatFromMessage } from './side-chat.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
@@ -184,6 +185,8 @@ async function runTurn(
        * Anything else is an ordinary turn.
        */
       command?: string;
+      /** Fold this chat's older messages into a summary (the ring in the app, on their yes). */
+      action?: 'compact';
     };
     const spoken = body.voice === true;
     const conversationId = body.conversationId;
@@ -203,6 +206,11 @@ async function runTurn(
 
     const isAiDm = conv.kind === 'ai';
     const isGroup = conv.kind === 'group' || conv.kind === 'community';
+    if (body.action === 'compact') {
+      if (!isAiDm) return json(request, { error: 'Only a PINGO AI chat can be compacted.' }, 400);
+      const out = await compactChat(supabaseUrl, userClient, conversationId, BOT_ID);
+      return json(request, out.body, out.status);
+    }
     if (!isAiDm && !isGroup) {
       return json(request, { error: 'Not an AI conversation.' }, 403);
     }
@@ -319,6 +327,10 @@ async function runTurn(
           imagePrompt,
           postImage: (image, caption, meta) => postAiImage(userClient, supabaseUrl, conversationId, image, caption, meta),
           nameChat: (title) => nameSideChat(supabaseUrl, user.id, conversationId, title),
+          saveContext: async (tokens) => {
+            const { error } = await serviceClient(supabaseUrl).from('conversations').update({ ai_context_tokens: tokens }).eq('id', conversationId);
+            if (error) console.error('[ai-chat] context size', error.message);
+          },
           drawFallback: async (prompt) => {
             const res = await replyWithImage(request, userClient, supabaseUrl, conversationId, prompt, emit);
             return { status: res.status, body: (await res.json().catch(() => ({}))) as Record<string, unknown> };

@@ -43,6 +43,7 @@ import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { stopAi, useAiDraft, useAiMood, useAiStoppable } from '../ai/ai-draft.js';
+import { AiContextRing } from '../ai/room/AiContextRing.js';
 import { AI_COMMANDS, parseAiCommand } from '../ai/ai-commands.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
@@ -1622,7 +1623,8 @@ export function ChatThread({
               )}
             </button>
           </div>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-0.5">
+            {!onCall && <AiContextRing conversationId={conversation.id} version={messages.length} />}
             <button
               type="button"
               aria-label={onCall ? 'End call' : `Call ${conversation.title}`}

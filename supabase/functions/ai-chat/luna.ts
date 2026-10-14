@@ -63,6 +63,8 @@ export type LunaProfile = {
 };
 
 export interface LunaDeps {
+  /** Records how full this chat's context is (tokens), for the app's ring. */
+  saveContext?: (tokens: number) => Promise<void>;
   personalityBlock: (p: LunaProfile | null) => string;
   /** The personality and their own instructions together (`profile-prompt.ts`). */
   profileVoiceBlock?: (p: LunaProfile | null) => string;
@@ -157,20 +159,20 @@ const COMMANDS: Record<string, (lang: string | null) => string> = {
   explain: () => 'They used /explain: explain it simply, the way you would to a bright 12 year old, with one everyday example.',
 };
 
-/** Turns of conversation looked at, at most, and the characters they may take. */
-const WINDOW_MESSAGES = 30;
 /*
- * OpenAI caches the prompt's unchanged opening. A window that slid one message
- * per turn changed its first line every turn, so the history was never cached.
- * It now grows from WINDOW_MIN and drops WINDOW_STEP at once: the opening holds
- * for WINDOW_STEP messages, and those turns read the history at a tenth of the price.
+ * A chat is remembered whole, as ChatGPT does: every message since its last
+ * compaction, up to HISTORY_CHARS (about 24k tokens). The opening never moves
+ * between turns, so all of it but the newest turn is read from OpenAI's cache.
+ * Past the budget the oldest fall off (and the ring in the app is full, asking
+ * to compact); compacting folds them into `ai_summary` instead.
  */
-const WINDOW_MIN = 20;
-const WINDOW_STEP = 10;
-const WINDOW_CHARS = 16_000;
+const HISTORY_ROWS = 400;
+const HISTORY_CHARS = 80_000;
+/** The prompt size the ring in the app measures against; keep equal to the app's AI_CONTEXT_LIMIT. */
+export const CONTEXT_LIMIT = 32_000;
 /** In a group: tagged messages and PINGO AI's replies only, this many at most. */
 const GROUP_WINDOW = 6;
-const MESSAGE_CHARS = 1_500;
+const MESSAGE_CHARS = 4_000;
 const MAX_TOOL_ROUNDS = 3;
 const MEMORY_CAP = 60;
 const IMAGE_QUALITY = (['low', 'medium', 'high', 'auto'] as const).find((q) => q === (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get('OPENAI_IMAGE_QUALITY')) ?? 'medium';
@@ -321,7 +323,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const t0 = Date.now();
   t.emit('reading');
 
-  const [{ data: profile }, { data: rows }, { count: total }, { data: chat }, { data: saved }] = await Promise.all([
+  const [{ data: profile }, { data: rows }, { data: chat }, { data: saved }] = await Promise.all([
     t.db
       .from('ai_profiles')
       .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled')
@@ -333,12 +335,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       .eq('conversation_id', t.conversationId)
       .is('encryption', null)
       .order('created_at', { ascending: false })
-      .limit(WINDOW_MESSAGES + 6),
-    t.db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', t.conversationId)
-      .is('encryption', null),
+      .limit(t.isGroup ? 60 : HISTORY_ROWS),
     /* Whether this is a side chat still called 'New chat', which this turn names. Never a group. */
     t.isGroup
       ? Promise.resolve({ data: null })
@@ -396,10 +393,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     }
   }
 
-  /* The window: newest back, until the budget is spent. */
-  const keep = typeof total === 'number' ? WINDOW_MIN + (total % WINDOW_STEP) : WINDOW_MESSAGES + 6;
+  /* The chat since its last compaction; what came before is in the summary. */
+  const compacted = chat as { ai_summary?: string | null; ai_summary_upto?: string | null } | null;
+  const upto = compacted?.ai_summary_upto ?? '';
   const recent = newest
-    .slice(0, keep)
+    .filter((r) => !upto || r.created_at > upto)
     .filter((r) => {
       const said = (r.body ?? '').trim();
       // A photo or a file with no caption is still something they said.
@@ -427,10 +425,9 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     }
   }
 
-  let budget = WINDOW_CHARS;
+  let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string; speaker?: string }[] = [];
   for (const r of recent) {
-    if (picked.length >= WINDOW_MESSAGES) break;
     const role = r.sender_id === d.botId ? 'assistant' : 'user';
     const speaker = role === 'user' ? (names.get(r.sender_id) ?? '') : '';
     const text = describeRow(r, role, d.stripMarkers).slice(0, MESSAGE_CHARS);
@@ -450,6 +447,10 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
 
   /* Who this is and how they like it: the part that changes, after the part that does not. */
   const about: string[] = [];
+  if (!t.isGroup && compacted?.ai_summary) {
+    about.push(`Earlier in this chat (compacted into a summary at their request; the messages after it follow):
+${compacted.ai_summary}`);
+  }
   const callThem = p?.preferred_name?.trim() || p?.display_name?.trim();
   if (callThem) about.push(`The person's name: ${callThem}. Use it rarely, the way a friend would.`);
   const lang = d.languageLabel(p?.language);
@@ -722,6 +723,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
    * each part took.
    */
   const u = (usage ?? {}) as { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+  // The ring in the app: this chat's prompt as OpenAI counted it, plus the reply that joins it.
+  if (!t.isGroup && u.input_tokens) await d.saveContext?.(u.input_tokens + (u.output_tokens ?? 0));
   console.log(
     `[luna] provider=openai api=responses model=${t.model} effort=${t.reasoningEffort || 'default'} in=${u.input_tokens ?? '?'} cached=${u.input_tokens_details?.cached_tokens ?? 0} out=${u.output_tokens ?? '?'} tools=${rounds} searches=${searches} images=${images.length} photos_in=${attached.photos} files_in=${attached.files} first_ms=${firstText ? firstText - tModel : '?'} model_ms=${tModelDone - tModel} total_ms=${Date.now() - t0}`,
   );

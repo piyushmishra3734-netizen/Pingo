@@ -1645,6 +1645,10 @@ export type Database = {
         Args: { invite_code: string };
         Returns: string;
       };
+      ai_context: {
+        Args: { target: string };
+        Returns: { tokens: number; summarized: boolean }[];
+      };
       ai_allowance: {
         Args: Record<string, never>;
         Returns: { credits_left: number; credits_daily: number; call_seconds_left: number; unlimited: boolean }[];
