@@ -116,7 +116,7 @@ import { clearFriendsListening, setFriendListening } from '../../features/music/
  * it can live in a function directory and still be read from here, exactly as
  * `verify:image-intent` reads it.
  */
-import { appendAiDraft, clearAiDraft, setAiDraftSources, setAiMood } from '../../features/ai/ai-draft.js';
+import { appendAiDraft, clearAiDraft, registerAiStop, setAiDraftSources, setAiMood } from '../../features/ai/ai-draft.js';
 import { aiSnippet, toAiGoal } from '../../features/ai/ai-recents.js';
 import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-intent.js';
 
@@ -5453,6 +5453,34 @@ export class SupabaseChatService implements ChatService {
     onSentence?: (sentence: string) => void,
     command?: AiCommand,
   ): Promise<boolean> {
+    /*
+     * Stop closes this stream; the function sees the cancel, ends the model
+     * call and keeps what was already on screen. Here the draft just goes, and
+     * the kept reply arrives as a message like any other.
+     */
+    const abort = new AbortController();
+    const unregister = registerAiStop(conversationId, () => abort.abort());
+    try {
+      return await this.#readAiStream(conversationId, userMessage, onStage, spoken, onSentence, command, abort.signal);
+    } catch (cause) {
+      if (!abort.signal.aborted) throw cause;
+      clearAiDraft(conversationId);
+      onStage('done' as ChatActivity);
+      return true;
+    } finally {
+      unregister();
+    }
+  }
+
+  async #readAiStream(
+    conversationId: ConversationId,
+    userMessage: string,
+    onStage: (stage: ChatActivity) => void,
+    spoken: boolean,
+    onSentence: ((sentence: string) => void) | undefined,
+    command: AiCommand | undefined,
+    signal: AbortSignal,
+  ): Promise<boolean> {
     const {
       data: { session },
     } = await this.#client.auth.getSession();
@@ -5461,6 +5489,7 @@ export class SupabaseChatService implements ChatService {
     if (!session?.access_token || !base || !anon) return false;
 
     const response = await fetch(`${base}/functions/v1/ai-chat`, {
+      signal,
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,

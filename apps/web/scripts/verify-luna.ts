@@ -134,7 +134,8 @@ assert.equal(r.out.status, 200);
 assert.equal(calls.length, 1, 'plain turn = one request');
 assert.equal(r.state.posted[0], 'Haan bhai, bilkul! Bata kya scene hai.');
 assert.ok(r.deltas.length >= 1 && r.deltas.join('') === r.state.posted[0], 'deltas add up to the reply');
-assert.ok(!JSON.stringify(calls[0].input).includes('birthday 5 June'), 'memories not sent unless asked');
+// Saved memories ride in the prompt: left to recall_memory, the model skipped the lookup on plain questions.
+assert.ok(JSON.stringify(calls[0].input).includes('birthday 5 June'), 'memories are in the prompt');
 assert.equal(calls[0].input.filter((m) => m.role === 'user' && m.content === 'kal movie chalein?').length, 1, 'live message not duplicated');
 assert.equal(calls[0].input[0].role, 'system');
 assert.deepEqual(calls[0].reasoning, { effort: 'low' });

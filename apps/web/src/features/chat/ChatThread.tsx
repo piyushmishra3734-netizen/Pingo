@@ -42,7 +42,8 @@ import { primeMessageSounds } from '../../lib/audio/message-sounds.js';
 import { OLDER_THRESHOLD, shouldLoadOlder } from '../../lib/egress-rules.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
-import { useAiDraft, useAiMood } from '../ai/ai-draft.js';
+import { stopAi, useAiDraft, useAiMood, useAiStoppable } from '../ai/ai-draft.js';
+import { AiContextRing } from '../ai/room/AiContextRing.js';
 import { AI_COMMANDS, parseAiCommand } from '../ai/ai-commands.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
@@ -705,6 +706,7 @@ export function ChatThread({
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   /** PINGO AI's reply as it is being written, shown as a bubble that grows. */
   const aiDraft = useAiDraft(conversation.id);
+  const aiStoppable = useAiStoppable(conversation.id);
   // A reply being written grows at the bottom; keep it in view unless they scrolled up to read.
   useEffect(() => {
     if (!aiDraft || awayFromBottom) return;
@@ -1621,7 +1623,8 @@ export function ChatThread({
               )}
             </button>
           </div>
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-0.5">
+            {!onCall && <AiContextRing conversationId={conversation.id} version={messages.length} />}
             <button
               type="button"
               aria-label={onCall ? 'End call' : `Call ${conversation.title}`}
@@ -1985,6 +1988,9 @@ export function ChatThread({
                         mine={mine}
                         onReply={setReplyTo}
                         onForward={() => undefined}
+                        {...(message.authorId === PINGO_AI_USER_ID
+                          ? { ai: { regenerate: () => regenerate(message) } }
+                          : {})}
                         children={<MessageBubble {...bubbleProps} />}
                         render={({ hidden, ...trigger }) => (
                           <MessageBubble
@@ -2254,6 +2260,7 @@ export function ChatThread({
           ) : (
           <Composer
             mentions={mentionOptions}
+            {...(isAi && aiStoppable ? { onStop: () => stopAi(conversation.id) } : {})}
             {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not

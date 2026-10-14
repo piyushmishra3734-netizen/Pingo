@@ -2,6 +2,7 @@ import type { AiCommand } from '@pingo/core';
 import {
   Angry,
   Bookmark,
+  BrainCircuit,
   Brain,
   CircleHelp,
   FileText,
@@ -34,12 +35,13 @@ import type { FlowFace } from './flow/flow-face.js';
 const ICON = { size: 17, strokeWidth: 2, 'aria-hidden': true } as const;
 
 const ASK: { name: AiCommand; hint: string; icon: ComposerCommand['icon']; face: FlowFace }[] = [
-  { name: 'search', hint: 'Look it up on the web, with sources', icon: <Globe {...ICON} />, face: 'thinking' },
-  { name: 'image', hint: 'Create a picture from your words', icon: <ImageIcon {...ICON} />, face: 'excited' },
+  { name: 'search', hint: 'Look it up on the web, with sources · 5 credits', icon: <Globe {...ICON} />, face: 'thinking' },
+  { name: 'image', hint: 'Create a picture from your words · 5 credits', icon: <ImageIcon {...ICON} />, face: 'excited' },
   { name: 'remember', hint: 'Save something for later', icon: <Bookmark {...ICON} />, face: 'happy' },
   { name: 'summarize', hint: 'Sum up a file, a photo or this chat', icon: <FileText {...ICON} />, face: 'thinking' },
   { name: 'translate', hint: 'Translate text into another language', icon: <Languages {...ICON} />, face: 'thinking' },
   { name: 'explain', hint: 'Explain it simply, with an example', icon: <Lightbulb {...ICON} />, face: 'thinking' },
+  { name: 'think', hint: 'Think it through before answering · 5 credits', icon: <BrainCircuit {...ICON} />, face: 'thinking' },
 ];
 
 /** Things the app does itself, at once: no reply needed. */

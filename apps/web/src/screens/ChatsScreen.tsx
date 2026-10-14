@@ -108,7 +108,8 @@ export function ChatsScreen() {
 
   return (
     <div className="flex h-full min-h-0">
-      <InstallBanner />
+      {/* Not over an open conversation: on a laptop it sat on top of the composer. */}
+      {!conversationId && <InstallBanner />}
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-line bg-page lg:block',

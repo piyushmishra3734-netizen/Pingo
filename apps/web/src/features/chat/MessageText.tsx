@@ -1,6 +1,7 @@
 import { linkify } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
+import { CodeBlock } from './CodeBlock.js';
 
 /**
  * Message text with its links made clickable.
@@ -119,16 +120,36 @@ function MarkdownText({ body, mine, className }: { body: string; mine: boolean; 
   };
   while (i < lines.length) {
     const line = lines[i]!;
-    const fence = /^\s*```/.exec(line);
+    const fence = /^\s*```\s*([\w+#.-]*)/.exec(line);
     if (fence) {
       flushPara();
       const code: string[] = [];
       i++;
       while (i < lines.length && !/^\s*```/.test(lines[i]!)) code.push(lines[i++]!);
       i++;
+      out.push(<CodeBlock key={k++} code={code.join('\n')} lang={fence[1] ?? ''} />);
+      continue;
+    }
+    // A pipe table: header row, a |---| row, then rows. Scrolls sideways inside the bubble.
+    if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|?[\s:-]*-[\s|:-]*\|?\s*$/.test(lines[i + 1] ?? '')) {
+      flushPara();
+      const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const head = cells(line);
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i]!)) rows.push(cells(lines[i++]!));
       out.push(
-        <span key={k++} className="my-1.5 block overflow-x-auto rounded-lg bg-ink/[0.07] px-2.5 py-2 font-mono text-[12.5px] leading-relaxed whitespace-pre">
-          {code.join('\n')}
+        <span key={k++} className="my-1.5 block overflow-x-auto whitespace-normal">
+          <table className="text-[13px] [&_td]:border-t [&_td]:border-ink/10 [&_td]:px-2 [&_td]:py-1 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold">
+            <thead>
+              <tr>{head.map((c, j) => <th key={j}><Inline text={c} mine={mine} /></th>)}</tr>
+            </thead>
+            <tbody>
+              {rows.map((r, j) => (
+                <tr key={j}>{r.map((c, n) => <td key={n}><Inline text={c} mine={mine} /></td>)}</tr>
+              ))}
+            </tbody>
+          </table>
         </span>,
       );
       continue;

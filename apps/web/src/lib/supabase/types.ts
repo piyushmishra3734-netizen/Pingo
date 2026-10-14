@@ -424,6 +424,12 @@ export type Database = {
         Update: { title?: string; done?: boolean };
         Relationships: [];
       };
+      ai_feedback: {
+        Row: { message_id: string; user_id: string; rating: -1 | 1; created_at: string };
+        Insert: { message_id: string; rating: -1 | 1; user_id?: string };
+        Update: { rating?: -1 | 1 };
+        Relationships: [];
+      };
       conversations: {
         Row: ConversationRow;
         Insert: {
@@ -1638,6 +1644,14 @@ export type Database = {
       join_group_with_code: {
         Args: { invite_code: string };
         Returns: string;
+      };
+      ai_context: {
+        Args: { target: string };
+        Returns: { tokens: number; summarized: boolean }[];
+      };
+      ai_allowance: {
+        Args: Record<string, never>;
+        Returns: { credits_left: number; credits_daily: number; call_seconds_left: number; unlimited: boolean }[];
       };
       phone_registered: {
         Args: { p_phone: string };

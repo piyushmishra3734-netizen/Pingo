@@ -16,10 +16,24 @@ export function stopVoicePreview(): void {
 
 export async function playVoicePreview(opts: { voice: string; speed: number; language: string | null }, onEnd: () => void): Promise<void> {
   stopVoicePreview();
-  const { data, error } = await getSupabaseClient().functions.invoke('ai-realtime', {
-    body: { action: 'preview', voice: opts.voice, speed: opts.speed, language: opts.language },
-  });
-  if (error || !(data instanceof Blob) || data.size < 500) {
+  /*
+   * A plain fetch, not functions.invoke: invoke reads an audio/mpeg answer as
+   * text, so the Blob check below always failed and no preview ever played.
+   */
+  const client = getSupabaseClient();
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '');
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!session?.access_token || !base || !anon) throw new Error('Sign in again to hear the voices.');
+  const res = await fetch(`${base}/functions/v1/ai-realtime`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}`, apikey: anon, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'preview', voice: opts.voice, speed: opts.speed, language: opts.language }),
+  }).catch(() => undefined);
+  const data = res?.ok && (res.headers.get('Content-Type') ?? '').startsWith('audio/') ? await res.blob() : undefined;
+  if (!data || data.size < 500) {
     throw new Error("Couldn't play that voice right now.");
   }
   const url = URL.createObjectURL(data);

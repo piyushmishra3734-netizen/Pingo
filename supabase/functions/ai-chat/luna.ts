@@ -63,6 +63,8 @@ export type LunaProfile = {
 };
 
 export interface LunaDeps {
+  /** Records how full this chat's context is (tokens), for the app's ring. */
+  saveContext?: (tokens: number) => Promise<void>;
   personalityBlock: (p: LunaProfile | null) => string;
   /** The personality and their own instructions together (`profile-prompt.ts`). */
   profileVoiceBlock?: (p: LunaProfile | null) => string;
@@ -137,6 +139,10 @@ export interface LunaTurn {
   emitImage?: (image: { messageId: string; path: string }) => void;
   /** A slash command the client stripped from the text: search, image, remember, summarize, translate, explain. */
   command?: string;
+  /** Aborted when they press Stop (the app closes the stream): the model call is cut off there. */
+  signal?: AbortSignal;
+  /** Free accounts' credits left today, when known: said in the prompt so the model can explain a missing tool. */
+  creditsLeft?: number;
 }
 
 /**
@@ -153,22 +159,23 @@ const COMMANDS: Record<string, (lang: string | null) => string> = {
   explain: () => 'They used /explain: explain it simply, the way you would to a bright 12 year old, with one everyday example.',
 };
 
-/** Turns of conversation looked at, at most, and the characters they may take. */
-const WINDOW_MESSAGES = 30;
 /*
- * OpenAI caches the prompt's unchanged opening. A window that slid one message
- * per turn changed its first line every turn, so the history was never cached.
- * It now grows from WINDOW_MIN and drops WINDOW_STEP at once: the opening holds
- * for WINDOW_STEP messages, and those turns read the history at a tenth of the price.
+ * A chat is remembered whole, as ChatGPT does: every message since its last
+ * compaction, up to HISTORY_CHARS (about 24k tokens). The opening never moves
+ * between turns, so all of it but the newest turn is read from OpenAI's cache.
+ * Past the budget the oldest fall off (and the ring in the app is full, asking
+ * to compact); compacting folds them into `ai_summary` instead.
  */
-const WINDOW_MIN = 20;
-const WINDOW_STEP = 10;
-const WINDOW_CHARS = 16_000;
+const HISTORY_ROWS = 400;
+const HISTORY_CHARS = 80_000;
+/** The prompt size the ring in the app measures against; keep equal to the app's AI_CONTEXT_LIMIT. */
+export const CONTEXT_LIMIT = 32_000;
 /** In a group: tagged messages and PINGO AI's replies only, this many at most. */
 const GROUP_WINDOW = 6;
-const MESSAGE_CHARS = 1_500;
+const MESSAGE_CHARS = 4_000;
 const MAX_TOOL_ROUNDS = 3;
 const MEMORY_CAP = 60;
+const IMAGE_QUALITY = (['low', 'medium', 'high', 'auto'] as const).find((q) => q === (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get('OPENAI_IMAGE_QUALITY')) ?? 'medium';
 /** The latest turn's attachments: how far back, and how many. */
 const ATTACH_ROWS = 6;
 const ATTACH_MINUTES = 15;
@@ -195,6 +202,7 @@ export function openaiCanDraw(): boolean {
  * person or this moment goes in the second system message.
  */
 const SYSTEM = `You are PINGO AI, the assistant inside PINGO, a chat app. Talk exactly the way ChatGPT does: helpful, warm, clear and natural, like a knowledgeable friend.
+That is only a style. You are PINGO AI (or the name they gave you), never ChatGPT: do not call yourself ChatGPT or say which company's model you run on.
 
 How you answer:
 - Answer the question directly and completely. Lead with the answer; no preamble, no "Great question", no restating what they said.
@@ -315,7 +323,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const t0 = Date.now();
   t.emit('reading');
 
-  const [{ data: profile }, { data: rows }, { count: total }, { data: chat }] = await Promise.all([
+  const [{ data: profile }, { data: rows }, { data: chat }, { data: saved }] = await Promise.all([
     t.db
       .from('ai_profiles')
       .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled')
@@ -327,12 +335,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       .eq('conversation_id', t.conversationId)
       .is('encryption', null)
       .order('created_at', { ascending: false })
-      .limit(WINDOW_MESSAGES + 6),
-    t.db
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', t.conversationId)
-      .is('encryption', null),
+      .limit(t.isGroup ? 60 : HISTORY_ROWS),
     /* Whether this is a side chat still called 'New chat', which this turn names. Never a group. */
     t.isGroup
       ? Promise.resolve({ data: null })
@@ -340,6 +343,15 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
           (r: { data: unknown }) => r,
           () => ({ data: null }),
         ),
+    /*
+     * What they asked PINGO AI to remember, in the prompt itself. Left to
+     * `recall_memory`, the model skipped the lookup on plain questions ("which
+     * chai do I like?") and said it did not know. Never in a group: one
+     * person's memories are not the room's.
+     */
+    t.isGroup
+      ? Promise.resolve({ data: null })
+      : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_CAP),
   ]);
   const needsTitle = !!d.nameChat && sideChatNeedsTitle(chat as ChatRow);
   const p = (profile ?? null) as LunaProfile | null;
@@ -381,10 +393,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     }
   }
 
-  /* The window: newest back, until the budget is spent. */
-  const keep = typeof total === 'number' ? WINDOW_MIN + (total % WINDOW_STEP) : WINDOW_MESSAGES + 6;
+  /* The chat since its last compaction; what came before is in the summary. */
+  const compacted = chat as { ai_summary?: string | null; ai_summary_upto?: string | null } | null;
+  const upto = compacted?.ai_summary_upto ?? '';
   const recent = newest
-    .slice(0, keep)
+    .filter((r) => !upto || r.created_at > upto)
     .filter((r) => {
       const said = (r.body ?? '').trim();
       // A photo or a file with no caption is still something they said.
@@ -412,10 +425,9 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     }
   }
 
-  let budget = WINDOW_CHARS;
+  let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string; speaker?: string }[] = [];
   for (const r of recent) {
-    if (picked.length >= WINDOW_MESSAGES) break;
     const role = r.sender_id === d.botId ? 'assistant' : 'user';
     const speaker = role === 'user' ? (names.get(r.sender_id) ?? '') : '';
     const text = describeRow(r, role, d.stripMarkers).slice(0, MESSAGE_CHARS);
@@ -435,6 +447,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
 
   /* Who this is and how they like it: the part that changes, after the part that does not. */
   const about: string[] = [];
+  /*
+   * A compacted chat's beginning, placed where it happened: just before the
+   * messages that followed it, as part of this conversation. Among the profile
+   * notes above, the model read it as background and left it out of "what
+   * have we talked about".
+   */
+  const earlier =
+    !t.isGroup && compacted?.ai_summary
+      ? `This conversation started before the messages below. What was said earlier in it, in short (it is part of this same chat; count it when they ask what you talked about):\n${compacted.ai_summary}`
+      : '';
   const callThem = p?.preferred_name?.trim() || p?.display_name?.trim();
   if (callThem) about.push(`The person's name: ${callThem}. Use it rarely, the way a friend would.`);
   const lang = d.languageLabel(p?.language);
@@ -452,8 +474,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         : 'They prefer concise answers: complete, but no padding. Small talk gets a line or two.',
   );
   if (!memoryOn) about.push('Memory is switched off by them: do not save or recall anything, and say so if they ask you to remember.');
+  const remembered = memoryOn ? ((saved ?? []) as { value: string }[]).map((m) => `- ${m.value}`) : [];
+  // Oldest first, so a new memory only adds to the end of this block.
+  if (remembered.length) {
+    about.push(['What they asked you to remember (use it naturally; no need to call recall_memory for these):', ...remembered].join('\n'));
+  }
   /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
+  if (t.creditsLeft !== undefined && t.creditsLeft < 5) {
+    now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
+  }
   const command = t.command ? COMMANDS[t.command] : undefined;
   if (command) now.push(command(lang));
   if (needsTitle) now.push(TITLE_NOTE);
@@ -478,6 +508,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const input: InputItem[] = [
     { role: 'system', content: SYSTEM },
     { role: 'system', content: about.join('\n\n') },
+    ...(earlier ? [{ role: 'system', content: earlier } as InputItem] : []),
     ...history.map((m) => ({ role: m.role, content: m.content }) as InputItem),
   ];
   if (attached.parts.length) {
@@ -513,7 +544,10 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     const piece = moods.push(raw);
     if (piece) onText(piece);
   };
+  /** Everything already on their screen, which is what a Stop keeps. */
+  let onScreen = '';
   const onText = (piece: string) => {
+    onScreen += piece;
     if (!firstText) firstText = Date.now();
     stage('writing');
     pending += piece;
@@ -562,6 +596,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         maxTokens,
         cacheKey: `pingo-ai-${t.userId}`,
         onText: onRaw,
+        ...(t.signal ? { signal: t.signal } : {}),
         // A command forces its tool on the first round only; after that the model is answering.
         ...(rounds === 0 && t.command === 'search' ? { force: 'web_search' as const } : {}),
         ...(rounds === 0 && t.command === 'image' ? { force: 'image_generation' as const } : {}),
@@ -608,6 +643,13 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       }
     }
   } catch (err) {
+    if (t.signal?.aborted) {
+      // Stopped: keep what they already saw, as it was; nothing at all if nothing came.
+      flush(true);
+      const kept = stripCitations(onScreen, sources).trim();
+      if (!kept) return { status: 200, body: { stopped: true } };
+      return say(t, kept, 'happy', undefined, { stopped: true }, sources);
+    }
     console.error('[luna] model', err);
     const tail = moods.end();
     if (tail) onText(tail);
@@ -659,8 +701,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     };
     const posted = await d.postImage(
       { bytes: fromBase64(drawn.b64), contentType: `image/${format}`, extension: format === 'jpeg' ? 'jpg' : format },
-      // Its own line about the picture is the caption; the prompt it drew from, when it said nothing.
-      (text || drawn.revisedPrompt || '').slice(0, 4000),
+      // Its own line about the picture is the caption, or none. The English prompt it drew from stays in meta, off the bubble.
+      text.slice(0, 4000),
       meta,
     );
     if ('error' in posted) return say(t, "I drew it but couldn't send it. Try again?", 'sad', posted.error);
@@ -688,6 +730,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
    * each part took.
    */
   const u = (usage ?? {}) as { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+  // The ring in the app: this chat's prompt as OpenAI counted it, plus the reply that joins it.
+  if (!t.isGroup && u.input_tokens) await d.saveContext?.(u.input_tokens + (u.output_tokens ?? 0));
   console.log(
     `[luna] provider=openai api=responses model=${t.model} effort=${t.reasoningEffort || 'default'} in=${u.input_tokens ?? '?'} cached=${u.input_tokens_details?.cached_tokens ?? 0} out=${u.output_tokens ?? '?'} tools=${rounds} searches=${searches} images=${images.length} photos_in=${attached.photos} files_in=${attached.files} first_ms=${firstText ? firstText - tModel : '?'} model_ms=${tModelDone - tModel} total_ms=${Date.now() - t0}`,
   );
@@ -705,6 +749,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       ...(sources.length ? { sources } : {}),
       ...(image ? { image } : {}),
       ...(chatTitle ? { chatTitle } : {}),
+      // What this turn used of the daily credits; the caller charges for it.
+      used: { searched: searches > 0, drew: !!image },
       ...(usage ? { usage } : {}),
       ms: { before: tModel - t0, firstWords: firstText ? firstText - tModel : null, model: tModelDone - tModel, total: Date.now() - t0 },
     },
@@ -758,7 +804,12 @@ function builtinTools(t: LunaTurn, p: LunaProfile | null): BuiltinTool[] {
       // WebP: a chat photo at a fraction of a PNG's bytes, in the bucket and on the phone.
       output_format: 'webp',
       output_compression: 90,
-      quality: 'auto',
+      /*
+       * Medium, not auto: auto picks high for detailed prompts, about four
+       * times the price for a difference a phone screen does not show.
+       * OPENAI_IMAGE_QUALITY=high (or low) changes it.
+       */
+      quality: IMAGE_QUALITY,
       size: 'auto',
     });
   }
@@ -921,6 +972,7 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
       const { count } = await t.db.from('ai_goals').select('id', { count: 'exact', head: true }).eq('user_id', t.userId);
       if ((count ?? 0) >= GOAL_CAP) return 'Their goals list is full. Ask them to clear some done goals first.';
       const { error } = await t.db.from('ai_goals').insert({ user_id: t.userId, title });
+      if (error) console.error('[luna] add_goal', error.message);
       return error ? 'Could not add it right now.' : `Added: ${title}`;
     }
     if (call.name === 'list_goals' && !t.isGroup) {

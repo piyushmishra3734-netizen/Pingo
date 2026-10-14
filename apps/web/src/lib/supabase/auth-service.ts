@@ -510,6 +510,35 @@ class SupabasePhoneOtpAuth implements PhoneOtpAuth {
   }
 }
 
+/**
+ * Texts from Firebase (Google's sender, no DLT needed), calls from the
+ * Supabase hook (`send-sms`, which has 2Factor ring the code out). Whichever
+ * sent the last code checks it.
+ */
+class SplitPhoneOtpAuth implements PhoneOtpAuth {
+  #last: PhoneOtpAuth;
+  constructor(
+    private readonly text: PhoneOtpAuth,
+    private readonly call: PhoneOtpAuth,
+  ) {
+    this.#last = text;
+  }
+
+  async start(phone: string, channel: 'sms' | 'call' = 'sms'): Promise<void> {
+    const door = channel === 'call' ? this.call : this.text;
+    await door.start(phone, channel);
+    this.#last = door;
+  }
+
+  verify(phone: string, code: string): Promise<AuthSession> {
+    return this.#last.verify(phone, code);
+  }
+
+  setPassword(password: string): Promise<void> {
+    return this.#last.setPassword(password);
+  }
+}
+
 class SupabaseUsernameAuth implements UsernameAuth {
   constructor(private readonly client: PingoSupabaseClient) {}
 
@@ -632,7 +661,7 @@ export class SupabaseAuthService implements AuthService {
     this.phone = new SupabasePasswordAuth(client, 'phone');
     // Firebase sends the codes when it is configured (no DLT sender needed in India).
     this.phoneOtp = CONFIG.apiKey && CONFIG.appId
-      ? new FirebasePhoneOtpAuth(client, toPhoneDigits, toSession)
+      ? new SplitPhoneOtpAuth(new FirebasePhoneOtpAuth(client, toPhoneDigits, toSession), new SupabasePhoneOtpAuth(client))
       : new SupabasePhoneOtpAuth(client);
     this.username = new SupabaseUsernameAuth(client);
     /*
