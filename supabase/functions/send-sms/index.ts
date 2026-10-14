@@ -147,10 +147,8 @@ Deno.serve(async (request) => {
    */
   const twoFactor = Deno.env.get('TWOFACTOR_API_KEY');
   if (twoFactor) {
-    const template = Deno.env.get('TWOFACTOR_TEMPLATE_NAME');
-    const url =
-      `https://2factor.in/API/V1/${encodeURIComponent(twoFactor)}/SMS/${encodeURIComponent(digits)}/${encodeURIComponent(otp)}` +
-      (template ? `/${encodeURIComponent(template)}` : '');
+    // VOICE: 2Factor's call route. Its SMS route used to ring as a call without a DLT mapping; it no longer does.
+    const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactor)}/VOICE/${encodeURIComponent(digits)}/${encodeURIComponent(otp)}`;
     const sent = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
     const body = (await sent?.json().catch(() => null)) as { Status?: string; Details?: string } | null;
     if (body?.Status !== 'Success') {
