@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coins, Volume2 } from 'lucide-react';
+import { Check, Coins, Loader2, Play, Square, Volume2 } from 'lucide-react';
+import { playVoicePreview, stopVoicePreview } from '../profile/voice-preview.js';
 import { getSupabaseClient } from '../../../lib/supabase/client.js';
 import { callSoundsOn, setCallSounds } from '../../../lib/audio/call-sfx.js';
 
@@ -86,7 +87,12 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
       <Choices options={langs} value={prefs.language ?? 'en'} onPick={(id) => void save({ language: id })} />
     ) : page === 'voice' ? (
       <Group title="Voice on calls" footer="Used the next time you call PINGO AI.">
-        <Choices options={AI_VOICES} value={voice as (typeof AI_VOICES)[number]['id']} onPick={(id) => void save({ voice: id })} />
+        <VoiceChoices
+          value={voice}
+          speed={prefs.voice_speed ?? 1}
+          language={prefs.voice_language ?? null}
+          onPick={(id) => void save({ voice: id })}
+        />
       </Group>
     ) : page === 'data' ? (
       <div className="flex flex-col gap-6">
@@ -265,5 +271,76 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
         />
       )}
     </>
+  );
+}
+
+/**
+ * The call voices, each with a play button: a few seconds of that voice from
+ * OpenAI (ai-realtime's preview), at their speed and language, before picking.
+ */
+function VoiceChoices({
+  value,
+  speed,
+  language,
+  onPick,
+}: {
+  value: string;
+  speed: number;
+  language: string | null;
+  onPick: (id: string) => void;
+}) {
+  const [playing, setPlaying] = useState<string>();
+  const [loading, setLoading] = useState<string>();
+  const [error, setError] = useState('');
+  useEffect(() => () => stopVoicePreview(), []);
+
+  const play = async (id: string) => {
+    if (playing === id) {
+      stopVoicePreview();
+      setPlaying(undefined);
+      return;
+    }
+    setError('');
+    setLoading(id);
+    try {
+      await playVoicePreview({ voice: id, speed, language }, () => setPlaying((p) => (p === id ? undefined : p)));
+      setPlaying(id);
+    } catch (cause) {
+      setPlaying(undefined);
+      setError(cause instanceof Error ? cause.message : "Couldn't play that voice right now.");
+    } finally {
+      setLoading(undefined);
+    }
+  };
+
+  return (
+    <div role="radiogroup" aria-label="Call voice" className="flex flex-col">
+      {AI_VOICES.map((v) => (
+        <div key={v.id} className="flex items-center gap-2 border-t border-line px-3 py-2.5 first:border-t-0">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={value === v.id}
+            onClick={() => onPick(v.id)}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
+            <span className="grid size-5 shrink-0 place-items-center text-brand">{value === v.id ? <Check size={18} /> : null}</span>
+            <span className="min-w-0">
+              <span className="block text-[16px] font-medium text-ink">{v.label}</span>
+              <span className="block text-[13.5px] text-text-secondary">{v.hint}</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label={playing === v.id ? `Stop ${v.label}` : `Play ${v.label}`}
+            onClick={() => void play(v.id)}
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-sunken text-ink active:scale-95"
+          >
+            {loading === v.id ? <Loader2 size={17} className="animate-spin motion-reduce:animate-none" /> : playing === v.id ? <Square size={14} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+          </button>
+        </div>
+      ))}
+      {error && <p role="alert" className="px-3 pt-2 text-[13px] text-[#d92d20]">{error}</p>}
+    </div>
   );
 }
