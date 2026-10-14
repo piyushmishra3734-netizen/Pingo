@@ -56,6 +56,7 @@ export function CallOverlay() {
     toggleMute,
     toggleCamera,
     switchCamera,
+    cameraFacing,
     localStream,
     remoteStreams,
     screenStreams,
@@ -357,6 +358,7 @@ export function CallOverlay() {
         <LocalPreview
           stream={localStream}
           cameraOff={call.cameraOff}
+          mirrored={cameraFacing === 'user'}
           onFlip={() => void switchCamera()}
           flipLabel={t('call.switchCamera')}
         />
@@ -777,11 +779,14 @@ function RemoteVideo({
 function LocalPreview({
   stream,
   cameraOff,
+  mirrored,
   onFlip,
   flipLabel,
 }: {
   stream: MediaStream;
   cameraOff: boolean;
+  /** The front camera, shown as a mirror; the rear one shows the world the right way round. */
+  mirrored: boolean;
   onFlip: () => void;
   flipLabel: string;
 }) {
@@ -815,10 +820,11 @@ function LocalPreview({
         muted
         aria-hidden
         /*
-          Mirrored, like every selfie preview and every video app. Only the
-          preview - what the peer receives is never flipped.
+          Mirrored for the front camera, like every selfie preview and every
+          video app; the rear camera is shown as it is. Only the preview -
+          what the peer receives is never flipped.
         */
-        className="size-full -scale-x-100 object-cover"
+        className={cn('size-full object-cover', mirrored && '-scale-x-100')}
       />
 
       <button

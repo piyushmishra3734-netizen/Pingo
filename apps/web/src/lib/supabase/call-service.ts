@@ -11,6 +11,7 @@ import type {
 } from '@pingo/core';
 
 import { trimCallChat } from '../../features/calls/call-chat-rules.js';
+import { openOtherCamera } from '../../features/calls/flip-camera.js';
 import { isScreenIdentity } from '../../features/calls/screen-share-rules.js';
 import { boostAudioSender, speechAudioConstraints } from '../audio/capture.js';
 import { resolveIceServers } from '../webrtc/ice-servers.js';
@@ -2001,28 +2002,52 @@ export class SupabaseCallService implements CallService {
   async switchCamera(callId: string): Promise<'user' | 'environment'> {
     if (this.#call?.id !== callId || this.#call.kind !== 'video') return this.#facing;
 
+    // A second tap while the first flip is still opening a camera would fight it for the device.
+    if (this.#flipping) return this.#facing;
+    this.#flipping = true;
+    try {
+      return await this.#flip();
+    } finally {
+      this.#flipping = false;
+    }
+  }
+
+  #flipping = false;
+
+  async #flip(): Promise<'user' | 'environment'> {
     const wanted = this.#facing === 'user' ? 'environment' : 'user';
     const previous = this.#facing;
-    this.#facing = wanted;
+    const current = this.#localStream?.getVideoTracks()[0];
 
-    let replacement: MediaStream;
-    try {
-      replacement = await navigator.mediaDevices.getUserMedia({
-        video: this.#videoConstraints(),
-        audio: false,
-      });
-    } catch {
-      // One camera, or the other one is busy. Staying put beats ending the call.
-      this.#facing = previous;
-      return previous;
-    }
-
-    const [track] = replacement.getVideoTracks();
+    const track = await openOtherCamera(navigator.mediaDevices, wanted, current, this.#videoConstraints());
     if (!track) {
+      /*
+       * Nothing opened. If the old camera had to be let go to try (see
+       * `openOtherCamera`), it is dead now, so the call gets it back rather
+       * than a black tile.
+       */
+      if (current && current.readyState === 'ended') {
+        this.#facing = previous;
+        const back = await navigator.mediaDevices
+          .getUserMedia({ video: this.#videoConstraints(), audio: false })
+          .then((s) => s.getVideoTracks()[0])
+          .catch(() => undefined);
+        if (back) await this.#useCameraTrack(back);
+      }
       this.#facing = previous;
       return previous;
     }
+    this.#facing = wanted;
+    await this.#useCameraTrack(track);
+    return wanted;
+  }
 
+  /** Puts a newly opened camera on the call: published, previewed, the old one released. */
+  async #useCameraTrack(track: MediaStreamTrack): Promise<void> {
+    if (!this.#call) {
+      track.stop();
+      return;
+    }
     // Carry the on/off state across, or switching cameras would silently
     // un-mute a camera the user had deliberately turned off.
     track.enabled = !this.#call.cameraOff;
@@ -2055,8 +2080,6 @@ export class SupabaseCallService implements CallService {
     if (this.#localStream) {
       this.#emit({ type: 'call:local-stream', stream: this.#localStream });
     }
-
-    return wanted;
   }
 
   // -- lifecycle -----------------------------------------------------------

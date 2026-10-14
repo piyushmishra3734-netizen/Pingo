@@ -100,6 +100,8 @@ interface CallContextValue {
   toggleMute: () => void;
   toggleCamera: () => void;
   switchCamera: () => Promise<void>;
+  /** Which camera is on: the self-preview mirrors the front one only. */
+  cameraFacing: 'user' | 'environment';
   /**
    * Video only, and both are video-only on purpose.
    *
@@ -506,8 +508,11 @@ export function CallProvider({
     if (call) service.setCameraOff(call.id, !call.cameraOff);
   }, [service, call]);
 
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+  // Every call opens on the front camera (the service resets it too).
+  useEffect(() => setCameraFacing('user'), [call?.id]);
   const switchCamera = useCallback(async () => {
-    if (call) await service.switchCamera(call.id);
+    if (call) setCameraFacing(await service.switchCamera(call.id));
   }, [service, call]);
 
   /*
@@ -706,6 +711,7 @@ export function CallProvider({
       toggleMute,
       toggleCamera,
       switchCamera,
+      cameraFacing,
       localStream,
       remoteStreams,
       screenStreams,
@@ -730,6 +736,7 @@ export function CallProvider({
       toggleMute,
       toggleCamera,
       switchCamera,
+      cameraFacing,
       localStream,
       remoteStreams,
       /*
