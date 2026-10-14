@@ -56,14 +56,13 @@ Deno.serve(async (request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // ponytail: scans the user list, fine to a few thousand accounts; a phone->id SQL function past that.
-  let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | undefined;
-  for (let page = 1; !user; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) return fail('lookup', error);
-    user = data.users.find((u) => u.phone === phone);
-    if (data.users.length < 1000) break;
-  }
+  // One indexed lookup (auth_user_by_phone): auth.admin.listUsers fails outright on this project's users.
+  const { data: found, error: lookupError } = await admin.rpc('auth_user_by_phone', { p_phone: phone });
+  if (lookupError) return fail('lookup', lookupError);
+  const row = (found as { id: string; email: string | null; user_metadata: Record<string, unknown> | null }[] | null)?.[0];
+  let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | undefined = row
+    ? { id: row.id, ...(row.email ? { email: row.email } : {}), ...(row.user_metadata ? { user_metadata: row.user_metadata } : {}) }
+    : undefined;
   if (!user && !create) return json({ error: 'no_account' }, 404);
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({ phone, phone_confirm: true });
