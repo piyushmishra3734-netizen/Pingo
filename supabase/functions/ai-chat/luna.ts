@@ -447,10 +447,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
 
   /* Who this is and how they like it: the part that changes, after the part that does not. */
   const about: string[] = [];
-  if (!t.isGroup && compacted?.ai_summary) {
-    about.push(`Earlier in this chat (compacted into a summary at their request; the messages after it follow):
-${compacted.ai_summary}`);
-  }
+  /*
+   * A compacted chat's beginning, placed where it happened: just before the
+   * messages that followed it, as part of this conversation. Among the profile
+   * notes above, the model read it as background and left it out of "what
+   * have we talked about".
+   */
+  const earlier =
+    !t.isGroup && compacted?.ai_summary
+      ? `This conversation started before the messages below. What was said earlier in it, in short (it is part of this same chat; count it when they ask what you talked about):\n${compacted.ai_summary}`
+      : '';
   const callThem = p?.preferred_name?.trim() || p?.display_name?.trim();
   if (callThem) about.push(`The person's name: ${callThem}. Use it rarely, the way a friend would.`);
   const lang = d.languageLabel(p?.language);
@@ -502,6 +508,7 @@ ${compacted.ai_summary}`);
   const input: InputItem[] = [
     { role: 'system', content: SYSTEM },
     { role: 'system', content: about.join('\n\n') },
+    ...(earlier ? [{ role: 'system', content: earlier } as InputItem] : []),
     ...history.map((m) => ({ role: m.role, content: m.content }) as InputItem),
   ];
   if (attached.parts.length) {
