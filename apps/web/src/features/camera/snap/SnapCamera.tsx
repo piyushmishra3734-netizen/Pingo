@@ -6,7 +6,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { ClipSheet, MusicSheet, Panel, type Song } from '../../music/sheets.js';
-import { CAMERA_KIT_GROUP, CAMERA_KIT_TOKEN } from './camera-kit.js';
+import { CAMERA_KIT_GROUPS, CAMERA_KIT_TOKEN } from './camera-kit.js';
 import { claimAudio } from '../../../lib/audio-focus.js';
 
 /**
@@ -182,7 +182,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
         if (dead) { void session.destroy(); return; }
         canvas.className = 'absolute inset-0 size-full object-cover';
         // The lenses load on their own: a slow or missing camera must not hold them up.
-        const loading = ck.lensRepository.loadLensGroups([CAMERA_KIT_GROUP]);
+        const loading = ck.lensRepository.loadLensGroups(CAMERA_KIT_GROUPS);
         const s = stream.current;
         if (s) {
           const f = facingNow.current;
