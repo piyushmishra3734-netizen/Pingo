@@ -138,6 +138,29 @@ Deno.serve(async (request) => {
     return failure(429, intent.channel === 'call' ? 'No more calls for this number for now.' : 'No more texts for this number for now.');
   }
 
+  /*
+   * 2Factor, when its key is set: the code reaches the phone as a call (its
+   * SMS route does that while the DLT mapping is not live), which is exactly
+   * "call me instead". SMS sign-in itself is Firebase's now; what comes here is
+   * calls, adding a number and recovery by @username. The key is a path
+   * segment, so nothing here logs a URL.
+   */
+  const twoFactor = Deno.env.get('TWOFACTOR_API_KEY');
+  if (twoFactor) {
+    const template = Deno.env.get('TWOFACTOR_TEMPLATE_NAME');
+    const url =
+      `https://2factor.in/API/V1/${encodeURIComponent(twoFactor)}/SMS/${encodeURIComponent(digits)}/${encodeURIComponent(otp)}` +
+      (template ? `/${encodeURIComponent(template)}` : '');
+    const sent = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
+    const body = (await sent?.json().catch(() => null)) as { Status?: string; Details?: string } | null;
+    if (body?.Status !== 'Success') {
+      console.error(`[send-sms] 2Factor refused: ${sent?.status ?? 'unreachable'} ${(body?.Details ?? '').replace(/\d{4,}/g, '****').slice(0, 160)}`);
+      return failure(502, 'Could not send the code.');
+    }
+    await markOtpSent(admin, digits, intent);
+    return OK();
+  }
+
   const to = `+${digits}`;
   let response: Response;
   try {

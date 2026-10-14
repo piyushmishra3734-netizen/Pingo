@@ -109,6 +109,14 @@ export async function startRecovery(identity: RecoveryIdentity, channel: OtpChan
    * with no account reads exactly as a send; only the verify step refuses it,
    * the same way it refuses a wrong code.
    */
+  recoveredBy = channel;
+  if (channel === 'call') {
+    // A call: Supabase's hook, which has 2Factor ring the code out. Never makes an account.
+    const quota = await chooseOtp(phone, 'call');
+    const { error } = await getSupabaseClient().auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+    if (error && (error.status === 429 || offline())) throw fromSupabase(error, false);
+    return { status: 'sent', ending: phone.slice(-2), quota };
+  }
   await firebaseRecovery().start(identity.value);
   return { status: 'sent', ending: phone.slice(-2) };
 }
@@ -131,9 +139,16 @@ export async function verifyRecovery(identity: RecoveryIdentity, code: string): 
     return;
   }
 
+  if (recoveredBy === 'call') {
+    const { data, error } = await getSupabaseClient().auth.verifyOtp({ phone: toPhoneDigits(identity.value), token, type: 'sms' });
+    if (error || !data.session) throw fromSupabase(error ?? {}, true);
+    return;
+  }
   await firebaseRecovery().verify(identity.value, token);
 }
 
+/** Which way the last recovery code went: texts are Firebase's, calls the hook's. */
+let recoveredBy: OtpChannel = 'sms';
 let recoveryDoor: FirebasePhoneOtpAuth | undefined;
 /** One instance, so the code `startRecovery` sent is the one `verifyRecovery` confirms. Never makes an account. */
 function firebaseRecovery(): FirebasePhoneOtpAuth {
