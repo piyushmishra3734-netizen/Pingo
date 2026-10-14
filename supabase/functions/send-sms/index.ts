@@ -147,8 +147,8 @@ Deno.serve(async (request) => {
    */
   const twoFactor = Deno.env.get('TWOFACTOR_API_KEY');
   if (twoFactor) {
-    // VOICE: 2Factor's call route. Its SMS route used to ring as a call without a DLT mapping; it no longer does.
-    const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactor)}/VOICE/${encodeURIComponent(digits)}/${encodeURIComponent(otp)}`;
+    // VOICE: 2Factor's call route, which takes an Indian number as its 10 digits ("Length Mismatch (Expected: 10)" with the 91). Its SMS route used to ring as a call without a DLT mapping; it no longer does.
+    const url = `https://2factor.in/API/V1/${encodeURIComponent(twoFactor)}/VOICE/${encodeURIComponent(digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits)}/${encodeURIComponent(otp)}`;
     const sent = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => undefined);
     const body = (await sent?.json().catch(() => null)) as { Status?: string; Details?: string } | null;
     if (body?.Status !== 'Success') {
