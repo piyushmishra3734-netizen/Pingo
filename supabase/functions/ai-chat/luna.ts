@@ -173,6 +173,7 @@ const GROUP_WINDOW = 6;
 const MESSAGE_CHARS = 1_500;
 const MAX_TOOL_ROUNDS = 3;
 const MEMORY_CAP = 60;
+const IMAGE_QUALITY = (['low', 'medium', 'high', 'auto'] as const).find((q) => q === (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get('OPENAI_IMAGE_QUALITY')) ?? 'medium';
 /** The latest turn's attachments: how far back, and how many. */
 const ATTACH_ROWS = 6;
 const ATTACH_MINUTES = 15;
@@ -793,7 +794,12 @@ function builtinTools(t: LunaTurn, p: LunaProfile | null): BuiltinTool[] {
       // WebP: a chat photo at a fraction of a PNG's bytes, in the bucket and on the phone.
       output_format: 'webp',
       output_compression: 90,
-      quality: 'auto',
+      /*
+       * Medium, not auto: auto picks high for detailed prompts, about four
+       * times the price for a difference a phone screen does not show.
+       * OPENAI_IMAGE_QUALITY=high (or low) changes it.
+       */
+      quality: IMAGE_QUALITY,
       size: 'auto',
     });
   }
