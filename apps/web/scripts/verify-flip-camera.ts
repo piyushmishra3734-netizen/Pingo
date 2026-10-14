@@ -14,14 +14,17 @@ type Cam = { id: string; label: string; facing: 'user' | 'environment' };
 const FRONT: Cam = { id: 'front', label: 'camera2 1, facing front', facing: 'user' };
 const BACK: Cam = { id: 'back', label: 'camera2 0, facing back', facing: 'environment' };
 
+let releaseMs = 0;
 class FakeTrack {
   readyState: 'live' | 'ended' = 'live';
+  endedAt = 0;
   constructor(readonly cam: Cam) {}
   getSettings() {
     return { deviceId: this.cam.id, facingMode: this.cam.facing };
   }
   stop() {
     this.readyState = 'ended';
+    this.endedAt = Date.now();
   }
 }
 
@@ -39,7 +42,8 @@ function device(opts: { cams: Cam[]; oneAtATime: boolean; ignoresFacing?: boolea
         cam = opts.cams.find((c) => c.facing === want) ?? (exact ? undefined : opts.cams[0]);
       }
       if (!cam) throw Object.assign(new Error('Overconstrained'), { name: 'OverconstrainedError' });
-      if (opts.oneAtATime && live.some((t) => t.readyState === 'live')) {
+      // A phone frees a camera a moment after stop(), not at once.
+      if (opts.oneAtATime && live.some((t) => t.readyState === 'live' || Date.now() - t.endedAt < releaseMs)) {
         throw Object.assign(new Error('Could not start video source'), { name: 'NotReadableError' });
       }
       const track = new FakeTrack(cam);
@@ -112,6 +116,26 @@ await ok('the call settings (HD, frame rate) ride along', async () => {
   await openOtherCamera(spy, 'environment', as(await d.open(FRONT)), { width: { ideal: 1280 }, frameRate: { ideal: 30 } });
   assert.deepEqual(seen?.width, { ideal: 1280 });
   assert.deepEqual(seen?.frameRate, { ideal: 30 });
+});
+
+await ok('a phone slow to release the old camera: asked again until it is free', async () => {
+  releaseMs = 300;
+  const d = device({ cams: [FRONT, BACK], oneAtATime: true });
+  const current = await d.open(FRONT);
+  const next = await openOtherCamera(d.media, 'environment', as(current), {});
+  releaseMs = 0;
+  assert.equal(settings(next), 'back');
+});
+
+await ok('a camera that never frees up: no track, and the reason is kept', async () => {
+  const { lastCameraError } = await import('../src/features/calls/flip-camera.js');
+  releaseMs = 60_000;
+  const d = device({ cams: [FRONT, BACK], oneAtATime: true });
+  const next = await openOtherCamera(d.media, 'environment', as(await d.open(FRONT)), {});
+  releaseMs = 0;
+  assert.equal(next, undefined);
+  const mod = await import('../src/features/calls/flip-camera.js');
+  assert.equal(mod.lastCameraError ?? lastCameraError, 'NotReadableError');
 });
 
 console.log(`\n${n} passed`);

@@ -353,6 +353,9 @@ export function CallOverlay() {
         </div>
       ) : null}
 
+      {/* On video the status block is hidden behind the picture, so an error floats over it instead. */}
+      {video && error && !incoming ? <CallError message={error} onDismiss={dismissError} /> : null}
+
       {/* The self-preview, from the moment the camera opens. */}
       {video && localStream && !incoming ? (
         <LocalPreview

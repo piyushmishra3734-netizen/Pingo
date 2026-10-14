@@ -21,6 +21,14 @@
  * Kept apart from the call service, with the media devices passed in, so
  * `pnpm verify:flip-camera` can play a one-camera phone against it.
  */
+/** How long to wait, in turn, for a phone to let go of the camera it was using. */
+export const RELEASE_WAITS = [0, 150, 400, 900];
+
+const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+/** Why the last camera that would not open said no (`NotReadableError`, ...), for the message a failed flip shows. */
+export let lastCameraError: string | undefined;
+
 export async function openOtherCamera(
   media: Pick<MediaDevices, 'getUserMedia' | 'enumerateDevices'>,
   wanted: 'user' | 'environment',
@@ -28,13 +36,15 @@ export async function openOtherCamera(
   constraints: MediaTrackConstraints,
 ): Promise<MediaStreamTrack | undefined> {
   const base: MediaTrackConstraints = { ...constraints, facingMode: wanted };
+  lastCameraError = undefined;
   const currentId = current?.getSettings().deviceId;
   const isNew = (t: MediaStreamTrack | undefined): boolean => Boolean(t) && (!currentId || t!.getSettings().deviceId !== currentId);
   const open = async (video: MediaTrackConstraints): Promise<MediaStreamTrack | undefined> => {
     try {
       const stream = await media.getUserMedia({ video, audio: false });
       return stream.getVideoTracks()[0];
-    } catch {
+    } catch (cause) {
+      lastCameraError = cause instanceof Error ? cause.name : String(cause);
       return undefined;
     }
   };
@@ -44,11 +54,16 @@ export async function openOtherCamera(
   if (track && isNew(track)) return track;
   track?.stop();
 
-  // 2. Let the old camera go, then ask again: the phone case.
+  // 2. Let the old camera go, then ask again: the phone case. A phone takes a
+  //    moment to really release a camera after `stop()`, so asking at once
+  //    fails the same way; it is asked again after short waits.
   current?.stop();
-  track = (await open({ ...base, facingMode: { exact: wanted } })) ?? (await open(base));
-  if (track && isNew(track)) return track;
-  track?.stop();
+  for (const wait of RELEASE_WAITS) {
+    if (wait) await sleep(wait);
+    track = (await open({ ...base, facingMode: { exact: wanted } })) ?? (await open(base));
+    if (track && isNew(track)) return track;
+    track?.stop();
+  }
 
   // 3. By device: any other camera.
   const cameras = await media
@@ -59,8 +74,11 @@ export async function openOtherCamera(
   cameras.sort((a, b) => (wanted === 'environment' ? rear(b) - rear(a) : rear(a) - rear(b)));
   const { facingMode: _facing, ...rest } = base;
   for (const camera of cameras) {
-    track = await open({ ...rest, deviceId: { exact: camera.deviceId } });
-    if (track) return track;
+    for (const wait of [0, 400]) {
+      if (wait) await sleep(wait);
+      track = await open({ ...rest, deviceId: { exact: camera.deviceId } });
+      if (track) return track;
+    }
   }
   return undefined;
 }

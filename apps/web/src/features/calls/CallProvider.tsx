@@ -24,6 +24,7 @@ import { startRinging, type Ringer } from './audio/ringtone.js';
 import { useCallLog } from './useCallLog.js';
 import { isBlocked } from '../safety/blocks.js';
 import { useSpeaker } from './useSpeaker.js';
+import { lastCameraError } from './flip-camera.js';
 
 /**
  * Call state, and the one audio element the whole app shares.
@@ -512,8 +513,18 @@ export function CallProvider({
   // Every call opens on the front camera (the service resets it too).
   useEffect(() => setCameraFacing('user'), [call?.id]);
   const switchCamera = useCallback(async () => {
-    if (call) setCameraFacing(await service.switchCamera(call.id));
-  }, [service, call]);
+    if (!call) return;
+    const before = cameraFacing;
+    const now = await service.switchCamera(call.id);
+    setCameraFacing(now);
+    // Said out loud: a flip that silently stays put is what made this look broken.
+    if (now === before) {
+      const why = lastCameraError ? ` (${lastCameraError})` : '';
+      const said = `${now === 'user' ? "Couldn't switch to the back camera" : "Couldn't switch to the front camera"}${why}.`;
+      setError(said);
+      window.setTimeout(() => setError((e) => (e === said ? undefined : e)), 4000);
+    }
+  }, [service, call, cameraFacing]);
 
   /*
    * Re-renders when the *contents* of a stream change, not just its identity.
