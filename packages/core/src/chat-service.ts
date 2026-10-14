@@ -115,7 +115,7 @@ export interface VideoOverlayItem {
 }
 
 /** Slash commands PINGO AI understands. */
-export type AiCommand = 'search' | 'image' | 'remember' | 'summarize' | 'translate' | 'explain';
+export type AiCommand = 'search' | 'image' | 'remember' | 'summarize' | 'translate' | 'explain' | 'think';
 
 export interface OutgoingMessage {
   /**

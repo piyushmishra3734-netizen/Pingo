@@ -390,7 +390,7 @@ export function startRealtimeCall(options: StartRealtimeCallOptions): RealtimeCa
       }
       if (options.saveTranscript === false) return;
       const turns = transcript.visible().map((t) => ({ role: t.role, text: t.text }));
-      if (!turns.length) return;
+      // Sent even with nothing said: the save is also where the server gives back unused call time.
       const result = await saveTurns(options.conversationId, turns, callId);
       options.onSaved?.(result);
     })();
@@ -435,6 +435,7 @@ async function fetchGrant(conversationId: string, voice?: string): Promise<Grant
   if (error) {
     const status = (error as { context?: Response }).context?.status;
     if (status === 503) throw fail('not_configured', 'Voice calls with PINGO AI are not set up yet.');
+    if (status === 402) throw fail('server', 'Your 2 free call minutes for today are used up. They come back at midnight.');
     if (status === 401) throw fail('server', 'Sign in again to call PINGO AI.');
     if (status === undefined) throw fail('network', 'Could not reach PINGO. Check your internet and try again.');
     throw fail('server', 'Could not start the call. Try again in a moment.');

@@ -17,9 +17,10 @@ import {
   UserRound,
   Waves,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Volume2 } from 'lucide-react';
+import { Coins, Volume2 } from 'lucide-react';
+import { getSupabaseClient } from '../../../lib/supabase/client.js';
 import { callSoundsOn, setCallSounds } from '../../../lib/audio/call-sfx.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
@@ -47,6 +48,10 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
   const motion = useFlowMotion();
   const [page, setPage] = useState<Page>('home');
   const [callSfx, setCallSfx] = useState(callSoundsOn);
+  const [allowance, setAllowance] = useState<{ credits_left: number; credits_daily: number; call_seconds_left: number; unlimited: boolean }>();
+  useEffect(() => {
+    void getSupabaseClient().rpc('ai_allowance').then(({ data }) => setAllowance(data?.[0]));
+  }, []);
   const [profileOpen, setProfileOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
 
@@ -127,6 +132,14 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
             title="Profile"
             sub="Name, photo, bio and what it calls you"
             onClick={() => setProfileOpen(true)}
+          />
+        </Group>
+
+        <Group title="Today" footer="Free plan: 15 credits a day. A web search, a picture or /think costs 5; plain chat is free. Calls: 2 minutes a day. Both reset at midnight.">
+          <Row
+            icon={<Coins size={21} />}
+            title={allowance ? (allowance.unlimited ? 'Unlimited' : `${allowance.credits_left} of ${allowance.credits_daily} credits left`) : 'Credits'}
+            sub={allowance && !allowance.unlimited ? `${Math.floor(allowance.call_seconds_left / 60)}:${String(allowance.call_seconds_left % 60).padStart(2, '0')} of calls left` : 'Search, pictures and /think'}
           />
         </Group>
 

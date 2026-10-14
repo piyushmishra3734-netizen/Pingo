@@ -1645,6 +1645,10 @@ export type Database = {
         Args: { invite_code: string };
         Returns: string;
       };
+      ai_allowance: {
+        Args: Record<string, never>;
+        Returns: { credits_left: number; credits_daily: number; call_seconds_left: number; unlimited: boolean }[];
+      };
       phone_registered: {
         Args: { p_phone: string };
         Returns: boolean;

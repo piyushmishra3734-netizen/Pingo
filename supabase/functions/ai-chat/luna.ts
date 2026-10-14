@@ -139,6 +139,8 @@ export interface LunaTurn {
   command?: string;
   /** Aborted when they press Stop (the app closes the stream): the model call is cut off there. */
   signal?: AbortSignal;
+  /** Free accounts' credits left today, when known: said in the prompt so the model can explain a missing tool. */
+  creditsLeft?: number;
 }
 
 /**
@@ -471,6 +473,9 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   }
   /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
+  if (t.creditsLeft !== undefined && t.creditsLeft < 5) {
+    now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
+  }
   const command = t.command ? COMMANDS[t.command] : undefined;
   if (command) now.push(command(lang));
   if (needsTitle) now.push(TITLE_NOTE);
@@ -733,6 +738,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       ...(sources.length ? { sources } : {}),
       ...(image ? { image } : {}),
       ...(chatTitle ? { chatTitle } : {}),
+      // What this turn used of the daily credits; the caller charges for it.
+      used: { searched: searches > 0, drew: !!image },
       ...(usage ? { usage } : {}),
       ms: { before: tModel - t0, firstWords: firstText ? firstText - tModel : null, model: tModelDone - tModel, total: Date.now() - t0 },
     },

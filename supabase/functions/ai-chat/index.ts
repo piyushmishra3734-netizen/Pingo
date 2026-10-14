@@ -256,12 +256,22 @@ async function runTurn(
        * The model decides when to draw. The regex only routes around it when
        * OpenAI cannot draw here: switched off, or refused by this model.
        */
-      const imagesOn = Deno.env.get('OPENAI_IMAGE_GENERATION') !== 'off';
-      const command = ['search', 'image', 'remember', 'summarize', 'translate', 'explain'].includes(String(body.command))
+      const imagesOnEnv = Deno.env.get('OPENAI_IMAGE_GENERATION') !== 'off';
+      /*
+       * Free accounts: 15 credits a day (ai_usage). A search, a picture or a
+       * /think reply costs 5; without 5 left, those are not offered at all.
+       */
+      const credits = creditsFor(supabaseUrl, user.id);
+      const creditsLeft = await credits.left();
+      const canSpend = creditsLeft >= 5;
+      const asked = ['search', 'image', 'remember', 'summarize', 'translate', 'explain', 'think'].includes(String(body.command))
         ? String(body.command)
         : undefined;
-      const picture = command === 'image' ? said || undefined : imagePrompt(said);
+      const command = !canSpend && (asked === 'search' || asked === 'image' || asked === 'think') ? undefined : asked;
+      const imagesOn = imagesOnEnv && canSpend;
+      const picture = canSpend ? (command === 'image' ? said || undefined : imagePrompt(said)) : undefined;
       if (picture && (!imagesOn || !openaiCanDraw())) {
+        await credits.spend(5);
         const drawn = await replyWithImage(request, userClient, supabaseUrl, conversationId, picture, emit);
         // A side chat's first turn: named from the words, since no model wrote a title.
         if (!isGroup) await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
@@ -278,9 +288,13 @@ async function runTurn(
           apiKey: openaiKey,
           base: (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, ''),
           model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna',
-          reasoningEffort: (spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? Deno.env.get('OPENAI_REASONING_EFFORT') ?? 'low',
-          webSearch: Deno.env.get('OPENAI_WEB_SEARCH') !== 'off',
+          // /think is the one turn that reasons (5 credits); every other turn answers straight away.
+          reasoningEffort: command === 'think'
+            ? 'low'
+            : ((spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? Deno.env.get('OPENAI_REASONING_EFFORT') ?? 'low'),
+          webSearch: Deno.env.get('OPENAI_WEB_SEARCH') !== 'off' && canSpend,
           images: imagesOn,
+          creditsLeft,
           imageModel: Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-2',
           ...(command ? { command } : {}),
           emit,
@@ -311,6 +325,10 @@ async function runTurn(
           },
         },
       );
+      // Charged for what the turn actually used; a stopped or failed turn costs nothing it did not do.
+      const used = out.body.used as { searched?: boolean; drew?: boolean } | undefined;
+      const cost = (used?.searched ? 5 : 0) + (used?.drew ? 5 : 0) + (command === 'think' && !out.body.error ? 5 : 0);
+      if (cost) await credits.spend(cost);
       return json(request, out.body, out.status);
     }
 
@@ -2958,4 +2976,29 @@ async function postAiImage(
   }
 
   return { messageId: String(messageId), path };
+}
+
+/**
+ * A person's PINGO AI credits for today (see 20261029000000_ai_credits.sql).
+ * Spent with the service role: the app can read its allowance, never change it.
+ * Spending more than is left takes what is left (a search and a picture in one
+ * turn with 5 left), so the day still ends at zero.
+ */
+function creditsFor(supabaseUrl: string, userId: string) {
+  const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return {
+    async left(): Promise<number> {
+      const { data, error } = await admin.rpc('ai_credits_left', { p_user: userId });
+      // Not set up yet, or down: do not lock everyone out of search over it.
+      if (error) console.error('[ai-chat] credits', error.message);
+      return error ? 15 : Number(data);
+    },
+    async spend(amount: number): Promise<void> {
+      const { data, error } = await admin.rpc('ai_spend_credits', { p_user: userId, p_amount: amount });
+      if (error) return void console.error('[ai-chat] spend', error.message);
+      if (Number(data) < 0 && amount > 5) await admin.rpc('ai_spend_credits', { p_user: userId, p_amount: 5 });
+    },
+  };
 }

@@ -149,7 +149,14 @@ async function start(request: Request, db: Db, userId: string, body: Body): Prom
   const model = Deno.env.get('OPENAI_REALTIME_MODEL') || DEFAULT_MODEL;
   const transcribeModel = Deno.env.get('OPENAI_TRANSCRIBE_MODEL') || DEFAULT_TRANSCRIBE;
   const vad = Deno.env.get('OPENAI_REALTIME_VAD') === 'server_vad' ? 'server_vad' : 'semantic_vad';
-  const maxSeconds = Number(Deno.env.get('OPENAI_REALTIME_MAX_SECONDS')) || DEFAULT_MAX_SECONDS;
+  /*
+   * Free accounts get 120 seconds of calls a day (ai_usage). What is left is
+   * reserved now - two calls at once cannot both have it - and the call's end
+   * (save) gives back what it did not use, timed here, not by the app.
+   */
+  const allowed = await callAllowance(userId);
+  if (allowed === 0) return json(request, { error: 'Your 2 free call minutes for today are used up. They come back at midnight.', code: 'call_limit' }, 402);
+  const maxSeconds = Math.min(Number(Deno.env.get('OPENAI_REALTIME_MAX_SECONDS')) || DEFAULT_MAX_SECONDS, allowed > 0 ? allowed : Infinity);
   const { data: profile } = await db
     .from('ai_profiles')
     .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled, voice, voice_speed, voice_language')
@@ -238,6 +245,9 @@ async function preview(request: Request, body: Body): Promise<Response> {
 }
 
 async function save(request: Request, db: Db, userId: string, conversationId: string, body: Body): Promise<Response> {
+  await usageAdmin().rpc('ai_call_end', { p_user: userId }).then(({ error }: { error: { message: string } | null }) => {
+    if (error) console.error('[ai-realtime] call end', error.message);
+  });
   const turns = cleanTurns(body.turns);
   if (!turns.length) return json(request, { saved: 0 });
   const callId = typeof body.callId === 'string' && UUID.test(body.callId) ? body.callId : undefined;
@@ -296,4 +306,20 @@ async function save(request: Request, db: Db, userId: string, conversationId: st
 async function hashed(id: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`pingo:${id}`));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function usageAdmin() {
+  return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+/** Seconds this call may last: 0 none left today, -1 unlimited. Fails open: a broken counter must not stop calls. */
+async function callAllowance(userId: string): Promise<number> {
+  const { data, error } = await usageAdmin().rpc('ai_call_start', { p_user: userId });
+  if (error) {
+    console.error('[ai-realtime] call allowance', error.message);
+    return -1;
+  }
+  return Number(data);
 }
