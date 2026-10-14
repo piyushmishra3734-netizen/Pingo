@@ -35,7 +35,7 @@
  * Secrets:
  *   OPENAI_API_KEY               required
  *   OPENAI_BASE_URL              default https://api.openai.com/v1
- *   OPENAI_REALTIME_MODEL        default gpt-realtime
+ *   OPENAI_REALTIME_MODEL        default gpt-realtime-mini
  *   OPENAI_TRANSCRIBE_MODEL      default gpt-4o-mini-transcribe (what is shown and saved of what they said)
  *   OPENAI_REALTIME_VAD          semantic_vad (default) | server_vad
  *   OPENAI_REALTIME_MAX_SECONDS  default 900: the longest call the app allows
@@ -60,7 +60,8 @@ const DEFAULT_BASE = 'https://api.openai.com/v1';
 const CLIENT_SECRETS_PATH = '/realtime/client_secrets';
 /** Where the browser posts its SDP offer with the client secret (returned as `callsUrl`). */
 const CALLS_PATH = '/realtime/calls';
-const DEFAULT_MODEL = 'gpt-realtime';
+// Mini: about a third of gpt-realtime's price per minute. OPENAI_REALTIME_MODEL=gpt-realtime brings the full one back.
+const DEFAULT_MODEL = 'gpt-realtime-mini';
 const DEFAULT_TRANSCRIBE = 'gpt-4o-mini-transcribe';
 /** How long the browser has to use the secret to connect. The call may outlast it. */
 const SECRET_SECONDS = 120;
