@@ -71,12 +71,26 @@ export function AiContextRing({ conversationId, version }: { conversationId: str
     setOpen(true);
   }, [full]);
 
+  // Escape or a tap anywhere else closes the card.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
   if (tokens === undefined) return null;
   const r = 9;
   const c = 2 * Math.PI * r;
 
   return (
-    <div className="relative">
+    <div ref={box} className="relative">
       <button
         type="button"
         aria-label={`Chat memory ${percent}% full`}

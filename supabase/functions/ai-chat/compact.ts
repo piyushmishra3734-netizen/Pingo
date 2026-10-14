@@ -66,6 +66,7 @@ export async function compactChat(
             'You compress a chat between a person and PINGO AI so PINGO AI can continue it as if it had read every message. ' +
             'Keep everything it would need: who they are and what they told it, decisions, numbers, names, dates, plans, open questions and promises, ' +
             'what they liked or disliked, and the topic it was on and where it stopped. Drop greetings, small talk and repeats. ' +
+            "Record what was said and settled, not what PINGO AI did not know or got wrong: skip its 'I don't know' answers and anything it later corrected. " +
             'Write in the language the chat was in, as short notes under a few plain headings. No preamble. At most 450 words.',
         },
         { role: 'user', content: `${previous}Messages since:\n\n${transcript}`.slice(0, 120_000) },
