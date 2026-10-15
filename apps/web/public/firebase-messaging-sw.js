@@ -41,6 +41,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+const CHAT_KINDS = ['message', 'voice', 'snap', 'mention', 'ai'];
+
 /*
  * Background messages.
  *
@@ -58,8 +60,12 @@ messaging.onBackgroundMessage((payload) => {
     body,
     icon: '/pingo-icon.png',
     badge: '/pingo-icon.png',
-    // Same collapsing rule as Android: one entry per sender and kind.
-    tag: `${data.kind || 'pingo'}:${data.actorId || 'system'}`,
+    // Same collapsing rule as Android: one entry per chat (as on WhatsApp), and
+    // per sender and kind for everything else. The app closes a chat's entry
+    // when that chat is read.
+    tag: CHAT_KINDS.includes(data.kind) && data.subjectId
+      ? `chat:${data.subjectId}`
+      : `${data.kind || 'pingo'}:${data.actorId || 'system'}`,
     renotify: true,
     data,
   });

@@ -15,6 +15,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { AiPill } from './AiPill.js';
 import { useT } from '../features/i18n/useT.js';
+import { ActivityPop } from '../features/notifications/ActivityPop.js';
 import { useNotifications } from '../features/notifications/NotificationContext.js';
 import { canAccessCommunities } from '../lib/community-access.js';
 
@@ -53,7 +54,7 @@ export function Dock() {
   const t = useT();
   const { totalUnread } = useChat();
   const { profile } = useProfile();
-  const { unread: unreadNotifications } = useNotifications();
+  const { unread: unreadNotifications, byKind } = useNotifications();
   const communities = canAccessCommunities(profile?.id);
 
   const { pathname } = useLocation();
@@ -125,6 +126,10 @@ export function Dock() {
             {({ isActive }) => (
               <>
                 <span className="relative">
+                  {/* Instagram's bubble over the Activity tab: what happened, by kind, for a few seconds. */}
+                  {((to === '/notifications') || (to === '/profile' && communities)) && (
+                    <ActivityPop byKind={byKind} hidden={pathname.startsWith('/notifications')} />
+                  )}
                   <Icon size={24} className={cn('transition-transform duration-base ease-spring', isActive && 'scale-105')} />
                   {/* Unread chats: a count, hidden while you are on Chats. */}
                   {to === '/chats' && !isActive && totalUnread > 0 && (

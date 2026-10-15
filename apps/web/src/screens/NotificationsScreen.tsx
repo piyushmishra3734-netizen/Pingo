@@ -328,7 +328,7 @@ export function NotificationsScreen() {
               {(
                 [
                   ['all', 'All'],
-                  ['messages', 'Messages'],
+                  ['messages', 'Mentions'],
                   ['stories', 'Stories'],
                   ['calls', 'Calls'],
                   ['people', 'People'],

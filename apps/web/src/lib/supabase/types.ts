@@ -1330,6 +1330,8 @@ export type Database = {
       /** Streak days per direct conversation, for the signed-in user only. */
       unread_notifications: { Args: Record<string, never>; Returns: number };
       mark_notifications_read: { Args: Record<string, never>; Returns: undefined };
+      set_push_action_key: { Args: { p_token: string; p_hash: string }; Returns: undefined };
+      unread_activity_counts: { Args: Record<string, never>; Returns: { kind: string; count: number }[] };
       /** Add, swap or remove in one statement - see the reactions migration. */
       toggle_reaction: { Args: { target: string; symbol: string }; Returns: undefined };
       /**

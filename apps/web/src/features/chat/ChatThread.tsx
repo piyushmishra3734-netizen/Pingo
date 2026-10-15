@@ -99,6 +99,7 @@ import { ListenAlongBar } from '../music/ListenAlongBar.js';
 import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
+import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -1160,7 +1161,15 @@ export function ChatThread({
   useEffect(() => {
     if (loading) return;
     void service.markConversationRead(conversation.id);
+    // Read here, so its notification goes from the tray (the server clears other devices).
+    clearChatTray(conversation.id);
   }, [service, conversation.id, loading, newestMessageId]);
+
+  // The phone's notifier skips the chat on screen.
+  useEffect(() => {
+    setOpenChat(conversation.id);
+    return () => setOpenChat(undefined);
+  }, [conversation.id]);
 
   /*
    * New-messages session while the reader is away from the bottom.

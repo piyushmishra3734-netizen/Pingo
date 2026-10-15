@@ -179,7 +179,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
      */
     journey: false,
     marketing: false,
-    preview: 'sender-only',
+    preview: 'sender-and-text',
     quietHours: false,
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',

@@ -165,7 +165,7 @@ export function describe(entry: HistoryEntry): string {
 /** The filter chips, and what each one keeps. */
 export const FILTERS = {
   all: () => true,
-  messages: (n: AppNotification) => n.kind === 'message' || n.kind === 'mention',
+  messages: (n: AppNotification) => n.kind === 'mention',
   stories: (n: AppNotification) => n.kind === 'story',
   calls: (n: AppNotification) => n.kind === 'call',
   people: (n: AppNotification) =>

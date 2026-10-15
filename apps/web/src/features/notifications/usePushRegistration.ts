@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react';
 import { currentPlatform, isNative } from '../native/shell.js';
 import { requestWebPushToken } from '../../lib/firebase/web-push.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { armPushActions } from './chat-tray.js';
 
 /**
  * Registers this device to receive push notifications.
@@ -84,6 +85,8 @@ export function usePushRegistration(): void {
            * nothing the person holding the phone can do about it.
            */
           if (error) console.warn('[pingo/push] could not register token', error);
+          // Then the notification buttons (Reply, Mark as read) for this device.
+          else void armPushActions(token);
         });
     },
     [userId],

@@ -73,11 +73,11 @@ function fromRow(row: PrefsRow): NotificationPreferences {
     journey: row.journey,
     marketing: row.marketing,
     preview:
-      row.preview === 'sender_and_text'
-        ? 'sender-and-text'
+      row.preview === 'sender_only'
+        ? 'sender-only'
         : row.preview === 'hidden'
           ? 'hidden'
-          : 'sender-only',
+          : 'sender-and-text',
     quietHours: row.quiet_enabled,
     quietHoursStart: toTime(row.quiet_start_minute),
     quietHoursEnd: toTime(row.quiet_end_minute),

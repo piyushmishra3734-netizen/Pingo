@@ -6761,9 +6761,16 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
     const key = `notifications:${me}`;
 
+    /*
+     * Activity, not chats. A message has its own home - the chat, with its
+     * unread count and the phone's notification - and listing every message
+     * here too was a second inbox nobody read. Mentions stay: being tagged
+     * is something happening to you, like a like or a follow.
+     */
     const { data, error } = await this.#client
       .from('notifications')
       .select('*')
+      .not('kind', 'in', '(message,voice,snap,ai)')
       .order('created_at', { ascending: false })
       .limit(50);
 

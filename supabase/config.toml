@@ -150,3 +150,8 @@ verify_jwt = false
 # logs that would explain it belong to a function that was never entered.
 [functions.send-sms]
 verify_jwt = false
+
+# A notification's Reply / Mark as read, with the app closed: no session. The
+# device's push token and action key are the check - see `functions/push-action`.
+[functions.push-action]
+verify_jwt = false

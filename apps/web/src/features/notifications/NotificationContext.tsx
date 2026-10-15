@@ -1,6 +1,7 @@
 import { useChat } from '@pingo/core';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { useBrowserBadge } from './useBrowserBadge.js';
 import { usePushRegistration } from './usePushRegistration.js';
 
@@ -27,15 +28,21 @@ import { usePushRegistration } from './usePushRegistration.js';
 
 interface NotificationContextValue {
   unread: number;
+  /** Unread activity by kind (likes, follows, calls...), for the popup over the Activity tab. */
+  byKind: Record<string, number>;
   /** Called by the feed once it has marked everything read. */
   clear: () => void;
 }
+
+/** A chat line is counted, and cleared, on the chat itself (see `is_chat_notification`). */
+export const CHAT_NOTIFICATION_KINDS = new Set(['message', 'voice', 'snap', 'ping', 'mention', 'ai']);
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { service, ready } = useChat();
   const [unread, setUnread] = useState(0);
+  const [byKind, setByKind] = useState<Record<string, number>>({});
 
   /*
    * Mounted here rather than in `App`, because this is already the place that
@@ -67,8 +74,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => undefined);
 
+    const loadKinds = () => {
+      void getSupabaseClient()
+        .rpc('unread_activity_counts')
+        .then(({ data, error }) => {
+          if (!active || error || !Array.isArray(data)) return;
+          setByKind(Object.fromEntries(data.map((row) => [row.kind, row.count])));
+        });
+    };
+    loadKinds();
+
     const unsubscribe = service.subscribe((event) => {
-      if (event.type === 'notification:new') setUnread((n) => n + 1);
+      if (event.type !== 'notification:new') return;
+      const kind = event.notification.kind;
+      // Chat lines, mentions included, are read (and cleared) in the chat itself.
+      if (CHAT_NOTIFICATION_KINDS.has(kind)) return;
+      setUnread((n) => n + 1);
+      setByKind((all) => ({ ...all, [kind]: (all[kind] ?? 0) + 1 }));
     });
 
     return () => {
@@ -78,8 +100,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [service, ready]);
 
   const value = useMemo<NotificationContextValue>(
-    () => ({ unread, clear: () => setUnread(0) }),
-    [unread],
+    () => ({
+      unread,
+      byKind,
+      clear: () => {
+        setUnread(0);
+        setByKind({});
+      },
+    }),
+    [unread, byKind],
   );
 
   return (

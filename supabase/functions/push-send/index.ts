@@ -58,6 +58,15 @@ interface PushRequest {
   /** Unread notifications of this kind from this actor, including this one. */
   count?: number;
   preview?: 'sender_only' | 'sender_and_text' | 'hidden';
+  /** A chat push: the sender's picture, the message, and the chat it is in. */
+  actorAvatar?: string;
+  messageId?: string;
+  messageKind?: string;
+  /** Present only when their preview setting allows the text on a lock screen. */
+  text?: string;
+  /** A group's name; absent for a one-to-one chat. */
+  chatTitle?: string;
+  isGroup?: boolean;
   /** Set by the worker. Only changes what gets logged, never what is sent. */
   retry?: boolean;
 }
@@ -185,6 +194,58 @@ async function accessToken(account: ServiceAccount): Promise<string> {
  * exactly the claim the product makes it does not do. Who, and what kind. The
  * app is where you find out what was said.
  */
+/** Kinds that are a chat: shown as a conversation, one tray entry per chat, cleared when read. */
+const CHAT_KINDS = new Set(['message', 'voice', 'snap', 'mention', 'ai']);
+
+/** One line for a message, the way a chat list would say it. */
+function messageLine(request: PushRequest): string {
+  if (request.preview === 'hidden') return 'New message';
+  const text = request.text?.replace(/\s+/g, ' ').trim();
+  if (text && request.messageKind !== 'snap') return text.slice(0, 300);
+  switch (request.messageKind) {
+    case 'photo':
+    case 'image':
+      return 'Photo';
+    case 'video':
+      return 'Video';
+    case 'voice':
+      return 'Voice message';
+    case 'sticker':
+      return 'Sticker';
+    case 'snap':
+      return 'Sent you a Ping';
+    case 'document':
+    case 'file':
+      return 'Document';
+    default:
+      return request.kind === 'voice' ? 'Voice message' : request.kind === 'mention' ? 'Mentioned you' : 'New message';
+  }
+}
+
+/**
+ * A chat push for the app that draws its own notification: data only, so the
+ * phone's own code builds a WhatsApp-style conversation with Reply and Mark
+ * as read. Every value a string, as FCM requires.
+ */
+function chatData(request: PushRequest): Record<string, string> {
+  const who = request.kind === 'ai' ? 'PINGO AI' : request.actorName?.trim() || 'Someone';
+  return {
+    type: 'chat',
+    kind: request.kind,
+    conversationId: request.subjectId ?? '',
+    subjectId: request.subjectId ?? '',
+    messageId: request.messageId ?? '',
+    sender: who,
+    senderId: request.actorId ?? '',
+    avatar: request.actorAvatar ?? '',
+    text: messageLine(request),
+    chatTitle: request.chatTitle ?? '',
+    isGroup: request.isGroup ? '1' : '0',
+    count: String(request.count && request.count > 0 ? request.count : 1),
+    hidden: request.preview === 'hidden' ? '1' : '0',
+  };
+}
+
 function copyFor(request: PushRequest): { title: string; body: string } {
   const who = request.actorName?.trim() || 'Someone';
   const many = request.count && request.count > 1 ? request.count : 0;
@@ -199,7 +260,10 @@ function copyFor(request: PushRequest): { title: string; body: string } {
        * mute an app. Paired with the collapse key below, the newest push
        * replaces the previous one and the count is the only thing that moves.
        */
-      return { title: who, body: many ? `${many} new messages` : 'Sent you a message' };
+      return {
+        title: request.chatTitle ? `${request.chatTitle}: ${who}` : who,
+        body: many ? `${many} new messages` : request.text ? messageLine(request) : 'Sent you a message',
+      };
     case 'snap':
       return { title: who, body: many ? `${many} new Pings` : 'Sent you a Ping' };
     case 'voice':
@@ -340,14 +404,21 @@ Deno.serve(async (request) => {
     const userIds = [...new Set(batch.map((r) => r.userId))];
     const { data: tokenRows } = await admin
       .from('device_tokens')
-      .select('token,user_id')
+      .select('token,user_id,platform,action_key_hash')
       .in('user_id', userIds);
 
     const devicesFor = new Map<string, string[]>();
-    for (const row of (tokenRows ?? []) as { token: string; user_id: string }[]) {
+    /*
+     * Tokens whose app draws chat notifications itself. Only an app new enough
+     * to have registered an action key does; an older install would show
+     * nothing at all for a data-only push, so it keeps getting the plain one.
+     */
+    const drawsChats = new Set<string>();
+    for (const row of (tokenRows ?? []) as { token: string; user_id: string; platform: string | null; action_key_hash: string | null }[]) {
       const list = devicesFor.get(row.user_id) ?? [];
       list.push(row.token);
       devicesFor.set(row.user_id, list);
+      if (row.platform === 'android' && row.action_key_hash) drawsChats.add(row.token);
     }
 
     /*
@@ -394,9 +465,29 @@ Deno.serve(async (request) => {
      */
     await Promise.all(
       targets.flatMap((target) =>
-        (devicesFor.get(target.userId) ?? []).map(async (deviceToken) => {
+        (devicesFor.get(target.userId) ?? [])
+          /*
+           * A clear goes only to an app that draws its own chat notifications.
+           * A browser must show something for every push it receives, so a
+           * silent one would put up an empty notification instead of taking
+           * one down; an older app would simply ignore it.
+           */
+          .filter((deviceToken) => target.kind !== 'clear' || drawsChats.has(deviceToken))
+          .map(async (deviceToken) => {
           const result = outcome.get(target)!;
           const { title, body } = copyFor(target);
+
+          /*
+           * Silent and data-only: a chat was read, so take its tray entry down
+           * (on an app that draws its own), or a chat for an app that draws a
+           * WhatsApp-style notification itself.
+           */
+          const silent =
+            target.kind === 'clear'
+              ? { type: 'clear', conversationId: target.subjectId ?? '' }
+              : CHAT_KINDS.has(target.kind) && drawsChats.has(deviceToken)
+                ? chatData(target)
+                : undefined;
 
           const response = await fetch(endpoint, {
             method: 'POST',
@@ -404,7 +495,13 @@ Deno.serve(async (request) => {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
+            body: JSON.stringify(silent ? {
+              message: {
+                token: deviceToken,
+                data: silent,
+                android: { priority: 'HIGH', ...(target.kind === 'clear' ? { ttl: '3600s' } : {}) },
+              },
+            } : {
               message: {
                 token: deviceToken,
                 notification: { title, body },
@@ -416,6 +513,7 @@ Deno.serve(async (request) => {
                 data: {
                   kind: target.kind,
                   ...(target.subjectId ? { subjectId: target.subjectId } : {}),
+                  ...(target.actorId ? { actorId: target.actorId } : {}),
                 },
                 android: {
                   priority: 'HIGH',
@@ -433,12 +531,13 @@ Deno.serve(async (request) => {
                    * person collapses while a message from somebody else still
                    * arrives separately - which is the distinction that matters.
                    */
-                  collapseKey: `${target.kind}:${target.actorId ?? 'system'}`,
+                  collapseKey: CHAT_KINDS.has(target.kind) && target.subjectId ? `chat:${target.subjectId}` : `${target.kind}:${target.actorId ?? 'system'}`,
                   notification: {
                     // Calls have their own channel, created by the app with ringing importance.
                     channelId: target.kind === 'call_ring' ? 'pingo_calls' : 'pingo_messages',
                     sound: 'default',
-                    tag: `${target.kind}:${target.actorId ?? 'system'}`,
+                    // One tray entry per chat, as on WhatsApp.
+                    tag: CHAT_KINDS.has(target.kind) && target.subjectId ? `chat:${target.subjectId}` : `${target.kind}:${target.actorId ?? 'system'}`,
                     notificationCount: target.count && target.count > 1 ? target.count : 1,
                   },
                 },
