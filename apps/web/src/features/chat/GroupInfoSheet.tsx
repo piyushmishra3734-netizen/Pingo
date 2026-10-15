@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { r2Upload } from '../../lib/r2-media.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { useT } from '../i18n/useT.js';
 import { useBackStep } from '../navigation/useBackStep.js';
@@ -161,6 +162,9 @@ export function GroupInfoSheet({
           : prepared.type === 'image/gif'
             ? 'gif'
             : 'jpg';
+    // Cloudflare R2 first (no egress on every face drawn); Supabase if it is not up.
+    const onR2 = await r2Upload(kind === 'avatar' ? 'avatar' : 'cover', prepared, prepared.type || 'image/jpeg');
+    if (onR2?.url) return onR2.url;
     const path = `${currentUser.id}/groups/${conversation.id}/${kind}-${crypto.randomUUID()}.${ext}`;
     const client = getSupabaseClient();
     const { error: upErr } = await client.storage.from('avatars').upload(path, prepared, {

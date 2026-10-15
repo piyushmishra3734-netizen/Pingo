@@ -242,8 +242,16 @@ Deno.serve(async (request: Request) => {
       ...audio.map((clip: { path?: string }) => clip?.path),
     ].filter((path): path is string => typeof path === 'string' && path.length > 0);
 
-    if (paths.length > 0) {
-      const { error: removeError } = await admin.storage.from('stories').remove(paths);
+    // Newer stories live on Cloudflare R2 (`r2:` paths, workers/media).
+    const onR2 = paths.filter((path) => path.startsWith('r2:'));
+    if (onR2.length > 0 && !(await removeFromR2(onR2))) {
+      console.error('[purge-media] R2 delete failed; kept for the next run', story.id);
+      continue;
+    }
+    const onSupabase = paths.filter((path) => !path.startsWith('r2:'));
+
+    if (onSupabase.length > 0) {
+      const { error: removeError } = await admin.storage.from('stories').remove(onSupabase);
       // Already gone is a success, exactly as above.
       if (removeError && !/not\s*found/i.test(removeError.message)) {
         console.error('[purge-media] story delete failed', story.id, removeError.message);
@@ -269,3 +277,25 @@ Deno.serve(async (request: Request) => {
     storiesDeleted,
   });
 });
+
+/**
+ * Deletes story files from R2 through the media Worker, with the shared purge
+ * key (`MEDIA_PURGE_KEY` here, `PURGE_KEY` on the Worker). False when it is not
+ * configured or did not answer, so the story waits for the next run instead of
+ * losing the only pointer to its files.
+ */
+async function removeFromR2(paths: string[]): Promise<boolean> {
+  const key = Deno.env.get('MEDIA_PURGE_KEY');
+  if (!key) return false;
+  const endpoint = (Deno.env.get('MEDIA_URL') ?? 'https://pingo-media.dubesminecraft.workers.dev').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${endpoint}/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-purge-key': key },
+      body: JSON.stringify({ paths }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

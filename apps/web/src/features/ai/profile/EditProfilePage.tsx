@@ -4,6 +4,7 @@ import { Camera, Check, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { getSupabaseClient } from '../../../lib/supabase/client.js';
+import { r2Upload } from '../../../lib/r2-media.js';
 import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../../profile/avatar-image.js';
 import type { AiPublicIdentity } from '../ai-public.js';
 import { saveAiPrefs, useAiPrefs } from '../room/ai-prefs.js';
@@ -69,6 +70,12 @@ export function EditProfilePage({
       const client = getSupabaseClient();
       const path = `${profile.id}/ai-avatar-${Date.now()}`;
       const small = await shrinkToAvatar(file);
+      // Cloudflare R2 first; Supabase if it is not up.
+      const onR2 = await r2Upload('avatar', small, small.type || 'image/jpeg');
+      if (onR2?.url) {
+        setPhoto(onR2.url);
+        return;
+      }
       const { error: upError } = await client.storage
         .from('avatars')
         .upload(path, small, { upsert: true, contentType: small.type || 'image/jpeg', cacheControl: IMMUTABLE_CACHE_SECONDS });

@@ -42,6 +42,7 @@ import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
 import { setBlockedHere } from '../../features/safety/blocks.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { isR2Path, r2PathFromUrl, r2Remove, r2Sign, r2Upload } from '../r2-media.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
 
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
@@ -392,6 +393,13 @@ export class SupabaseProfileService implements ProfileService {
      * caching, so a replaced photo appears immediately instead of showing the
      * old one until the cache expires.
      */
+    // Cloudflare R2 first (no egress on every face drawn); Supabase if it is not up.
+    const onR2 = await r2Upload('avatar', file, file.type || 'image/jpeg');
+    if (onR2?.url) {
+      void this.#deleteOwnStorageObject(previous.data?.avatar_url ?? undefined, userId);
+      return onR2.url;
+    }
+
     const path = `${userId}/avatar-${Date.now()}`;
 
     const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
@@ -440,6 +448,12 @@ export class SupabaseProfileService implements ProfileService {
       .eq('id', userId)
       .maybeSingle();
 
+    const onR2 = await r2Upload('cover', file, file.type || 'image/jpeg');
+    if (onR2?.url) {
+      void this.#deleteOwnStorageObject(previous.data?.banner_url ?? undefined, userId);
+      return onR2.url;
+    }
+
     const path = `${userId}/cover-${Date.now()}`;
 
     const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
@@ -464,6 +478,12 @@ export class SupabaseProfileService implements ProfileService {
    */
   async #deleteOwnStorageObject(url: string | undefined, userId: string): Promise<void> {
     if (!url) return;
+    const onR2 = r2PathFromUrl(url);
+    if (onR2) {
+      // The Worker only deletes the caller's own files, so no check is needed here.
+      await r2Remove([onR2]);
+      return;
+    }
     const marker = `/${AVATAR_BUCKET}/`;
     const at = url.indexOf(marker);
     if (at === -1) return;
@@ -884,12 +904,15 @@ export class SupabaseProfileService implements ProfileService {
   private async signPosts(rows: PostRow[]): Promise<Map<string, string>> {
     if (rows.length === 0) return new Map();
 
+    // On R2, the media Worker signs them; older ones are still on Supabase.
+    const onR2 = rows.map((row) => row.image_path).filter(isR2Path);
+    const onSupabase = rows.map((row) => row.image_path).filter((path) => !isR2Path(path));
+    const fromR2 = onR2.length > 0 ? await r2Sign(onR2) : new Map<string, string>();
+    if (onSupabase.length === 0) return fromR2;
+
     const { data } = await this.client.storage
       .from(POST_BUCKET)
-      .createSignedUrls(
-        rows.map((row) => row.image_path),
-        IMAGE_URL_TTL_SECONDS,
-      );
+      .createSignedUrls(onSupabase, IMAGE_URL_TTL_SECONDS);
 
     /*
      * Both halves are nullable on the entry: an object that could not be signed
@@ -897,7 +920,7 @@ export class SupabaseProfileService implements ProfileService {
      * `null` URL is any use to the grid. Dropped rather than kept as a blank  - 
      * a post whose image is missing renders as a caption, not as a dead tile.
      */
-    const pairs: [string, string][] = [];
+    const pairs: [string, string][] = [...fromR2];
     for (const entry of data ?? []) {
       if (entry.path && entry.signedUrl) pairs.push([entry.path, entry.signedUrl]);
     }
@@ -1021,6 +1044,10 @@ export class SupabaseProfileService implements ProfileService {
       new File([image], 'post', { type: image.type || 'image/jpeg' }),
     ).catch(() => new File([image], 'post', { type: image.type || 'image/jpeg' }));
 
+    // Cloudflare R2 first (no egress on every view); Supabase if it is not up.
+    const onR2 = await r2Upload('post', sending, sending.type || 'image/jpeg');
+    if (onR2) return onR2.path;
+
     const { error } = await this.client.storage
       .from(POST_BUCKET)
       .upload(path, sending, { contentType: sending.type || 'image/jpeg' });
@@ -1031,6 +1058,7 @@ export class SupabaseProfileService implements ProfileService {
 
   /** Best effort. A leftover object is waste; a thrown error here is a bug. */
   private async removePostImage(path: string): Promise<void> {
+    if (isR2Path(path)) return r2Remove([path]);
     await this.client.storage.from(POST_BUCKET).remove([path]);
   }
 

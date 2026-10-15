@@ -73,6 +73,23 @@ curl https://pingo-songs.dubesminecraft.workers.dev/mine   # must answer 401 "Si
 ```
 If the Worker comes up at a different address, set `VITE_SONGS_URL` to it in the Cloudflare Pages build env and redeploy.
 
+### 2b. Cloudflare: media Worker (stories, posts, profile pictures, covers on R2)
+
+Until this is deployed the app keeps uploading to Supabase, so order does not break anything. Do the database step first:
+
+```bash
+supabase db push                         # 20261101000000_r2_visible_media.sql (who may see which story/post file)
+cd workers/media
+npx wrangler deploy
+npx wrangler secret put SUPABASE_ANON_KEY   # the public anon key (VITE_SUPABASE_ANON_KEY)
+npx wrangler secret put SIGNING_KEY         # any long random string
+npx wrangler secret put PURGE_KEY           # any long random string
+cd ../.. && supabase secrets set MEDIA_PURGE_KEY=<same value as PURGE_KEY>
+supabase functions deploy purge-media
+curl -X POST https://pingo-media.dubesminecraft.workers.dev/sign   # must answer 401 "Sign in to PINGO first."
+```
+If the Worker comes up at a different address, set `VITE_MEDIA_URL` in the Cloudflare Pages build env (and `MEDIA_URL` in Supabase secrets). Chat media stays on Supabase. Files posted before the move stay where they are and keep working.
+
 ### 3. PINGO Music backend (`workers/saavn`)
 
 The new catalogue Worker, the language cookie in `saavn-proxy`, and the library

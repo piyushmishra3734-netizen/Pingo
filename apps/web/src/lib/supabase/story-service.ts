@@ -35,6 +35,7 @@ import type {
 
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { recordMetric } from '../net-metrics.js';
+import { isR2Path, r2Remove, r2Sign, r2Upload } from '../r2-media.js';
 import type { ProfileRow, StoryRow } from './types.js';
 
 const STORY_BUCKET = 'stories';
@@ -215,10 +216,15 @@ export class SupabaseStoryService implements StoryService {
    * it. Writes every fresh URL back into `#signedUrlCache` with its expiry.
    */
   async #signMissingPaths(missing: string[]): Promise<Map<string, string>> {
-    const fresh = new Map<string, string>();
+    // Files on R2 are signed by the media Worker (which keeps its own cache);
+    // older ones are still on Supabase.
+    const onR2 = missing.filter(isR2Path);
+    const onSupabase = missing.filter((path) => !isR2Path(path));
+    const fresh = onR2.length > 0 ? await r2Sign(onR2) : new Map<string, string>();
+    if (onSupabase.length === 0) return fresh;
     const { data } = await this.#client.storage
       .from(STORY_BUCKET)
-      .createSignedUrls(missing, MEDIA_TTL_SECONDS);
+      .createSignedUrls(onSupabase, MEDIA_TTL_SECONDS);
 
     const expiresAt = Date.now() + MEDIA_TTL_SECONDS * 1000;
     for (const entry of data ?? []) {
@@ -405,17 +411,20 @@ export class SupabaseStoryService implements StoryService {
      */
     const { extension, contentType } = mediaUploadMeta(draft.media, draft.kind);
     // Per-user folder, which is what the storage policy checks.
-    const path = `${me}/${crypto.randomUUID()}.${extension}`;
+    // Cloudflare R2 first (no egress on every view); Supabase if it is not up.
+    const path = (await r2Upload('story', draft.media, contentType))?.path ?? `${me}/${crypto.randomUUID()}.${extension}`;
 
-    const { error: uploadError } = await this.#client.storage
-      .from(STORY_BUCKET)
-      .upload(path, draft.media, {
-        contentType,
-        upsert: false,
-      });
+    if (!isR2Path(path)) {
+      const { error: uploadError } = await this.#client.storage
+        .from(STORY_BUCKET)
+        .upload(path, draft.media, {
+          contentType,
+          upsert: false,
+        });
 
-    if (uploadError) {
-      throw new Error(uploadError.message || 'Could not upload the story media.');
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Could not upload the story media.');
+      }
     }
 
     /*
@@ -429,6 +438,11 @@ export class SupabaseStoryService implements StoryService {
     const audioPaths: string[] = [];
     try {
       for (const track of draft.audio ?? []) {
+        const onR2 = isR2Path(path) ? await r2Upload('story', track.blob, 'audio/wav') : null;
+        if (onR2) {
+          audioPaths.push(onR2.path);
+          continue;
+        }
         const audioPath = `${me}/${crypto.randomUUID()}.wav`;
         const { error: audioError } = await this.#client.storage
           .from(STORY_BUCKET)
@@ -437,7 +451,7 @@ export class SupabaseStoryService implements StoryService {
         audioPaths.push(audioPath);
       }
     } catch (cause) {
-      await this.#client.storage.from(STORY_BUCKET).remove([path, ...audioPaths]);
+      await this.#removeFiles([path, ...audioPaths]);
       throw cause instanceof Error ? cause : new Error('Could not upload the sound.');
     }
 
@@ -490,7 +504,7 @@ export class SupabaseStoryService implements StoryService {
     if (error) {
       // The row did not land (or RETURNING was blocked), so nothing should keep
       // pointing at the upload - the sound included.
-      await this.#client.storage.from(STORY_BUCKET).remove([path, ...audioPaths]);
+      await this.#removeFiles([path, ...audioPaths]);
       throw new Error(error.message || 'Could not save the story.');
     }
 
@@ -569,8 +583,17 @@ export class SupabaseStoryService implements StoryService {
       ...(existing ? storedAudio(existing).map((track) => track.path) : []),
     ];
     if (leftovers.length > 0) {
-      await this.#client.storage.from(STORY_BUCKET).remove(leftovers);
+      await this.#removeFiles(leftovers);
     }
+  }
+
+  /** Each file from wherever it lives: R2 through the Worker, older ones on Supabase. */
+  async #removeFiles(paths: string[]): Promise<void> {
+    const onSupabase = paths.filter((path) => !isR2Path(path));
+    await Promise.all([
+      r2Remove(paths),
+      onSupabase.length > 0 ? this.#client.storage.from(STORY_BUCKET).remove(onSupabase) : undefined,
+    ]);
   }
 
   async setLiked(storyId: string, liked: boolean): Promise<void> {

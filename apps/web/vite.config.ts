@@ -276,6 +276,10 @@ export default defineConfig({
              */
             urlPattern: ({ url, request }) => {
               if (request.method !== 'GET' || request.headers.has('range')) return false;
+              // The same three on R2 (workers/media): faces and covers public, posts signed.
+              if (url.hostname.startsWith('pingo-media.') || url.hostname.startsWith('media.')) {
+                return /^\/(?:p\/(?:avatar|cover)|s\/post)\//.test(url.pathname);
+              }
               const match = /\/storage\/v1\/object\/(?:sign|public)\/([^/]+)\//.exec(url.pathname);
               return match !== null && (match[1] === 'avatars' || match[1] === 'posts' || match[1] === 'onboarding');
             },
