@@ -13,6 +13,7 @@ import { ConfirmProvider } from './components/ConfirmProvider.js';
 import { CallProvider } from './features/calls/CallProvider.js';
 import { CallLayer } from './features/calls/CallLayer.js';
 import { MessageToastProvider } from './features/notifications/MessageToastProvider.js';
+import { MediaOutboxRunner } from './features/chat/MediaOutboxRunner.js';
 import { NotificationProvider } from './features/notifications/NotificationContext.js';
 import { ProfileSetupFlow } from './features/profile/ProfileSetupFlow.js';
 import { RequireProfile } from './features/profile/guards.js';
@@ -342,6 +343,8 @@ export function App() {
           navigate to, and answering one must not lose the screen you were on.
         */}
         <NotificationProvider>
+        {/* Photos and videos queued from a chat keep sending from any screen. */}
+        <MediaOutboxRunner />
         <CallProvider service={services.call}>
         <BrowserRouter>
           {/*

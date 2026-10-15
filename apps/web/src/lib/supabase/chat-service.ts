@@ -4725,7 +4725,7 @@ export class SupabaseChatService implements ChatService {
         : {}),
     };
 
-    this.#emit({ type: 'message:new', message: pending });
+    if (!draft.quiet) this.#emit({ type: 'message:new', message: pending });
 
     /*
      * Handed back when the real row replaces this one.
@@ -4966,7 +4966,7 @@ export class SupabaseChatService implements ChatService {
        * deliberately not revoked here - they are what the bubble is still
        * showing.
        */
-      this.#emit({ type: 'message:updated', message: { ...pending, status: 'failed' } });
+      if (!draft.quiet) this.#emit({ type: 'message:updated', message: { ...pending, status: 'failed' } });
       throw error;
     }
 
@@ -5008,7 +5008,8 @@ export class SupabaseChatService implements ChatService {
      * de-duplicates by id on the other - so the optimistic bubble turns into
      * the real row in place rather than blinking out and back.
      */
-    this.#emit({ type: 'message:updated', message });
+    // A quiet send never showed a bubble, so the real one arrives as new.
+    this.#emit({ type: draft.quiet ? 'message:new' : 'message:updated', message });
     releasePreviews();
 
     /*

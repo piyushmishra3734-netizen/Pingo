@@ -92,7 +92,6 @@ import { SwipeableMessage } from './SwipeableMessage.js';
 import { JumpToLatestButton } from './JumpToLatestButton.js';
 import { ThreadSearchBar } from './ThreadSearchBar.js';
 import { DisappearingSheet } from './DisappearingSheet.js';
-import { toStandardVideo } from '../native/video-transcode.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
@@ -100,6 +99,8 @@ import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-reac
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
+import { queueMedia } from './media-outbox.js';
+import { PendingMedia } from './PendingMedia.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
 // with the thread, which is on the path of every launch.
@@ -405,10 +406,11 @@ export function ChatThread({
    * off. On the web this is always the original - there is no encoder in the
    * DOM - which `toStandardVideo` reports by handing the file straight back.
    */
-  const standardVideo = useCallback(
-    async (file: File) => (mine?.isPremium ? file : await toStandardVideo(file)),
-    [mine?.isPremium],
-  );
+  /*
+   * Original quality for everyone now: chat video is capped at a minute
+   * instead (`MAX_VIDEO_SECONDS`), which is what keeps it a sensible size.
+   */
+  const standardVideo = useCallback(async (file: File) => file, []);
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
   const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
@@ -2133,6 +2135,9 @@ export function ChatThread({
             */}
             {isAi && <AiPrivacyNotice />}
 
+            {/* Photos and videos still going out, or failed with Retry. */}
+            <PendingMedia conversationId={conversation.id} />
+
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
           </div>
@@ -2486,29 +2491,23 @@ export function ChatThread({
           onAddMore={vetMedia}
           onSend={async (items, caption, viewOnce) => {
             /*
-             * Sent in order, awaited one at a time. In parallel they would race
-             * for `created_at` and land shuffled, which for a set is the one
-             * thing the sender notices immediately. The caption rides on the
-             * first, so a set of four does not repeat one sentence four times.
+             * Queued, bytes and all, and the page closes at once. The media
+             * outbox sends the set in order in the background, keeps it across
+             * a closed app or a lost connection, and shows it in the thread
+             * until it has gone (or failed, with Retry). See `media-outbox.ts`.
              */
-            for (const [position, item] of items.entries()) {
-              const body = position === 0 ? caption : '';
-              if (item.kind === 'photo') {
-                await service.sendMessage({
-                  conversationId: conversation.id,
-                  body,
-                  photo: { image: item.image, ...(viewOnce ? { viewLimit: 1 } : {}) },
-                });
-              } else {
-                await service.sendMessage({
-                  conversationId: conversation.id,
-                  body,
-                  document: { file: await standardVideo(item.file) },
-                  ...(item.edit ? { videoEdit: item.edit } : {}),
-                });
-              }
-            }
+            await queueMedia({
+              conversationId: conversation.id,
+              caption,
+              viewOnce,
+              items: items.map((item) =>
+                item.kind === 'photo'
+                  ? { kind: 'photo' as const, blob: item.image, name: 'photo' }
+                  : { kind: 'video' as const, blob: item.file, name: item.file.name || 'video.mp4', ...(item.edit ? { edit: item.edit } : {}) },
+              ),
+            });
             setPending(undefined);
+            window.setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), 60);
           }}
         />
         </Suspense>

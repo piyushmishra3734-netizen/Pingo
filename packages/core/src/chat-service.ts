@@ -153,6 +153,12 @@ export interface OutgoingMessage {
   /** Makes this a sticker message rather than a text one. */
   sticker?: { id: string; url: string };
   /**
+   * No optimistic bubble and no failed bubble: the caller draws the waiting
+   * state itself (the media outbox does, with Retry). The message appears
+   * once it has really been sent.
+   */
+  quiet?: boolean;
+  /**
    * Makes this a **Ping**: a visual message, already flattened by the editor.
    *
    * The blob is uploaded by the service, not the caller, so a screen never

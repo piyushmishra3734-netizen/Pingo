@@ -98,6 +98,12 @@ export const STORE = {
    * the picture for, and on an animated GIF it costs the animation.
    */
   media: 'media',
+  /**
+   * Photos and videos the person has sent but that have not finished
+   * uploading, with their bytes (IndexedDB keeps a Blob across a reload and a
+   * force-quit). See `features/chat/media-outbox.ts`.
+   */
+  mediaOutbox: 'media-outbox',
 } as const;
 
 /** Zero-padded so lexicographic order is chronological order. */

@@ -1,5 +1,4 @@
 import type { VideoEdit } from '@pingo/core';
-import { useProfile } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { ChevronRight, Pencil, Play, Plus, Scissors, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Overlay } from '../../components/Overlay.js';
 import { SnapEditor } from '../camera/SnapEditor.js';
 import { isAnimatedImage } from './animated-image.js';
-import { isStillImage, toStandardQuality } from './media-quality.js';
 import { VideoTrimSheet } from './VideoTrimSheet.js';
 
 /**
@@ -18,7 +16,7 @@ import { VideoTrimSheet } from './VideoTrimSheet.js';
  * chosen: the one in front large, the rest on a strip underneath. Swipe or tap
  * to move between them; the pencil draws on a photo, the scissors trim a clip;
  * the bin takes the one in front out and the strip's plus adds more. One caption for the
- * lot, riding on the first. HD (premium) and view once sit where WhatsApp puts
+ * lot, riding on the first. Photos and videos go at their original quality. View once sits where WhatsApp puts
  * them - HD at the top, the "1" beside the caption.
  */
 
@@ -54,12 +52,9 @@ let nextKey = 0;
 const slotOf = (m: PickedMedia): Slot => ({ ...m, key: `m${(nextKey += 1)}`, url: URL.createObjectURL(m.file) });
 
 export function MediaSendSheet({ items, to, onCancel, onAddMore, onSend }: MediaSendSheetProps) {
-  const { profile } = useProfile();
-  const premium = profile?.isPremium === true;
   const [slots, setSlots] = useState<Slot[]>(() => items.map(slotOf));
   const [index, setIndex] = useState(0);
   const [caption, setCaption] = useState('');
-  const [hd, setHd] = useState(false);
   const [once, setOnce] = useState(false);
   const [editing, setEditing] = useState<'draw' | 'trim'>();
   const [busy, setBusy] = useState(false);
@@ -116,10 +111,8 @@ export function MediaSendSheet({ items, to, onCancel, onAddMore, onSend }: Media
     try {
       const out: SendItem[] = await Promise.all(slots.map(async (s): Promise<SendItem> => {
         if (s.kind === 'video') return { kind: 'video', file: s.file, ...(s.trim ? { edit: s.trim } : {}) };
-        const blob = s.edited ?? s.file;
-        // Standard quality unless HD was asked for (premium); anything that moves goes as it is.
-        const image = hd && premium ? blob : isStillImage(blob) ? await toStandardQuality(new File([blob], s.file.name, { type: blob.type })) : blob;
-        return { kind: 'photo', image };
+        // Original quality, as it was picked (or as it was drawn on).
+        return { kind: 'photo', image: s.edited ?? s.file };
       }));
       await onSend(out, caption.trim(), once);
     } catch {
@@ -176,16 +169,6 @@ export function MediaSendSheet({ items, to, onCancel, onAddMore, onSend }: Media
             {current?.kind === 'video' && (
               <button type="button" aria-label="Trim" onClick={() => setEditing('trim')} className={cn('grid size-10 place-items-center rounded-full active:bg-white/20', current.trim ? 'bg-white text-black' : 'bg-white/12')}><Scissors size={18} /></button>
             )}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={hd && premium}
-              aria-label="HD"
-              onClick={() => { if (!premium) { say('HD is part of PINGO premium'); return; } setHd((h) => !h); }}
-              className={cn('h-8 rounded-full px-3 text-[13px] font-bold tracking-wide ring-1', hd && premium ? 'bg-white text-black ring-white' : 'text-white/85 ring-white/35')}
-            >
-              HD
-            </button>
           </div>
         </div>
 

@@ -193,12 +193,17 @@ function encodeCanvas(canvas: HTMLCanvasElement, type: string): Promise<Blob | u
  * it: the day the product picks real tiers (360p free / HD premium), the
  * number moves and nothing else has to.
  */
-export const MAX_VIDEO_SECONDS = 10 * 60;
+/*
+ * One minute. Chat video now goes at its original quality (no 480p re-encode),
+ * so the length is what keeps a clip a sensible size to send and to download.
+ */
+export const MAX_VIDEO_SECONDS = 60;
 
 /** What is wrong with this clip's duration, in words the sender can act on. */
 export function videoTooLong(durationSeconds: number): string | undefined {
   if (!Number.isFinite(durationSeconds)) return undefined;
   if (durationSeconds <= MAX_VIDEO_SECONDS) return undefined;
-  const minutes = Math.floor(durationSeconds / 60);
-  return `That video is about ${minutes} minutes. The limit is ${MAX_VIDEO_SECONDS / 60} minutes - trim it first.`;
+  const total = Math.round(durationSeconds);
+  const length = total >= 60 ? `${Math.floor(total / 60)} min ${total % 60} s` : `${total} s`;
+  return `That video is ${length} long. Videos can be up to ${MAX_VIDEO_SECONDS} seconds.`;
 }

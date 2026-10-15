@@ -1,4 +1,4 @@
-import { Check, Crown, ImageIcon, Sparkles, Video } from 'lucide-react';
+import { Check, Crown, Sparkles } from 'lucide-react';
 
 import { Card, TopBar } from './pastel.js';
 
@@ -10,8 +10,6 @@ import { Card, TopBar } from './pastel.js';
 export function ProPage({ premium, onBack }: { premium: boolean; onBack: () => void }) {
   const perks = [
     { icon: <Sparkles size={22} />, title: 'Pro avatars', sub: 'Wizard, Explorer and At work for Pingo' },
-    { icon: <ImageIcon size={22} />, title: 'HD photos', sub: 'Send photos at their original quality' },
-    { icon: <Video size={22} />, title: 'HD videos', sub: 'Videos are not shrunk to 480p' },
     { icon: <Crown size={22} />, title: 'GIF covers', sub: 'An animated cover on your profile' },
   ];
   return (

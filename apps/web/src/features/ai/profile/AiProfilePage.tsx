@@ -424,7 +424,7 @@ export function AiProfilePage({
                   <span className="min-w-0 flex-1">
                     <span className="block text-[17px] font-bold">Pingo Pro{premium ? ' · Active' : ''}</span>
                     <span className="mt-0.5 block text-[14.5px] leading-snug text-[var(--pp-sub)]">
-                      {premium ? 'Pro avatars, HD photos and videos, GIF covers' : 'Pro avatars, HD photos and videos, and more'}
+                      Pro avatars and GIF covers
                     </span>
                   </span>
                   <ChevronRight size={20} className="shrink-0 text-[var(--pp-accent)]" aria-hidden />
