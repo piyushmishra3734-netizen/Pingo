@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { claimAudio } from '../../lib/audio-focus.js';
+import { clearNowPlaying, showNowPlaying, type ControlAction } from '../native/media-controls.js';
 
 import type { SharedSong } from './song-share.js';
 
@@ -40,6 +41,8 @@ export interface QueueControls {
 let queue: QueueControls | undefined;
 export function setQueueControls(controls: QueueControls | undefined) {
   queue = controls;
+  // The phone's Next button comes and goes with the queue.
+  if (state.song) { mediaSession(state.song); syncPhone(); }
 }
 const listeners = new Set<() => void>();
 let audio: HTMLAudioElement | undefined;
@@ -54,10 +57,12 @@ function element(): HTMLAudioElement {
   const a = new Audio();
   a.preload = 'auto';
   a.addEventListener('timeupdate', () => set({ at: a.currentTime }));
-  a.addEventListener('loadedmetadata', () => { if (Number.isFinite(a.duration)) set({ length: a.duration }); });
-  a.addEventListener('playing', () => set({ playing: true, loading: false, failed: false }));
+  a.addEventListener('loadedmetadata', () => { if (Number.isFinite(a.duration)) set({ length: a.duration }); syncPhone(); });
+  a.addEventListener('playing', () => { set({ playing: true, loading: false, failed: false }); syncPhone(); });
   a.addEventListener('waiting', () => set({ loading: true }));
-  a.addEventListener('pause', () => set({ playing: false }));
+  a.addEventListener('pause', () => { set({ playing: false }); syncPhone(); });
+  a.addEventListener('seeked', syncPhone);
+  a.addEventListener('ratechange', syncPhone);
   a.addEventListener('ended', () => {
     if (queue) { queue.next(true); return; }
     a.currentTime = 0;
@@ -66,6 +71,55 @@ function element(): HTMLAudioElement {
   a.addEventListener('error', () => { if (a.src) set({ playing: false, loading: false, failed: true }); });
   audio = a;
   return a;
+}
+
+/** A press on the phone's player (Android app), handed to the same controls as the screen's. */
+function onPhoneAction(action: ControlAction, positionMs?: number) {
+  if (action === 'play') void musicPlayer.resume();
+  else if (action === 'pause') musicPlayer.pause();
+  else if (action === 'next') queue?.next(false);
+  else if (action === 'prev') { if (queue) queue.prev(); else musicPlayer.seek(0); }
+  else if (action === 'stop') musicPlayer.close();
+  else if (action === 'seek' && positionMs !== undefined) musicPlayer.seek(positionMs / 1000);
+}
+
+/**
+ * Tells the phone where the song is: play or pause, how far in, how long.
+ *
+ * Called on the moments that change it (play, pause, seek, speed, length
+ * known), not on every tick: the phone runs the clock itself from the
+ * position and speed. Without this the browser's player had no seek bar and
+ * could show Play while the song was playing.
+ */
+function syncPhone() {
+  const song = state.song;
+  if (!song) return;
+  const a = audio;
+  const at = a ? a.currentTime : state.at;
+  const length = a && Number.isFinite(a.duration) && a.duration > 0 ? a.duration : state.length;
+  const session = typeof navigator !== 'undefined' ? navigator.mediaSession : undefined;
+  if (session) {
+    try {
+      session.playbackState = state.playing ? 'playing' : 'paused';
+      if (length > 0) session.setPositionState({ duration: length, position: Math.min(at, length), playbackRate: state.speed });
+    } catch {
+      // An older browser without position state: the rest still works.
+    }
+  }
+  showNowPlaying(
+    {
+      title: song.name,
+      artist: song.artist,
+      artwork: song.img,
+      playing: state.playing,
+      positionMs: Math.round(at * 1000),
+      durationMs: Math.round(length * 1000),
+      speed: state.speed,
+      hasNext: Boolean(queue),
+      hasPrev: true,
+    },
+    onPhoneAction,
+  );
 }
 
 /** The phone's own controls - lock screen, notification shade, headphones. */
@@ -77,7 +131,7 @@ function mediaSession(song: SharedSong) {
       title: song.name,
       artist: song.artist,
       album: 'PINGO Music',
-      ...(song.img ? { artwork: [{ src: song.img, sizes: '500x500' }] } : {}),
+      ...(song.img ? { artwork: [96, 192, 256, 512].map((n) => ({ src: song.img, sizes: `${n}x${n}` })) } : {}),
     });
     session.setActionHandler('play', () => { void musicPlayer.resume(); });
     session.setActionHandler('pause', () => musicPlayer.pause());
@@ -86,7 +140,7 @@ function mediaSession(song: SharedSong) {
     session.setActionHandler('seekto', (d) => { if (d.seekTime !== undefined) musicPlayer.seek(d.seekTime); });
     session.setActionHandler('stop', () => musicPlayer.close());
     session.setActionHandler('nexttrack', queue ? () => queue?.next(false) : null);
-    session.setActionHandler('previoustrack', queue ? () => queue?.prev() : null);
+    session.setActionHandler('previoustrack', () => { if (queue) queue.prev(); else musicPlayer.seek(0); });
   } catch {
     // Some browsers know the API but not every action. The in-app controls still work.
   }
@@ -137,7 +191,11 @@ export const musicPlayer = {
   close() {
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
     set({ song: undefined, playing: false, loading: false, failed: false, at: 0, length: 0 });
-    if (typeof navigator !== 'undefined' && navigator.mediaSession) navigator.mediaSession.metadata = null;
+    if (typeof navigator !== 'undefined' && navigator.mediaSession) {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+    }
+    clearNowPlaying();
   },
 };
 

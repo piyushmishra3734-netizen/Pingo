@@ -187,6 +187,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SecureScreenPlugin.class);
         registerPlugin(BackgroundPlugin.class);
         registerPlugin(PushActions.class);
+        registerPlugin(MediaControlsPlugin.class);
 
         super.onCreate(savedInstanceState);
 
