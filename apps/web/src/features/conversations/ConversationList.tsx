@@ -108,6 +108,8 @@ export function ConversationList({
   const searchRef = useRef<HTMLInputElement>(null);
   // Search is the header's icon now; the field shows while it is open or holds a query.
   const [searchOpen, setSearchOpen] = useState(false);
+  // The Archived tab and the Archived row open the same list.
+  const archivedOpen = useState(false);
   const { unread } = useNotifications();
   /*
    * Most accounts open notifications from the dock. Allowlisted community
@@ -660,6 +662,11 @@ export function ConversationList({
                           : conversationFilterLabels[f]}
                 </FolderTab>
               ))}
+              {archived.length > 0 && (
+                <FolderTab selected={archivedOpen[0]} count={undefined} onClick={() => archivedOpen[1]((was) => !was)}>
+                  Archived
+                </FolderTab>
+              )}
               {lists.map((list) => (
                 <FolderTab
                   key={list.id}
@@ -698,6 +705,7 @@ export function ConversationList({
           conversations={ordered}
           pinAiToTop={pinAiToTop}
           archived={archived}
+          archivedOpen={archivedOpen}
           {...(activeConversationId ? { activeConversationId } : {})}
           selectedIds={selectedIds}
           selectionMode={selectionMode}

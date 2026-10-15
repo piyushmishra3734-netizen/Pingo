@@ -1,6 +1,6 @@
 import { useChat } from '@pingo/core';
 import { Badge, CameraIcon, ChatIcon, UserIcon, cn } from '@pingo/ui';
-import { Music2, Tv } from 'lucide-react';
+import { Music2, TvMinimalPlay } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { AiPill } from './AiPill.js';
@@ -85,7 +85,7 @@ export function Dock() {
             {({ isActive }) => (
               <>
                 <span className="relative">
-                  <Tv size={25} strokeWidth={1.9} aria-hidden />
+                  <TvMinimalPlay size={25} strokeWidth={1.9} aria-hidden />
                   {/* New: Pingo TV is coming. */}
                   {!isActive && <span aria-label="New" className="absolute -top-0.5 -right-1 size-2.5 rounded-full bg-brand ring-2 ring-page" />}
                 </span>

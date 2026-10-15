@@ -46,6 +46,8 @@ export interface ChatListBodyProps {
   /** Already filtered by chip, list and search. */
   conversations: Conversation[];
   archived: Conversation[];
+  /** Archived opened from outside (the Archived tab); the row toggles the same thing. */
+  archivedOpen?: [boolean, (open: boolean | ((was: boolean) => boolean)) => void];
   activeConversationId?: string;
   /** Non-empty means selection mode. */
   selectedIds: Set<string>;
@@ -72,6 +74,7 @@ export function ChatListBody({
   ready,
   conversations,
   archived,
+  archivedOpen,
   activeConversationId,
   selectedIds,
   selectionMode,
@@ -91,7 +94,8 @@ export function ChatListBody({
    * shelf is a door, not a preference - leaving it open across sessions would
    * put archived chats back in the main list by another name.
    */
-  const [showArchived, setShowArchived] = useState(false);
+  const own = useState(false);
+  const [showArchived, setShowArchived] = archivedOpen ?? own;
 
   /**
    * The conversation focus should land on once selection mode ends.
