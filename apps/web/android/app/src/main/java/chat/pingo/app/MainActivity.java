@@ -60,6 +60,25 @@ import java.io.OutputStream;
  */
 public class MainActivity extends BridgeActivity {
 
+    /**
+     * Whether PINGO is on screen. A chat push that arrives while it is does not
+     * go to the tray: the in-app banner already says it (see ChatNotifier).
+     */
+    static volatile boolean inForeground;
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        inForeground = true;
+    }
+
+    @Override
+    public void onPause() {
+        inForeground = false;
+        super.onPause();
+    }
+
+
     /*
      * What the keyboard is allowed to send, taken from the view rather than
      * written out again here.
@@ -167,6 +186,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallAudioPlugin.class);
         registerPlugin(SecureScreenPlugin.class);
         registerPlugin(BackgroundPlugin.class);
+        registerPlugin(PushActions.class);
 
         super.onCreate(savedInstanceState);
 
