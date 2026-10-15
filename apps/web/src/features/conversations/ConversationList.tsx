@@ -1,4 +1,4 @@
-import { Gamepad2, Music2 } from 'lucide-react';
+import { EllipsisVertical, Gamepad2, Search } from 'lucide-react';
 import {
   conversationFilterLabels,
   conversationFilters,
@@ -34,7 +34,6 @@ import { JourneyStrip } from '../journey/JourneyStrip.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { useBackStep } from '../navigation/useBackStep.js';
-import { openMusic, preloadMusic } from '../music/app/sheet-store.js';
 import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
 import { LiveBanner } from '../live/LiveBanner.js';
 import { useLive } from '../live/LiveContext.js';
@@ -107,12 +106,13 @@ export function ConversationList({
   const { groups: storyGroups, uploading: storyUploading } = useStories();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
+  // Search is the header's icon now; the field shows while it is open or holds a query.
+  const [searchOpen, setSearchOpen] = useState(false);
   const { unread } = useNotifications();
   /*
    * Most accounts open notifications from the dock. Allowlisted community
    * accounts still have Communities in that slot, so they keep the header bell.
    */
-  const showHeaderNotifications = canAccessCommunities(profile?.id);
 
   const actions = useConversationActions();
   const confirm = useConfirm();
@@ -489,16 +489,8 @@ export function ConversationList({
               happening, with a small spinner, and comes back when it is over.
             */}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-              <div className="flex items-center justify-start">
-                {/* Telegram's Edit. Selecting chats leads the menu; starting something follows. */}
-                <button
-                  type="button"
-                  onClick={() => setStarting(true)}
-                  className="focus-ring rounded-lg px-1.5 py-1.5 text-[16px] font-medium text-brand active:opacity-60"
-                >
-                  Edit
-                </button>
-              </div>
+              {/* Edit's work (select chats, start something, Calls) lives in the ⋮ on the right now. */}
+              <div aria-hidden />
 
               <h1 className="flex min-w-0 items-center justify-center gap-2 text-[17px] font-semibold text-ink">
                 {netTitle ? (
@@ -548,49 +540,41 @@ export function ConversationList({
               </h1>
 
               <div className="flex items-center justify-end gap-0.5">
-                {showHeaderNotifications && (
-                  <IconButton
-                    label={
-                      unread > 0
-                        ? t('chats.notifsUnread', { n: unread })
-                        : t('chats.notifsAria')
-                    }
-                    variant="ghost"
-                    onClick={() => navigate('/notifications')}
-                    className="text-brand"
-                  >
-                    <span className="relative">
-                      <BellIcon size={22} />
-                      <span
-                        className={cn(
-                          'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-dot ring-2 ring-page',
-                          'transition-opacity duration-quick',
-                          unread > 0 ? 'opacity-100' : 'opacity-0',
-                        )}
-                      />
-                    </span>
-                  </IconButton>
-                )}
                 <IconButton
-                  label="PINGO Music"
+                  label={t('common.search')}
                   variant="ghost"
-                  onPointerDown={preloadMusic}
-                  onClick={openMusic}
-                  className="text-brand"
+                  onClick={() => {
+                    setSearchOpen(true);
+                    requestAnimationFrame(() => searchRef.current?.focus());
+                  }}
+                  className="text-ink"
                 >
-                  <Music2 size={22} strokeWidth={1.9} aria-hidden />
+                  <Search size={22} strokeWidth={2} aria-hidden />
                 </IconButton>
                 <IconButton
-                  label="PINGO Arcade"
+                  label={unread > 0 ? t('chats.notifsUnread', { n: unread }) : t('chats.notifsAria')}
                   variant="ghost"
-                  onClick={() => navigate('/arcade')}
-                  className="text-brand"
+                  onClick={() => navigate('/notifications')}
+                  className="text-ink"
                 >
-                  <Gamepad2 size={23} strokeWidth={1.9} aria-hidden />
+                  <span className="relative">
+                    <BellIcon size={22} />
+                    <span
+                      className={cn(
+                        'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-brand ring-2 ring-page',
+                        'transition-opacity duration-quick',
+                        unread > 0 ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                  </span>
+                </IconButton>
+                <IconButton label="More" variant="ghost" onClick={() => setStarting(true)} className="text-ink">
+                  <EllipsisVertical size={22} strokeWidth={2} aria-hidden />
                 </IconButton>
               </div>
             </div>
 
+            {(searchOpen || query) && (
             <div className="mt-1.5">
               <SearchField
                 inputRef={searchRef}
@@ -599,8 +583,10 @@ export function ConversationList({
                 placeholder={t('common.search')}
                 aria-label={t('chats.searchAria')}
                 className="lq-search h-10 rounded-xl border-transparent bg-sunken focus-within:border-line"
+                onBlur={() => !query && setSearchOpen(false)}
               />
             </div>
+            )}
 
           </>
         )}
@@ -910,6 +896,7 @@ export function ConversationList({
       {starting && (
         <NewChatMenu
           onClose={() => setStarting(false)}
+          places={{ communities: canAccessCommunities(profile?.id) }}
           onSelectChats={() => {
             setStarting(false);
             setEditing(true);

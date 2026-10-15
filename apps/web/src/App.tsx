@@ -65,6 +65,7 @@ const CallsScreen = lazyScreen(() => import('./screens/CallsScreen.js'), 'CallsS
 const CameraScreen = lazyScreen(() => import('./screens/CameraScreen.js'), 'CameraScreen');
 import { ChatsScreen } from './screens/ChatsScreen.js';
 const CommunitiesScreen = lazyScreen(() => import('./screens/CommunitiesScreen.js'), 'CommunitiesScreen');
+const PingoTvScreen = lazyScreen(() => import('./screens/PingoTvScreen.js'), 'PingoTvScreen');
 const FollowRequestsScreen = lazyScreen(() => import('./screens/FollowRequestsScreen.js'), 'FollowRequestsScreen');
 import { LiveProfile } from './features/profile/LiveProfile.js';
 const DownloadScreen = lazyScreen(() => import('./screens/DownloadScreen.js'), 'DownloadScreen');
@@ -566,6 +567,7 @@ export function App() {
                   <Route path="/chats/:conversationId" element={<ChatsScreen />} />
                   <Route path="/calls" element={<CallsScreen />} />
                   <Route path="/camera" element={<CameraScreen />} />
+                  <Route path="/tv" element={<PingoTvScreen />} />
                   <Route path="/communities" element={<CommunitiesScreen />} />
                   <Route path="/notifications" element={<NotificationsFeedScreen />} />
                   <Route path="/requests" element={<FollowRequestsScreen />} />

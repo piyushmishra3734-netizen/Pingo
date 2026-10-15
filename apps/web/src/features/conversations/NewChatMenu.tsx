@@ -1,5 +1,5 @@
 import { useChat } from '@pingo/core';
-import { ChatIcon, CheckIcon, ChevronRightIcon, UserIcon, UsersIcon, cn } from '@pingo/ui';
+import { ChatIcon, CheckIcon, ChevronRightIcon, PhoneIcon, UserIcon, UsersIcon, cn } from '@pingo/ui';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,8 +19,11 @@ import { useT } from '../i18n/useT.js';
 export function NewChatMenu({
   onClose,
   onSelectChats,
+  places,
 }: {
   onClose: () => void;
+  /** From the Chats header's ⋮: Calls (and Communities, where allowed), which left the bottom bar. */
+  places?: { communities: boolean };
   /** Present when opened from Edit: picking chats comes first. */
   onSelectChats?: () => void;
 }) {
@@ -87,6 +90,16 @@ export function NewChatMenu({
             onClick={go('/chats/new-group')}
           />
         </li>
+        {places && (
+          <li>
+            <Row icon={<PhoneIcon size={20} />} title="Calls" detail="Your call history and new calls" onClick={go('/calls')} />
+          </li>
+        )}
+        {places?.communities && (
+          <li>
+            <Row icon={<UsersIcon size={20} />} title="Communities" detail="Groups you belong to, together" onClick={go('/communities')} />
+          </li>
+        )}
       </ul>
       {aiError && (
         <p className="mt-2 px-1 text-center text-caption text-danger/90" role="alert">
