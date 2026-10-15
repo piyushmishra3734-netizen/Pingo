@@ -56,9 +56,23 @@ function element(): HTMLAudioElement {
   if (audio) return audio;
   const a = new Audio();
   a.preload = 'auto';
+  /*
+   * In the page, not floating detached. Chrome builds its notification and
+   * lock-screen player from the media playing in the document, and some
+   * Android builds skipped an element that was never attached.
+   */
+  a.hidden = true;
+  a.setAttribute('aria-hidden', 'true');
+  if (typeof document !== 'undefined') document.body.appendChild(a);
   a.addEventListener('timeupdate', () => set({ at: a.currentTime }));
   a.addEventListener('loadedmetadata', () => { if (Number.isFinite(a.duration)) set({ length: a.duration }); syncPhone(); });
-  a.addEventListener('playing', () => { set({ playing: true, loading: false, failed: false }); syncPhone(); });
+  a.addEventListener('playing', () => {
+    set({ playing: true, loading: false, failed: false });
+    // Again once sound is actually coming out: Chrome can drop what was set
+    // before the media started, and then shows a player with no song, or none.
+    if (state.song) mediaSession(state.song);
+    syncPhone();
+  });
   a.addEventListener('waiting', () => set({ loading: true }));
   a.addEventListener('pause', () => { set({ playing: false }); syncPhone(); });
   a.addEventListener('seeked', syncPhone);
