@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         Auto Backup is off, and stays off.
@@ -129,6 +130,28 @@
             screen share and a manifest entry duplicating a dependency's. See
             ScreenShare.kt.
         -->
+            <!--
+            Pushes land here instead of Capacitor's own service, which is
+            removed below. PingoMessagingService still hands every message on
+            to Capacitor, and adds WhatsApp-style chat notifications (Reply,
+            Mark as read) and the silent "chat was read" clear.
+        -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".PingoMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Reply and Mark as read, pressed on a chat notification with the app closed. -->
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false" />
+
     </application>
 
     <!-- Permissions -->
