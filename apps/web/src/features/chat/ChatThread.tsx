@@ -707,6 +707,17 @@ export function ChatThread({
   const followingRef = useRef(true);
   /** React state mirror of followingRef so the jump button can re-render. */
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  /*
+   * The composer grew or shrank (emoji panel, reply bar, a longer draft), and
+   * with it the space the thread is padded by. Somebody at the latest message
+   * stays at it, in the same frame, rather than having it slide under the
+   * panel. Before paint, and before the scroll event that would mark them as
+   * "scrolled up", so `followingRef` still says where they were.
+   */
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && followingRef.current) el.scrollTop = el.scrollHeight;
+  }, [chrome.bottom]);
   /** PINGO AI's reply as it is being written, shown as a bubble that grows. */
   const aiDraft = useAiDraft(conversation.id);
   const aiStoppable = useAiStoppable(conversation.id);
@@ -1237,7 +1248,21 @@ export function ChatThread({
     const el = scrollRef.current;
     const content = contentRef.current;
     if (!el || !content) return;
+    let viewport = el.clientHeight;
     const pin = () => {
+      /*
+       * The thread's own window got shorter or taller: the emoji panel, the
+       * reply bar, the keyboard. Somebody reading the latest message keeps
+       * reading it, as in any messenger, instead of having it slide under the
+       * panel. `followingRef` still holds where they were before the resize:
+       * the scroll event for it has not run yet.
+       */
+      const resized = el.clientHeight !== viewport;
+      viewport = el.clientHeight;
+      if (resized && followingRef.current) {
+        el.scrollTop = el.scrollHeight;
+        return;
+      }
       if (Date.now() > pinUntilRef.current) return;
       el.scrollTop = el.scrollHeight;
       followingRef.current = true;

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth, useChat, useProfile } from '@pingo/core';
 import { LoadingState, cn } from '@pingo/ui';
 import { AppLoader } from '../features/loading/AppLoader.js';
@@ -174,7 +174,21 @@ export function AppShell() {
    * finished opening, and React answered with #310 and a blank screen. It was
    * invisible locally because a warm load is ready on the first render.
    */
-  const back = useNavigationType() === 'POP';
+  const navigationType = useNavigationType();
+  /*
+   * Decided once per screen, when the screen changes - never again while it
+   * stays. Closing a sheet, the emoji panel or a reply takes back the history
+   * step it added (useBackStep), and the router reports that as a POP. Read
+   * on every render, that flipped the class from screen-in to screen-back,
+   * and changing the animation restarts it: the whole screen flashed and slid
+   * in again as if it had reloaded, the first time anything was closed on it.
+   */
+  const entered = useRef<{ key: string; back: boolean } | null>(null);
+  const currentScreen = location.pathname.split('/')[1] ?? '';
+  if (entered.current?.key !== currentScreen) {
+    entered.current = { key: currentScreen, back: navigationType === 'POP' };
+  }
+  const back = entered.current.back;
   // The launch splash stays over this until there is something to show.
   useSplashHold(!ready || staleAccount);
 

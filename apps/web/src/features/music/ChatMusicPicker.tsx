@@ -12,7 +12,7 @@ import { UploadsShelf } from './UploadsShelf.js';
  * it. The same catalogue the story editor uses, drawn in the chat's own light
  * panel rather than the camera's dark one.
  */
-export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: Song) => void; /** Choosing, not sending: a tick instead of the send arrow. */ pick?: boolean }) {
+export function ChatMusicPicker({ onSelect, pick = false, fill = false }: { onSelect: (song: Song) => void; /** Choosing, not sending: a tick instead of the send arrow. */ pick?: boolean; /** Takes its parent's height (the composer panel) instead of its own. */ fill?: boolean }) {
   const cat = useCatalogue();
   const { query, uploads } = cat;
   const list = cat.songs.items;
@@ -48,7 +48,7 @@ export function ChatMusicPicker({ onSelect, pick = false }: { onSelect: (song: S
      * the album/playlist row left room for about one and a half songs, so a
      * list of hundreds read as "only a couple of songs, and it will not scroll".
      */
-    <div className="flex h-[min(560px,62dvh)] min-h-[320px] flex-col">
+    <div className={fill ? 'flex h-full flex-col' : 'flex h-[min(560px,62dvh)] min-h-[320px] flex-col'}>
       <div className="px-2.5 pt-2.5">
         <SearchField value={query} onChange={(e) => cat.setQuery(e.target.value)} placeholder="Search music" aria-label="Search music" />
       </div>

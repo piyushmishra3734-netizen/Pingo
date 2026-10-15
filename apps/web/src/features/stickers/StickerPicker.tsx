@@ -71,7 +71,7 @@ export function StickerPicker({ onSelect }: StickerPickerProps) {
   };
 
   return (
-    <div className="flex h-80 flex-col">
+    <div className="flex h-full flex-col">
       <div className="px-3 pt-3">
         <SearchField
           value={query}

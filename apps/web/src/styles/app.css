@@ -1304,3 +1304,9 @@ video {
 @media (prefers-reduced-motion: reduce) { .pp-twinkle { animation: none; } }
 /* The right pane of the profile on a wide screen: a reading column, centred, the scroll at the pane's edge. */
 .pp-split .pp-pad { padding-inline: max(2.5rem, calc((100% - 40rem) / 2)); }
+
+/* The emoji grid fills the composer panel's fixed height instead of setting its own. */
+.emoji-picker-host em-emoji-picker {
+  width: 100%;
+  height: 100%;
+}

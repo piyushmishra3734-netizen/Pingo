@@ -87,5 +87,5 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     // Rebuilt on theme change - emoji-mart bakes the theme in at construction.
   }, [resolvedTheme]);
 
-  return <div ref={host} className="emoji-picker-host" />;
+  return <div ref={host} className="emoji-picker-host h-full w-full" />;
 }

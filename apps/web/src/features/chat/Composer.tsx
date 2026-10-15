@@ -549,6 +549,13 @@ export function Composer({
         >
           <PickerTabs tab={tab} onTab={setTab} showStickers={Boolean(onSendSticker)} />
 
+          {/*
+            One height for every tab, set before anything inside has loaded.
+            The emoji grid arrives a moment after the panel (emoji-mart is
+            built on open), and a panel that grew when it did pushed the
+            thread up twice; switching tabs moved it again.
+          */}
+          <div className="h-[min(380px,46dvh)]">
           {tab === 'emoji' ? (
             <EmojiPicker
               onSelect={(emoji) => {
@@ -561,6 +568,7 @@ export function Composer({
             />
           ) : tab === 'music' ? (
             <ChatMusicPicker
+              fill
               onSelect={(song) => {
                 // A song is the whole message, like a sticker: sent straight away.
                 setPickerOpen(false);
@@ -575,6 +583,7 @@ export function Composer({
               }}
             />
           )}
+          </div>
         </div>
       )}
 
