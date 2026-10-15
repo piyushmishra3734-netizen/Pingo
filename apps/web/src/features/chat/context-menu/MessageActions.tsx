@@ -86,7 +86,8 @@ export function MessageActions({
     fn();
     onDone();
   };
-  const text = message.body.trim().length > 0;
+  // A sticker's body is only its emoji fallback: nothing to copy or edit.
+  const text = message.body.trim().length > 0 && !message.sticker;
 
   /*
    * iOS's shape, kept short: the four things reached for most, More for the

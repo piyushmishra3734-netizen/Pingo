@@ -29,6 +29,19 @@ export interface EmojiPickerProps {
 export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const host = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useAppearance();
+  /*
+   * The callbacks, read through refs.
+   *
+   * They used to be effect dependencies, and the composer passes fresh arrow
+   * functions on every render - which, in a live chat, is every keystroke,
+   * every typing indicator, every message arriving. Each render tore the
+   * picker down and built it again, which is what made the panel flicker
+   * open and shut until a tab was tapped. Now it is built once per theme.
+   */
+  const select = useRef(onSelect);
+  const close = useRef(onClose);
+  select.current = onSelect;
+  close.current = onClose;
 
   useEffect(() => {
     let picker: { remove?: () => void } | undefined;
@@ -53,9 +66,14 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
         navPosition: 'bottom',
         perLine: 8,
         onEmojiSelect: (emoji: { native?: string }) => {
-          if (emoji.native) onSelect(emoji.native);
+          if (emoji.native) select.current(emoji.native);
         },
-        onClickOutside: onClose,
+        onClickOutside: (event?: Event) => {
+          // The button that toggles the panel is not "outside": it closes it itself.
+          const target = event?.target as Element | null | undefined;
+          if (target?.closest?.('[data-picker-toggle], [data-picker-panel]')) return;
+          close.current?.();
+        },
       }) as { remove?: () => void };
     })();
 
@@ -67,7 +85,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       picker?.remove?.();
     };
     // Rebuilt on theme change - emoji-mart bakes the theme in at construction.
-  }, [onSelect, onClose, resolvedTheme]);
+  }, [resolvedTheme]);
 
   return <div ref={host} className="emoji-picker-host" />;
 }

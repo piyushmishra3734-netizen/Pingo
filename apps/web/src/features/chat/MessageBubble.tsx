@@ -539,7 +539,16 @@ export function MessageBubble({
   if (message.sticker) {
     return (
       <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
-        <div className={arrive}>
+        {/*
+          Held like any message: react, reply, forward. The sticker had none of
+          the menu's wiring (no trigger, no id to jump to, no reactions), so a
+          long press did nothing and a reply to one could not be scrolled to.
+        */}
+        <div
+          id={`message-${message.id}`}
+          {...trigger}
+          className={cn(arrive, 'outline-none select-none [-webkit-touch-callout:none]')}
+        >
           {nameLabel}
           <img
             src={message.sticker.url}
@@ -547,7 +556,7 @@ export function MessageBubble({
             alt={message.body}
             draggable={false}
             // 160px: the packs carry words now ("vibes only", "caught in 4K"), and they have to be read.
-            className="size-40 select-none object-contain"
+            className="pointer-events-none size-40 select-none object-contain"
             onError={(event) => {
               // Pack gone, or offline. The emoji is a better fallback than a
               // broken-image icon, and it is already in `body`.
@@ -558,6 +567,7 @@ export function MessageBubble({
               image.replaceWith(text);
             }}
           />
+          {reactions}
           <span className="mt-0.5 block text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
           </span>

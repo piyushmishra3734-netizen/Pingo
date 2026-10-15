@@ -447,6 +447,8 @@ export class MockChatService implements ChatService {
       attachments: [],
       reactions: [],
       ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
+      // A sticker stays a sticker here too, so the demo renders it as the app does.
+      ...(draft.sticker ? { sticker: draft.sticker } : {}),
     };
 
     (this.#messages[draft.conversationId] ??= []).push(message);

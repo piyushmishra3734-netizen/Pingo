@@ -540,6 +540,7 @@ export function Composer({
       )}
       {pickerOpen && (
         <div
+          data-picker-panel=""
           className={cn(
             'overflow-hidden rounded-xl border border-line bg-surface shadow-lg',
             // Anchored to the composer, so it grows from its bottom edge.
@@ -891,6 +892,7 @@ export function Composer({
             size="md"
             variant="ghost"
             className={cn(pickerOpen && 'text-brand')}
+            data-picker-toggle=""
             onClick={() => setPickerOpen((was) => !was)}
           >
             <SmileIcon size={22} />

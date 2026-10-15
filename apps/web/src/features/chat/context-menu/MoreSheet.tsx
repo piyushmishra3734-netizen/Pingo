@@ -73,7 +73,8 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
     };
 
     const edit: Item[] = [];
-    if (mine) {
+    // A sticker or a Ping is a picture, not words: there is nothing to edit.
+    if (mine && !hasMedia) {
       /*
        * No time limit. The window was removed because the thing that protects a
        * reader is knowing a message changed, not the change becoming impossible
