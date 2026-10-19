@@ -298,7 +298,7 @@ export function PingoTv() {
               {tab === 'home' && (
                 <>
                   {hero(trending)}
-                  <div className="relative z-10 -mt-6 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-8 xl:pr-10 md:-mt-10">
+                  <div className="relative z-10 -mt-6 md:-mt-10">
                     <div className="min-w-0">
                       {history.length > 0 &&
                         (
@@ -318,7 +318,7 @@ export function PingoTv() {
                           />
                         )}
                       {rail('Trending Now', trending, { landscape: true })}
-                      <div className="xl:hidden">{rail('Top 10 in India', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}</div>
+                      {rail('Top 10 in India', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}
                       {rail('Latest Episodes and Dubs', latestEpisodes, { sub: 'Fresh drops with Hindi audio and multi-language dubs', landscape: true })}
                       {rail('Latest Releases', nowPlaying)}
                       {rail('Action and Thrillers', actionMovies)}
@@ -328,12 +328,6 @@ export function PingoTv() {
                       {rail('Edge of the Seat Horror', horrorMovies)}
                       {rail('Top Rated on IMDb', topRated)}
                     </div>
-                    {/* Wide screens: the lists that sit beside the rails, as in a TV app's home. */}
-                    <aside aria-label="Picks" className="mt-7 hidden min-w-0 xl:block">
-                      <TvSideTop10 items={top10Hindi} onSelect={open} />
-                      <TvSideGrid title="New Releases" items={nowPlaying.slice(0, 6)} onSelect={open} />
-                      <TvSideGrid title="Recommended For You" items={topRated.slice(0, 6)} onSelect={open} />
-                    </aside>
                   </div>
                 </>
               )}
@@ -455,7 +449,7 @@ export function PingoTv() {
 
       {route.kind !== 'tab' && !overlayMedia && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/85">
-          <Loader2 className="size-8 animate-spin text-white/80" />
+          <TvLogo className="animate-pulse" />
         </div>
       )}
 
@@ -471,7 +465,7 @@ export function PingoTv() {
       )}
 
       {route.kind === 'watch' && overlayMedia && (
-        <Suspense fallback={<div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90"><Loader2 className="size-8 animate-spin text-white/80" /></div>}>
+        <Suspense fallback={<div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90"><TvLogo className="animate-pulse" /></div>}>
           <TvStreamPlayer
             key={watchKey}
             media={overlayMedia}
@@ -502,7 +496,7 @@ export function PingoTv() {
       )}
 
       {route.kind === 'trailer' && overlayMedia && (
-        <Suspense fallback={<div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80"><Loader2 className="size-8 animate-spin text-white/80" /></div>}>
+        <Suspense fallback={<div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80"><TvLogo className="animate-pulse" /></div>}>
           <TvTrailerPlayer media={overlayMedia} onClose={goBack} />
         </Suspense>
       )}
@@ -515,6 +509,9 @@ export function PingoTv() {
 function TvSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading Pingo TV">
+      <div className="flex justify-center pt-28 md:hidden">
+        <TvLogo className="animate-pulse" />
+      </div>
       <div className="h-[min(78svh,640px)] min-h-[460px] w-full animate-pulse bg-gradient-to-b from-white/[0.06] to-transparent md:h-[min(72svh,720px)]" />
       {[0, 1].map((r) => (
         <div key={r} className="mt-7 px-4 md:px-10">
@@ -560,40 +557,5 @@ function HistoryCard({ item, onPlay }: { item: WatchedItem; onPlay: () => void }
   );
 }
 
-/** The five most watched, small, with their rank: a column on a wide screen. */
-function TvSideTop10({ items, onSelect }: { items: TmdbMedia[]; onSelect: (m: TmdbMedia) => void }) {
-  if (items.length === 0) return null;
-  return (
-    <section className="mb-8">
-      <h2 className="mb-3 text-[17px] font-semibold text-white/95">Top 10 in India</h2>
-      <ol className="grid grid-cols-5 gap-2">
-        {items.slice(0, 5).map((m, i) => (
-          <li key={m.id} className="relative">
-            <span aria-hidden className="pointer-events-none absolute -left-1 -top-1 z-10 text-[38px] font-black leading-none tracking-[-0.08em]" style={{ color: 'transparent', WebkitTextStroke: '1.5px rgba(255,255,255,0.7)' }}>
-              {i + 1}
-            </span>
-            <TvMediaCard media={m} onSelect={onSelect} showTitle={false} />
-            <p className="mt-1 truncate text-[11px] text-text-secondary">{m.title || m.name}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-/** Six posters in a grid, each with its title: New Releases, Recommended. */
-function TvSideGrid({ title, items, onSelect }: { title: string; items: TmdbMedia[]; onSelect: (m: TmdbMedia) => void }) {
-  if (items.length === 0) return null;
-  return (
-    <section className="mb-8">
-      <h2 className="mb-3 text-[17px] font-semibold text-white/95">{title}</h2>
-      <div className="grid grid-cols-3 gap-x-2.5 gap-y-4">
-        {items.map((m) => (
-          <TvMediaCard key={m.id} media={m} onSelect={onSelect} />
-        ))}
-      </div>
-    </section>
-  );
-}
 
 export default PingoTv;

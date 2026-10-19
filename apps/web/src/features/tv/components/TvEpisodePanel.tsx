@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { TmdbEpisode, TmdbMedia, TmdbMediaDetails } from '../types.js';
 import { fetchDetails, fetchSeason, getTmdbPosterUrl, getTmdbStillUrl } from '../api/tmdb.js';
@@ -46,7 +46,8 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
   }, [isTv, media.id, season]);
 
   const seasons = (details?.seasons ?? []).filter((s) => s.season_number > 0);
-  const seasonCount = seasons.length || details?.number_of_seasons || 1;
+  const seasonCount = Math.max(seasons.length || details?.number_of_seasons || (details ? 1 : 10), season);
+  const knownEpisodes = seasons.find((x) => x.season_number === season)?.episode_count;
   const tabs: Array<{ id: PanelTab; label: string }> = [
     ...(isTv ? [{ id: 'episodes' as const, label: 'Episodes' }] : []),
     { id: 'details', label: 'Details' },
@@ -73,21 +74,21 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-width:thin]">
         {tab === 'episodes' && isTv && (
           <>
-            <label className="relative mb-3 inline-flex items-center">
-              <span className="sr-only">Season</span>
-              <select
-                value={season}
-                onChange={(e) => onPick(Number(e.target.value), 1)}
-                className="h-9 appearance-none rounded-md border border-white/20 bg-white/[0.06] pr-9 pl-3 text-[13.5px] font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
-                {Array.from({ length: seasonCount }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n} className="bg-[#15161d]">
-                    Season {n}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 size-4 text-white/70" />
-            </label>
+            {/* Seasons: every one of them, to pick with a tap. Unknown count shows a run of ten rather than none. */}
+            <div role="tablist" aria-label="Season" className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {Array.from({ length: seasonCount }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="tab"
+                  aria-selected={season === n}
+                  onClick={() => onPick(n, 1)}
+                  className={cn('h-9 shrink-0 rounded-full border px-4 text-[13.5px] font-semibold transition', season === n ? 'border-brand bg-brand text-on-brand' : 'border-white/20 text-white/85 hover:bg-white/10')}
+                >
+                  Season {n}
+                </button>
+              ))}
+            </div>
 
             {episodes === null ? (
               <div className="space-y-2" aria-busy="true">
@@ -97,7 +98,7 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
               </div>
             ) : episodes.length === 0 ? (
               <div className="grid grid-cols-6 gap-1.5">
-                {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+                {Array.from({ length: knownEpisodes || 24 }, (_, i) => i + 1).map((n) => (
                   <button key={n} type="button" onClick={() => onPick(season, n)} className={cn('h-9 rounded-md text-sm font-bold transition', episode === n ? 'bg-brand text-white' : 'bg-white/[0.07] text-white/80 hover:bg-white/15')}>
                     {n}
                   </button>

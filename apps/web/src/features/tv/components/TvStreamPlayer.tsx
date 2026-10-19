@@ -17,6 +17,7 @@ import {
 import { cn } from '@pingo/ui';
 import type { MediaType, TmdbMedia } from '../types.js';
 import { TvEpisodePanel } from './TvEpisodePanel.js';
+import { TvLogo } from './TvLogo.js';
 
 export interface StreamProvider {
   id: string;
@@ -234,9 +235,7 @@ export function TvStreamPlayer({
         {/* Player Header Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#12141c] px-4 py-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-on-brand shadow-sm">
-              {isTv ? <Tv className="size-4" /> : <Film className="size-4" />}
-            </span>
+            <TvLogo markOnly className="shrink-0 [&_img]:h-7" />
             <div className="flex items-baseline gap-2 truncate">
               <h3 className="truncate text-sm font-bold text-white sm:text-base">{title}</h3>
               {isTv && (

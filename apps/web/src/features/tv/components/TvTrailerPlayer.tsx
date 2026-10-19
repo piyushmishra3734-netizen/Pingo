@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, Film, Loader2, X } from 'lucide-react';
 import type { MediaType, TmdbMedia } from '../types.js';
 import { fetchVideos } from '../api/tmdb.js';
+import { TvLogo } from './TvLogo.js';
 
 interface TvTrailerPlayerProps {
   media: TmdbMedia;
@@ -68,7 +69,7 @@ export function TvTrailerPlayer({ media, onClose }: TvTrailerPlayerProps) {
         {/* Header Bar */}
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <div className="flex items-center gap-2">
-            <Film className="size-4 text-brand" />
+            <TvLogo markOnly className="shrink-0 [&_img]:h-6" />
             <h3 className="line-clamp-1 text-sm font-semibold text-ink sm:text-base">{title}</h3>
             <span className="rounded bg-brand/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-brand">
               Trailer

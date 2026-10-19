@@ -1,3 +1,4 @@
+import { TvLogo } from './TvLogo.js';
 import React, { useEffect, useState } from 'react';
 import { Bookmark, Check, Clock, Film, Loader2, Play, Star, Tv, X } from 'lucide-react';
 import { cn } from '@pingo/ui';
@@ -75,6 +76,8 @@ export function TvMediaDetailsModal({
 
       {/* Modal Dialog Content */}
       <div className="relative z-10 flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-t-xl bg-surface shadow-2xl sm:rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <TvLogo markOnly className="absolute top-4 left-4 z-20 [&_img]:h-7" />
+
         {/* Close Button */}
         <button
           type="button"
