@@ -110,6 +110,8 @@ interface TvStreamPlayerProps {
   initialEpisode?: number;
   onClose: () => void;
   onOpenTrailer?: (media: TmdbMedia) => void;
+  /** Told when the episode changes, so friends can see which one this is. */
+  onEpisodeChange?: (season: number, episode: number) => void;
 }
 
 export function TvStreamPlayer({
@@ -118,6 +120,7 @@ export function TvStreamPlayer({
   initialEpisode = 1,
   onClose,
   onOpenTrailer,
+  onEpisodeChange,
 }: TvStreamPlayerProps) {
   // Initialize with last good working source or default to NHD Hindi
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
@@ -134,6 +137,10 @@ export function TvStreamPlayer({
 
   const [season, setSeason] = useState<number>(initialSeason);
   const [episode, setEpisode] = useState<number>(initialEpisode);
+  useEffect(() => {
+    onEpisodeChange?.(season, episode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season, episode]);
   const [isTheater, setIsTheater] = useState<boolean>(false);
   const [autoSwitchEnabled, setAutoSwitchEnabled] = useState<boolean>(true);
   const [reloadKey, setReloadKey] = useState<number>(0);

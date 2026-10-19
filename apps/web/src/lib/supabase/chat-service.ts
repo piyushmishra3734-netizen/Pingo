@@ -106,6 +106,7 @@ import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
 import { clearFriendsListening, setFriendListening } from '../../features/music/listening.js';
+import { clearFriendsWatching, setFriendWatching } from '../../features/tv/watching.js';
 /*
  * The same file the Edge Function matches with, imported rather than copied.
  *
@@ -1016,6 +1017,11 @@ export class SupabaseChatService implements ChatService {
         if (userId === this.#me) return;
         setFriendListening(userId, this.#statusById.has(userId) ? undefined : music);
       },
+      onWatching: (userId, tv) => {
+        // Same rule as the song: hidden activity hides it, and nobody needs their own shown back.
+        if (userId === this.#me) return;
+        setFriendWatching(userId, this.#statusById.has(userId) ? undefined : tv);
+      },
       onTyping: (conversationId, userIds, activity) => {
         this.#emit({ type: 'typing:changed', conversationId, userIds, activity });
       },
@@ -1070,6 +1076,7 @@ export class SupabaseChatService implements ChatService {
         this.#closeChannel();
         this.#presenceHub.stop();
         clearFriendsListening();
+        clearFriendsWatching();
       }
     });
     this.#authWatcher = data.subscription;
@@ -1741,6 +1748,7 @@ export class SupabaseChatService implements ChatService {
             // Their socket's last word is not theirs to show any more.
             this.#livePresence.delete(row.user_id);
             setFriendListening(row.user_id, undefined);
+            setFriendWatching(row.user_id, undefined);
           } else {
             this.#statusById.delete(row.user_id);
           }

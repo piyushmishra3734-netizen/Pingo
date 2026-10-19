@@ -31,6 +31,8 @@ import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useNickname } from '../chat/nicknames.js';
 import { useListening } from '../music/listening.js';
 import { ListeningBadge } from '../music/ListeningBadge.js';
+import { useWatching } from '../tv/watching.js';
+import { WatchingBadge } from '../tv/WatchingBadge.js';
 
 /**
  * One row in the conversation list.
@@ -130,6 +132,7 @@ export function ConversationRow({
   const longPress = useLongPress(() => onEnterSelection?.());
   // A direct chat only: in a group there is no one face for it to sit on.
   const listening = useListening(conversation.kind === 'direct' ? partner?.id : undefined);
+  const watching = useWatching(conversation.kind === 'direct' ? partner?.id : undefined);
 
   const body = (
     <>
@@ -172,12 +175,12 @@ export function ConversationRow({
         presence={
           conversation.kind === 'ai'
             ? 'online'
-            : conversation.kind === 'direct' && !listening
+            : conversation.kind === 'direct' && !listening && !watching
               ? presenceMark(partner?.presence.state)
               : undefined
         }
       />
-      {listening && <ListeningBadge music={listening} />}
+      {watching ? <WatchingBadge tv={watching} /> : listening && <ListeningBadge music={listening} />}
       </span>
 
       {/* The hairline sits under the text, not under the face - Telegram's row. */}

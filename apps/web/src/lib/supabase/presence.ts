@@ -1,6 +1,7 @@
 import type { PresenceState, UserId } from '@pingo/core';
 
 import { myListening, parseListening, watchMyListening, type Listening } from '../../features/music/listening.js';
+import { myWatching, parseWatching, watchMyWatching, type Watching } from '../../features/tv/watching.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import type { PingoSupabaseClient } from './client.js';
 
@@ -55,6 +56,8 @@ export interface PresenceHandlers {
   onPresence: (userId: UserId, state: PresenceState) => void;
   /** What someone is playing on PINGO Music; undefined once they stop or go. */
   onListening: (userId: UserId, music: Listening | undefined) => void;
+  /** What someone is watching on Pingo TV; undefined once they stop or go. */
+  onWatching: (userId: UserId, tv: Watching | undefined) => void;
   onTyping: (conversationId: string, userIds: UserId[], kind: ChatActivity) => void;
 }
 
@@ -104,9 +107,11 @@ export class PresenceHub {
          * One person on two devices is two entries under one key. Whichever is
          * playing is the answer; the newest if, somehow, both are.
          */
-        const metas = (state[id] ?? []) as { at?: number; music?: unknown }[];
+        const metas = (state[id] ?? []) as { at?: number; music?: unknown; tv?: unknown }[];
         const playing = metas.filter((m) => m.music).sort((x, y) => (y.at ?? 0) - (x.at ?? 0))[0];
         this.#handlers.onListening(id, parseListening(playing?.music));
+        const watching = metas.filter((m) => m.tv).sort((x, y) => (y.at ?? 0) - (x.at ?? 0))[0];
+        this.#handlers.onWatching(id, parseWatching(watching?.tv));
       }
 
       /*
@@ -126,6 +131,7 @@ export class PresenceHub {
         if (!online.has(id)) {
           this.#handlers.onPresence(id, 'offline');
           this.#handlers.onListening(id, undefined);
+          this.#handlers.onWatching(id, undefined);
         }
       }
 
@@ -143,6 +149,7 @@ export class PresenceHub {
       if (currentPresences.length) return;
       this.#handlers.onPresence(key as UserId, 'offline');
       this.#handlers.onListening(key as UserId, undefined);
+      this.#handlers.onWatching(key as UserId, undefined);
     });
 
     void channel.subscribe((status) => {
@@ -164,9 +171,12 @@ export class PresenceHub {
     window.addEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
     // A new song, a pause, the Music settings switch: said again, with or without it.
     this.#stopListening = watchMyListening(() => this.#publishPresence());
+    // The player opened, moved to the next episode, closed, or the Pingo TV switch was thrown.
+    this.#stopWatching = watchMyWatching(() => this.#publishPresence());
   }
 
   #stopListening: (() => void) | undefined;
+  #stopWatching: (() => void) | undefined;
 
   #onPrivacyChanged = (): void => {
     this.#publishPresence();
@@ -191,7 +201,8 @@ export class PresenceHub {
     }
     // A custom last seen hides being here at all, so it hides what is playing too.
     const music = customLastSeen() ? undefined : myListening();
-    void channel.track({ at: Date.now(), ...(music ? { music } : {}) });
+    const tv = customLastSeen() ? undefined : myWatching();
+    void channel.track({ at: Date.now(), ...(music ? { music } : {}), ...(tv ? { tv } : {}) });
   }
 
   #lastOnline = new Set<UserId>();
@@ -332,6 +343,8 @@ export class PresenceHub {
   stop(): void {
     this.#stopListening?.();
     this.#stopListening = undefined;
+    this.#stopWatching?.();
+    this.#stopWatching = undefined;
     window.removeEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
     if (this.#presence) void this.#client.removeChannel(this.#presence);
     this.#presence = undefined;

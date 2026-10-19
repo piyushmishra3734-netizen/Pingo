@@ -95,7 +95,9 @@ import { DisappearingSheet } from './DisappearingSheet.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
-import { Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
+import { useWatching, watchingLine } from '../tv/watching.js';
+import { WatchAlongBar } from '../tv/WatchAlongBar.js';
+import { Clapperboard, Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
@@ -1355,10 +1357,13 @@ export function ChatThread({
     (m) => m.id !== currentUser?.id && m.presence.state === 'online',
   ).length;
   const partnerListening = useListening(!isGroup && !isAi ? partner?.id : undefined);
-  const headerLive = isAi || partner?.presence.state === 'online' || Boolean(partnerListening);
+  const partnerWatching = useWatching(!isGroup && !isAi ? partner?.id : undefined);
+  const headerLive = isAi || partner?.presence.state === 'online' || Boolean(partnerListening) || Boolean(partnerWatching);
   const headerStatus = isGroup
     ? `${members.length} members${onlineOthers ? `, ${onlineOthers} online` : ''}`
-    : partnerListening
+    : partnerWatching
+      ? `watching ${watchingLine(partnerWatching)}`
+      : partnerListening
       ? `listening to ${partnerListening.n}`
       : headerLive && !isAi
         ? 'online'
@@ -1727,7 +1732,7 @@ export function ChatThread({
             </span>
           ) : (
             <span className={cn('flex max-w-full items-center gap-1 text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
-              {partnerListening && <Headphones size={12} strokeWidth={2.4} className="shrink-0" aria-hidden />}
+              {partnerWatching ? <Clapperboard size={12} strokeWidth={2.4} className="shrink-0" aria-hidden /> : partnerListening && <Headphones size={12} strokeWidth={2.4} className="shrink-0" aria-hidden />}
               <span className="truncate">{headerStatus}</span>
             </span>
           )}
@@ -1761,7 +1766,11 @@ export function ChatThread({
       </header>
 
       {partner && !isGroup && !isAi && !callNotice && (
-        <ListenAlongBar userId={partner.id} name={partner.name} myId={currentUser?.id} top={chrome.top} />
+        partnerWatching ? (
+          <WatchAlongBar userId={partner.id} name={partner.name} myId={currentUser?.id} top={chrome.top} />
+        ) : (
+          <ListenAlongBar userId={partner.id} name={partner.name} myId={currentUser?.id} top={chrome.top} />
+        )
       )}
 
       {callNotice && (

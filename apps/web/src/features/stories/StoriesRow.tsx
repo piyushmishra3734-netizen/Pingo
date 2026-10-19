@@ -6,6 +6,8 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { LiveStream } from '../live/types.js';
 import { useListening } from '../music/listening.js';
 import { ListeningBadge } from '../music/ListeningBadge.js';
+import { useWatching } from '../tv/watching.js';
+import { WatchingBadge } from '../tv/WatchingBadge.js';
 
 /**
  * The story tray at the top of the chat list, the stories sample's
@@ -183,6 +185,8 @@ const RING = 'var(--sweep-ring)';
 /** A friend playing PINGO Music: the headphones on the circle's corner, as on their chat row. */
 function RingListening({ id }: { id: string }) {
   const music = useListening(id);
+  const tv = useWatching(id);
+  if (tv) return <WatchingBadge tv={tv} size={26} className="right-0 bottom-0" />;
   return music ? <ListeningBadge music={music} size={26} className="right-0 bottom-0" /> : null;
 }
 

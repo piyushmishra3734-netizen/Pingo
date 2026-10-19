@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bookmark, Loader2, Search } from 'lucide-react';
-import { cn } from '@pingo/ui';
+import { Bookmark, Loader2, Search, X } from 'lucide-react';
+import { Toggle, cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
 import { TAB_PATH, parseTvPath, titlePath, trailerPath, useRouteMedia, watchPath, type TvNavState } from './routes.js';
 import {
@@ -15,6 +15,7 @@ import {
   fetchTrending,
 } from './api/tmdb.js';
 import { useWatchlist } from './hooks/useWatchlist.js';
+import { setMyWatching, setShareWatching, smallPoster, useShareWatching, useWatching, watchingPath } from './watching.js';
 import { TvLogo } from './components/TvLogo.js';
 import { TvHeroBanner } from './components/TvHeroBanner.js';
 import { TvMediaRail } from './components/TvMediaRail.js';
@@ -38,6 +39,45 @@ export function PingoTv() {
     if (t !== tab || route.kind !== 'tab') navigate(TAB_PATH[t]);
   };
   const overlayMedia = useRouteMedia(route, carried.media);
+
+  /*
+   * Watching, said to friends (see watching.ts): the title and episode while the
+   * player is open, nothing otherwise. The episode is the player's own, so it
+   * tells us when it changes.
+   */
+  const alongId = route.kind === 'watch' ? (new URLSearchParams(location.search).get('along') ?? undefined) : undefined;
+  const alongName = (location.state as { along?: string } | null)?.along;
+  const [episodeNow, setEpisodeNow] = useState<{ s: number; e: number } | null>(null);
+  const shareWatching = useShareWatching();
+  const watchKey = route.kind === 'watch' ? `${route.type}-${route.id}-${route.season}-${route.episode}` : '';
+  useEffect(() => setEpisodeNow(null), [watchKey]);
+  useEffect(() => {
+    if (route.kind !== 'watch' || !overlayMedia) {
+      setMyWatching(undefined);
+      return;
+    }
+    const title = overlayMedia.title || overlayMedia.name || '';
+    const poster = smallPoster(overlayMedia.poster_path);
+    setMyWatching({
+      n: title.slice(0, 120),
+      y: route.type,
+      id: overlayMedia.id,
+      ...(poster ? { i: poster } : {}),
+      ...(route.type === 'tv' ? { s: episodeNow?.s ?? route.season, e: episodeNow?.e ?? route.episode } : {}),
+      ...(alongId ? { w: alongId } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchKey, overlayMedia?.id, episodeNow?.s, episodeNow?.e, alongId]);
+  useEffect(() => () => setMyWatching(undefined), []);
+
+  // Watching along: when the friend moves to another title or episode, this follows.
+  const along = useWatching(alongId);
+  useEffect(() => {
+    if (!alongId || !along || route.kind !== 'watch') return;
+    const same = along.id === Number(route.id) && along.y === route.type && (along.y === 'movie' || ((along.s ?? 1) === (episodeNow?.s ?? route.season) && (along.e ?? 1) === (episodeNow?.e ?? route.episode)));
+    if (!same) navigate(watchingPath(along, alongId), { replace: true, state: { tab, along: alongName } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [along]);
   const [loading, setLoading] = useState(true);
 
   // Exact 9 rails matching e:\pingo tv\server.js
@@ -271,6 +311,14 @@ export function PingoTv() {
                     <span className="text-sm font-semibold text-text-secondary">{watchlist.length} saved</span>
                   </div>
 
+                  <div className="mb-5 flex items-center gap-3 rounded-lg bg-white/[0.06] px-4 py-3">
+                    <span className="min-w-0 flex-1">
+                      <b id="tv-share-watching" className="block text-[15px] font-semibold">Show what I'm watching</b>
+                      <small className="block text-[12.5px] text-text-secondary">Friends see it on your photo and can watch along. Off when your activity status is off.</small>
+                    </span>
+                    <Toggle checked={shareWatching} onChange={setShareWatching} labelledBy="tv-share-watching" size="sm" />
+                  </div>
+
                   {watchlist.length === 0 ? (
                     <div className="flex min-h-[50svh] flex-col items-center justify-center gap-3 text-center">
                       <span className="grid size-16 place-items-center rounded-full bg-white/8 text-text-secondary">
@@ -318,14 +366,31 @@ export function PingoTv() {
       {route.kind === 'watch' && overlayMedia && (
         <Suspense fallback={<div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90"><Loader2 className="size-8 animate-spin text-white/80" /></div>}>
           <TvStreamPlayer
-            key={overlayMedia.id}
+            key={watchKey}
             media={overlayMedia}
             initialSeason={route.season}
             initialEpisode={route.episode}
+            onEpisodeChange={(s, e) => setEpisodeNow((was) => (was && was.s === s && was.e === e ? was : { s, e }))}
             onClose={goBack}
             onOpenTrailer={(m) => navigate(trailerPath(m), { replace: true, ...state(m) })}
           />
         </Suspense>
+      )}
+
+      {route.kind === 'watch' && overlayMedia && alongId && (
+        <div className="fixed inset-x-0 top-0 z-[240] flex justify-center px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <div role="status" className="flex max-w-full items-center gap-2 rounded-full bg-black/80 py-1.5 pl-4 pr-1.5 text-[13px] font-medium text-white backdrop-blur-md">
+            <span className="truncate">Watching along with {alongName ?? 'a friend'}. Press play together.</span>
+            <button
+              type="button"
+              aria-label="Stop watching along"
+              onClick={() => navigate(watchPath(overlayMedia, route.season, route.episode), { replace: true, state: { media: overlayMedia, tab } })}
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       {route.kind === 'trailer' && overlayMedia && (
