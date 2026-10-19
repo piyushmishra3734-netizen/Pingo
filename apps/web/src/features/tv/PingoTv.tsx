@@ -167,7 +167,7 @@ export function PingoTv() {
     else navigate(TAB_PATH[tab], { replace: true });
   };
   const hero = (items: TmdbMedia[]) => (
-    <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={trailer} onOpenDetails={open} />
+    <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={trailer} onOpenDetails={open} paused={route.kind !== 'tab'} />
   );
   const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean }) => (
     <TvMediaRail title={title} items={items} onSelect={open} {...extra} />
