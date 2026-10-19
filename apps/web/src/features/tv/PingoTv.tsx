@@ -111,7 +111,7 @@ export function PingoTv() {
     { id: 'home', label: 'Home' },
     { id: 'shows', label: 'Shows' },
     { id: 'movies', label: 'Movies' },
-    { id: 'watchlist', label: 'My Space' },
+    { id: 'watchlist', label: 'My List' },
   ];
 
   const open = (m: TmdbMedia) => setSelectedMedia(m);
@@ -137,11 +137,11 @@ export function PingoTv() {
       >
         <header
           className={cn(
-            'sticky top-0 z-40 -mb-[var(--tv-bar)] transition-colors duration-300 [--tv-bar:theme(spacing.24)] md:[--tv-bar:theme(spacing.16)]',
+            'sticky top-0 z-40 -mb-[var(--tv-bar)] transition-colors duration-300 [--tv-bar:theme(spacing.28)] md:[--tv-bar:68px]',
             scrolled ? 'bg-page/95 backdrop-blur-xl' : 'bg-gradient-to-b from-black/55 to-transparent',
           )}
         >
-          <div className="flex items-center gap-4 px-4 pt-[max(0.6rem,env(safe-area-inset-top))] md:h-16 md:gap-8 md:px-10 md:pt-0">
+          <div className="flex items-center gap-4 px-4 pt-[max(0.6rem,env(safe-area-inset-top))] md:h-[68px] md:gap-8 md:px-10 md:pt-0">
             <TvLogo />
             <nav aria-label="Pingo TV" className="hidden items-center gap-1 md:flex">
               {tabs.map((t) => (
@@ -150,8 +150,8 @@ export function PingoTv() {
                   type="button"
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
-                    tab === t.id ? 'bg-white/12 text-white' : 'text-white/60 hover:text-white',
+                    'px-3 py-2 text-sm transition-colors',
+                    tab === t.id ? 'font-bold text-white' : 'font-medium text-white/70 hover:text-white/95',
                   )}
                 >
                   {t.label}
@@ -169,7 +169,7 @@ export function PingoTv() {
               </button>
               <button
                 type="button"
-                aria-label="My Space"
+                aria-label="My List"
                 onClick={() => setTab('watchlist')}
                 className="relative grid size-10 place-items-center rounded-full text-white/85 transition-colors hover:bg-white/10 md:hidden"
               >
@@ -178,19 +178,18 @@ export function PingoTv() {
               </button>
             </div>
           </div>
-          <nav aria-label="Pingo TV" className="flex items-center gap-6 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+          <nav aria-label="Pingo TV" className="flex items-center gap-2 overflow-x-auto px-4 pb-3 pt-1 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  'relative shrink-0 py-2 text-[15px] font-semibold transition-colors',
-                  tab === t.id ? 'text-white' : 'text-white/55',
+                  'shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors',
+                  tab === t.id ? 'border-white bg-white text-black' : 'border-white/40 text-white',
                 )}
               >
                 {t.label}
-                <span className={cn('absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-white transition-opacity', tab === t.id ? 'opacity-100' : 'opacity-0')} />
               </button>
             ))}
           </nav>
@@ -205,7 +204,7 @@ export function PingoTv() {
                 <>
                   {hero(trending)}
                   <div className="relative z-10 -mt-6 md:-mt-10">
-                    {watchlistAsMedia.length > 0 && rail('Continue with My Space', watchlistAsMedia)}
+                    {watchlistAsMedia.length > 0 && rail('My List', watchlistAsMedia)}
                     {rail('Trending on Pingo', trending)}
                     {rail('Top 10 in India Today', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}
                     {rail('Latest Releases', nowPlaying)}
@@ -256,7 +255,7 @@ export function PingoTv() {
                 <div className="px-4 pt-28 md:px-10 md:pt-24">
                   <div className="mb-5 flex items-end justify-between">
                     <div>
-                      <h2 className="text-2xl font-bold text-ink">My Space</h2>
+                      <h2 className="text-2xl font-bold text-ink">My List</h2>
                       <p className="mt-1 text-sm text-text-secondary">Titles you saved to watch later</p>
                     </div>
                     <span className="text-sm font-semibold text-text-secondary">{watchlist.length} saved</span>
@@ -269,7 +268,7 @@ export function PingoTv() {
                       </span>
                       <p className="text-lg font-semibold text-ink">Nothing saved yet</p>
                       <p className="max-w-xs text-sm text-text-secondary">Tap the plus on any title and it waits for you here.</p>
-                      <button type="button" onClick={() => setTab('home')} className="mt-2 h-11 rounded-xl bg-white px-6 text-sm font-bold text-black transition active:scale-95">
+                      <button type="button" onClick={() => setTab('home')} className="mt-2 h-11 rounded-md bg-white px-6 text-sm font-bold text-black transition active:scale-95">
                         Browse titles
                       </button>
                     </div>
@@ -307,7 +306,7 @@ export function PingoTv() {
       {streamingTarget && (
         <Suspense
           fallback={
-            <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90">
+            <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90">
               <Loader2 className="size-8 animate-spin text-brand" />
             </div>
           }
@@ -329,7 +328,7 @@ export function PingoTv() {
       {trailerMedia && (
         <Suspense
           fallback={
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80">
               <Loader2 className="size-8 animate-spin text-brand" />
             </div>
           }

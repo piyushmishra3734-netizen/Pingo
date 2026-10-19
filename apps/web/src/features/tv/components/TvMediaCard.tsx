@@ -21,7 +21,6 @@ export function TvMediaCard({ media, onSelect, className, showTitle = true }: Tv
   const mediaType = media.media_type || (media.title ? 'movie' : 'tv');
   const saved = isSaved(media.id, mediaType);
   const posterUrl = getTmdbPosterUrl(media.poster_path, 'w342');
-  const hindi = media.original_language === 'hi';
 
   return (
     <div
@@ -37,7 +36,7 @@ export function TvMediaCard({ media, onSelect, className, showTitle = true }: Tv
       }}
       className={cn('group relative flex cursor-pointer flex-col text-left focus:outline-none', className)}
     >
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[10px] bg-sunken ring-1 ring-white/[0.07] transition duration-200 group-hover:ring-white/30 group-focus-visible:ring-2 group-focus-visible:ring-white group-active:scale-[0.97]">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded bg-sunken transition duration-200 group-focus-visible:ring-2 group-focus-visible:ring-white group-active:scale-[0.97]">
         {posterUrl && !broken ? (
           <img
             src={posterUrl}
@@ -55,15 +54,9 @@ export function TvMediaCard({ media, onSelect, className, showTitle = true }: Tv
           </div>
         )}
 
-        {hindi && (
-          <span className="absolute left-0 top-2 rounded-r-md bg-black/70 px-1.5 py-[3px] text-[10px] font-bold leading-none text-white backdrop-blur-sm">
-            Hindi
-          </span>
-        )}
-
         <button
           type="button"
-          aria-label={saved ? 'Remove from My Space' : 'Add to My Space'}
+          aria-label={saved ? 'Remove from My List' : 'Add to My List'}
           onClick={(e) => {
             e.stopPropagation();
             toggleWatchlist(media);

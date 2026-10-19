@@ -25,9 +25,9 @@ export function TvMediaRail({ title, sub, items, onSelect, isTop10 = false }: Tv
 
   return (
     <section aria-label={title} className="group/rail relative mt-7 first:mt-0">
-      <div className="mb-3 flex items-end justify-between gap-3 px-4 md:px-10">
+      <div className="mb-2 flex items-end justify-between gap-3 px-4 md:px-10">
         <div className="min-w-0">
-          <h2 className="truncate text-[17px] font-bold tracking-tight text-ink md:text-xl">{title}</h2>
+          <h2 className="truncate text-[17px] font-semibold tracking-tight text-white/95 md:text-[22px]">{title}</h2>
           {sub && <p className="mt-0.5 truncate text-xs text-text-secondary">{sub}</p>}
         </div>
         <div className="hidden shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover/rail:opacity-100 md:flex">
@@ -53,7 +53,7 @@ export function TvMediaRail({ title, sub, items, onSelect, isTop10 = false }: Tv
                 <span
                   aria-hidden
                   className="pointer-events-none -mr-5 select-none text-[112px] font-black leading-[0.78] tracking-[-0.09em] md:-mr-7 md:text-[150px]"
-                  style={{ color: 'transparent', WebkitTextStroke: '2px rgba(255,255,255,0.55)' }}
+                  style={{ color: 'transparent', WebkitTextStroke: '2px rgba(255,255,255,0.42)' }}
                 >
                   {i + 1}
                 </span>

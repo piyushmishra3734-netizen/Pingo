@@ -69,12 +69,12 @@ export function TvMediaDetailsModal({
   const similar = details?.similar?.results?.slice(0, 6) || [];
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-[210] flex items-end justify-center sm:items-center sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
       {/* Click outside to dismiss */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       {/* Modal Dialog Content */}
-      <div className="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-y-auto rounded-t-3xl bg-surface shadow-2xl ring-1 ring-white/10 sm:rounded-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="relative z-10 flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-y-auto rounded-t-xl bg-surface shadow-2xl sm:rounded-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Close Button */}
         <button
           type="button"
@@ -120,7 +120,7 @@ export function TvMediaDetailsModal({
             {/* Title & Metadata */}
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <span className="rounded bg-brand/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
+                <span className="text-xs font-semibold text-text-secondary">
                   {mediaType === 'movie' ? 'Movie' : 'Series'}
                 </span>
                 {rating !== '0.0' && (
@@ -154,7 +154,7 @@ export function TvMediaDetailsModal({
             <button
               type="button"
               onClick={() => onPlayStream(media, 1, 1)}
-              className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-xs font-bold text-on-brand shadow-md transition-all hover:opacity-95 active:scale-95 sm:text-sm"
+              className="flex items-center gap-2 rounded-md bg-white px-6 py-2.5 text-sm font-bold text-black transition active:scale-95 hover:bg-white/85"
             >
               <Play className="size-4 fill-current" />
               <span>Watch Now</span>
@@ -163,7 +163,7 @@ export function TvMediaDetailsModal({
             <button
               type="button"
               onClick={() => onPlayTrailer(media)}
-              className="flex items-center gap-1.5 rounded-xl bg-sunken px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-line active:scale-95 sm:text-sm"
+              className="flex items-center gap-1.5 rounded-md bg-white/15 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/25 active:scale-95"
             >
               <span>Watch Trailer</span>
             </button>
@@ -172,14 +172,14 @@ export function TvMediaDetailsModal({
               type="button"
               onClick={() => toggleWatchlist(media)}
               className={cn(
-                'flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-medium transition-all active:scale-95 sm:text-sm',
+                'flex items-center gap-1.5 rounded-md px-5 py-2.5 text-sm font-semibold transition-all active:scale-95',
                 saved
-                  ? 'bg-brand/15 text-brand ring-1 ring-brand/30'
-                  : 'bg-sunken text-ink hover:bg-line active:scale-95 ring-1 ring-line',
+                  ? 'bg-white/25 text-white'
+                  : 'bg-white/15 text-white hover:bg-white/25',
               )}
             >
               {saved ? <Check className="size-4" /> : <Bookmark className="size-4" />}
-              <span>{saved ? 'In Watchlist' : 'Add to Watchlist'}</span>
+              <span>{saved ? 'In My List' : 'My List'}</span>
             </button>
           </div>
 
@@ -214,7 +214,7 @@ export function TvMediaDetailsModal({
               {genres.map((g) => (
                 <span
                   key={g.id}
-                  className="rounded-full bg-sunken px-2.5 py-1 text-[11px] font-medium text-text-secondary"
+                  className="text-[13px] font-medium text-text-secondary after:ml-2 after:text-white/30 after:content-['\2022'] last:after:hidden"
                 >
                   {g.name}
                 </span>

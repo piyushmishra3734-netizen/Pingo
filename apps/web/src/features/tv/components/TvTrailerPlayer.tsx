@@ -59,7 +59,7 @@ export function TvTrailerPlayer({ media, onClose }: TvTrailerPlayerProps) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-2 sm:p-6 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/90 p-2 sm:p-6 backdrop-blur-md animate-fadeIn">
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 

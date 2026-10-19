@@ -13,6 +13,13 @@ interface TvHeroBannerProps {
 }
 
 const SLIDES = 5;
+
+/** TMDB genre ids, as the words Netflix puts under a title. */
+const GENRES: Record<number, string> = {
+  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
+  14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi', 53: 'Thriller',
+  10752: 'War', 37: 'Western', 10759: 'Action', 10765: 'Sci-Fi', 10768: 'War', 10762: 'Kids', 10764: 'Reality', 10766: 'Soap',
+};
 const AUTO_MS = 7000;
 
 /**
@@ -41,8 +48,7 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails }: TvHeroBanne
 
   const title = current.title || current.name || 'Featured';
   const type = current.media_type || (current.title ? 'movie' : 'tv');
-  const year = (current.release_date || current.first_air_date || '').slice(0, 4);
-  const rating = current.vote_average ? current.vote_average.toFixed(1) : null;
+  const genres = [...new Set((current.genre_ids ?? []).map((id) => GENRES[id]).filter((g): g is string => !!g))].slice(0, 3);
   const saved = isSaved(current.id, type);
   const backdrop = getTmdbBackdropUrl(current.backdrop_path, 'w1280');
   const poster = getTmdbPosterUrl(current.poster_path, 'w500');
@@ -75,40 +81,42 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails }: TvHeroBanne
       <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-32 bg-gradient-to-b from-black/60 to-transparent" />
 
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-5 pb-9 text-center md:max-w-[640px] md:items-start md:px-10 md:pb-14 md:text-left">
-        <h1 className="line-clamp-2 text-balance text-[32px] font-black leading-[1.05] tracking-tight text-white drop-shadow-lg md:text-5xl">{title}</h1>
+        <h1 className="line-clamp-2 text-balance text-[34px] font-extrabold leading-[1.02] tracking-[-0.03em] text-white md:text-[56px]">{title}</h1>
 
-        <p className="flex flex-wrap items-center justify-center gap-x-2 text-[13px] font-medium text-white/80 md:justify-start">
-          <span>{type === 'movie' ? 'Movie' : 'Series'}</span>
-          {year && <><span aria-hidden className="text-white/35">·</span><span>{year}</span></>}
-          {rating && <><span aria-hidden className="text-white/35">·</span><span>{rating} / 10</span></>}
-          {current.original_language === 'hi' && <><span aria-hidden className="text-white/35">·</span><span>Hindi</span></>}
-        </p>
+        {genres.length > 0 && (
+          <p className="flex flex-wrap items-center justify-center gap-x-2 text-[13px] font-medium text-white md:justify-start md:text-sm">
+            {genres.map((g, i) => (
+              <React.Fragment key={g}>
+                {i > 0 && <span aria-hidden className="text-[8px] text-white/60">&bull;</span>}
+                <span>{g}</span>
+              </React.Fragment>
+            ))}
+          </p>
+        )}
 
-        <p className="line-clamp-2 max-w-md text-[13px] leading-relaxed text-white/70 md:line-clamp-3 md:text-sm">{current.overview}</p>
+        <p className="hidden max-w-lg text-base leading-snug text-white/90 md:line-clamp-3 md:block">{current.overview}</p>
 
-        <div className="mt-1 flex w-full items-center justify-center gap-2.5 md:justify-start">
+        <div className="mt-1 flex w-full items-stretch justify-center gap-2 md:w-auto md:justify-start md:gap-3">
           <button
             type="button"
             onClick={() => onPlayStream(current)}
-            className="flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-6 text-[15px] font-bold text-black transition active:scale-[0.97] md:h-12 md:flex-none md:px-8"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-white px-6 text-base font-bold text-black transition hover:bg-white/80 active:scale-[0.97] md:h-12 md:flex-none md:px-8 md:text-lg"
           >
-            <Play className="size-5 fill-black" /> Watch now
+            <Play className="size-6 fill-black" /> Play
           </button>
           <button
             type="button"
-            aria-label={saved ? 'Remove from My Space' : 'Add to My Space'}
             onClick={() => toggleWatchlist(current)}
-            className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/15 text-white backdrop-blur-md transition hover:bg-white/25 active:scale-95"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-[#6d6d6eb3] px-5 text-base font-semibold text-white transition hover:bg-[#6d6d6e66] active:scale-[0.97] md:h-12 md:flex-none md:px-7 md:text-lg"
           >
-            {saved ? <Check className="size-5" strokeWidth={2.6} /> : <Plus className="size-5" strokeWidth={2.4} />}
+            {saved ? <Check className="size-5" strokeWidth={2.6} /> : <Plus className="size-5" strokeWidth={2.4} />} My List
           </button>
           <button
             type="button"
-            aria-label="More info"
             onClick={() => onOpenDetails(current)}
-            className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/15 text-white backdrop-blur-md transition hover:bg-white/25 active:scale-95"
+            className="hidden h-12 items-center justify-center gap-2 rounded-md bg-[#6d6d6eb3] px-7 text-lg font-semibold text-white transition hover:bg-[#6d6d6e66] active:scale-[0.97] md:flex"
           >
-            <Info className="size-5" />
+            <Info className="size-5" /> More Info
           </button>
         </div>
 

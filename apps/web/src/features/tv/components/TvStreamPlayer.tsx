@@ -212,7 +212,7 @@ export function TvStreamPlayer({
   }, [selectedProviderId, reloadKey, season, episode, autoSwitchEnabled]);
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/95 p-1 sm:p-4 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/95 p-1 sm:p-4 backdrop-blur-md animate-fadeIn">
       {/* Click backdrop to close */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
@@ -220,7 +220,7 @@ export function TvStreamPlayer({
       <div
         className={cn(
           'relative z-10 flex flex-col overflow-hidden rounded-2xl bg-[#090a0f] shadow-2xl ring-1 ring-white/10 transition-all duration-300',
-          isTheater ? 'h-full w-full max-w-full rounded-none' : 'h-full max-h-[96vh] w-full max-w-5xl',
+          isTheater ? 'h-full w-full max-w-full rounded-none' : 'h-full max-h-[96dvh] w-full max-w-5xl',
         )}
       >
         {/* Player Header Bar */}
