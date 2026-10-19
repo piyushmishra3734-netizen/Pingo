@@ -227,6 +227,150 @@ const FALLBACK_SHOWS: TmdbMedia[] = [
   },
 ];
 
+const FALLBACK_TOP10_HINDI: TmdbMedia[] = [
+  {
+    id: 872585,
+    title: 'Jawan',
+    overview: 'A high-octane action thriller which outlines the emotional journey of a man who is set to rectify the wrongs in the society.',
+    poster_path: '/jFt1gS4BGHlK8xt76Y81AlqHQ2.jpg',
+    backdrop_path: '/g51hT48iG8p02Ncr1b0xI0g2h0.jpg',
+    vote_average: 7.2,
+    release_date: '2023-09-07',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 53],
+  },
+  {
+    id: 1114513,
+    title: 'Stree 2',
+    overview: 'After the events of Stree, the town of Chanderi is being haunted again. This time, women are mysteriously abducted by a terrifying headless entity named Sarkata.',
+    poster_path: '/mhnT7xS7yM6u3e5H4Wk13pB7C6E.jpg',
+    backdrop_path: '/9BqB11a0xQpCgGgqYQ2lqGkK3q.jpg',
+    vote_average: 7.0,
+    release_date: '2024-08-15',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [27, 35],
+  },
+  {
+    id: 792307,
+    title: 'Kalki 2898 AD',
+    overview: 'A modern-day avatar of Vishnu, a Hindu god, who is believed to have descended to earth to protect the world from evil forces.',
+    poster_path: '/9BqB11a0xQpCgGgqYQ2lqGkK3q.jpg',
+    backdrop_path: '/2RVcJbWFmICSD6KiCsUW662hb99.jpg',
+    vote_average: 7.4,
+    release_date: '2024-06-27',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 878],
+  },
+  {
+    id: 781732,
+    title: 'Animal',
+    overview: 'A fierce journey of a father and son relationship, set against the backdrop of extreme underworld violence.',
+    poster_path: '/hrGIIP2i0FkZlO8QjKxXwY3g2dZ.jpg',
+    backdrop_path: '/ehmG9K6d1pI4o0m8kL6w5N3x7v.jpg',
+    vote_average: 6.9,
+    release_date: '2023-12-01',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 80, 18],
+  },
+  {
+    id: 1058694,
+    title: '12th Fail',
+    overview: 'Based on the true story of IPS officer Manoj Kumar Sharma, who braved extreme poverty to restart his academic journey and achieve his dreams.',
+    poster_path: '/zQ6Q81r6F17yG3B4c9tB5p6r6L.jpg',
+    backdrop_path: '/cQ87Q9r7F8x6e5w4q3b2a1z0.jpg',
+    vote_average: 8.4,
+    release_date: '2023-10-27',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [18],
+  },
+  {
+    id: 850165,
+    title: 'Fighter',
+    overview: 'An aspirational young man and his fellow elite IAF aviators come together to form an Air Dragons unit in the face of imminent danger.',
+    poster_path: '/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg',
+    backdrop_path: '/yDHYTfA3R0jFYba16jBB1jv8uqC.jpg',
+    vote_average: 6.8,
+    release_date: '2024-01-25',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 12, 53],
+  },
+  {
+    id: 864692,
+    title: 'Pathaan',
+    overview: 'An Indian agent races against a doomsday clock as a ruthless mercenary, with a bitter vendetta, mounts an apocalyptic attack against the country.',
+    poster_path: '/m1b9ToBhaN1whH1eX5wN6s5L5.jpg',
+    backdrop_path: '/b1b9ToBhaN1whH1eX5wN6s5L5.jpg',
+    vote_average: 6.7,
+    release_date: '2023-01-25',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 12, 53],
+  },
+  {
+    id: 1214484,
+    title: 'Shaitaan',
+    overview: 'A family’s idyllic weekend retreat takes a nightmarish turn when they welcome a mysterious stranger who hypnotizes their teenage daughter.',
+    poster_path: '/7mYwG6vJ5e8z1x2c3v4b5n6m7.jpg',
+    backdrop_path: '/x7mYwG6vJ5e8z1x2c3v4b5n6m7.jpg',
+    vote_average: 7.2,
+    release_date: '2024-03-08',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [27, 53],
+  },
+  {
+    id: 1125899,
+    title: 'Maharaja',
+    overview: 'A barber embarks on a relentless quest to seek vengeance after his home is burglarized, cryptically telling the police that his "Lakshmi" has been stolen.',
+    poster_path: '/bM1kL3o4P5q6R7s8T9u0V1w2.jpg',
+    backdrop_path: '/xB1kL3o4P5q6R7s8T9u0V1w2.jpg',
+    vote_average: 8.3,
+    release_date: '2024-06-14',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [28, 80, 53],
+  },
+  {
+    id: 955531,
+    title: 'Dunki',
+    overview: 'Four friends from a village in Punjab share a common dream: to go to England. Their problem is that they have neither the visa nor the ticket.',
+    poster_path: '/zK2B1m7s8T9u0V1w2x3y4z5.jpg',
+    backdrop_path: '/xK2B1m7s8T9u0V1w2x3y4z5.jpg',
+    vote_average: 7.1,
+    release_date: '2023-12-21',
+    media_type: 'movie',
+    original_language: 'hi',
+    genre_ids: [35, 18],
+  },
+];
+
+export function isHindiTitle(media: TmdbMedia): boolean {
+  if (media.original_language === 'hi') return true;
+  const title = (media.title || media.name || '').toLowerCase();
+  const hindiKeywords = [
+    'jawan', 'stree', 'kalki', 'animal', 'fail', 'fighter', 'pathaan', 'shaitaan', 'maharaja',
+    'dunki', 'salaar', 'brahmastra', 'dangal', 'kgf', 'pushpa', 'mirzapur', 'sacred games',
+    'panchayat', 'kota factory', 'family man', 'farzi', 'scam 1992', 'heeramandi'
+  ];
+  return hindiKeywords.some((k) => title.includes(k));
+}
+
+export function getSubDubLabel(media: TmdbMedia): string {
+  if (isHindiTitle(media)) return 'हिन्दी';
+  if (media.media_type === 'tv' || media.genre_ids?.includes(16)) return 'Sub | Dub';
+  const isDubCandidate =
+    media.media_type === 'movie' ||
+    Boolean(media.genre_ids?.includes(28) || media.genre_ids?.includes(878));
+  if (isDubCandidate) return 'Hindi Dub';
+  return 'Movie';
+}
+
 export async function fetchTrending(mediaType: 'all' | 'movie' | 'tv' = 'all', timeWindow: 'day' | 'week' = 'day'): Promise<TmdbMedia[]> {
   const resp = await callProxy<TmdbResponse>(`/trending/${mediaType}/${timeWindow}`);
   if (resp && Array.isArray(resp.results) && resp.results.length > 0) {
@@ -236,6 +380,38 @@ export async function fetchTrending(mediaType: 'all' | 'movie' | 'tv' = 'all', t
     }));
   }
   return FALLBACK_TRENDING;
+}
+
+export async function fetchTop10Hindi(lang = 'hi'): Promise<TmdbMedia[]> {
+  const resp = await callProxy<TmdbResponse>('/discover/movie', {
+    with_original_language: lang,
+    sort_by: 'popularity.desc',
+    'vote_count.gte': 30,
+  });
+  if (resp && Array.isArray(resp.results) && resp.results.length > 0) {
+    return resp.results.slice(0, 10).map((m) => ({
+      ...m,
+      media_type: 'movie',
+      original_language: m.original_language || lang,
+    }));
+  }
+  return FALLBACK_TOP10_HINDI;
+}
+
+export async function fetchNowPlaying(page = 1): Promise<TmdbMedia[]> {
+  const resp = await callProxy<TmdbResponse>('/movie/now_playing', { page });
+  if (resp && Array.isArray(resp.results) && resp.results.length > 0) {
+    return resp.results.map((m) => ({ ...m, media_type: 'movie' }));
+  }
+  return FALLBACK_MOVIES;
+}
+
+export async function fetchOnTheAirTv(page = 1): Promise<TmdbMedia[]> {
+  const resp = await callProxy<TmdbResponse>('/tv/on_the_air', { page });
+  if (resp && Array.isArray(resp.results) && resp.results.length > 0) {
+    return resp.results.map((m) => ({ ...m, media_type: 'tv' }));
+  }
+  return FALLBACK_SHOWS;
 }
 
 export async function fetchPopularMovies(page = 1): Promise<TmdbMedia[]> {

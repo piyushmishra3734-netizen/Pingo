@@ -61,13 +61,22 @@ export function TvMediaCard({ media, onSelect, className }: TvMediaCardProps) {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
         {/* Top Badges */}
-        <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+        <div className="absolute top-1.5 left-1.5 flex flex-wrap items-center gap-1 z-10">
           {rating && (
-            <span className="flex items-center gap-0.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 backdrop-blur-sm">
+            <span className="flex items-center gap-0.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-sm border border-white/10">
               <Star className="size-2.5 fill-amber-300 text-amber-300" />
               {rating}
             </span>
           )}
+          {media.original_language === 'hi' ? (
+            <span className="rounded-md bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-black text-black backdrop-blur-sm shadow-sm">
+              हिन्दी
+            </span>
+          ) : media.media_type === 'tv' || media.genre_ids?.includes(16) ? (
+            <span className="rounded-md bg-sky-950/80 px-1.5 py-0.5 text-[9.5px] font-bold text-sky-300 backdrop-blur-sm border border-sky-500/30">
+              SUB | DUB
+            </span>
+          ) : null}
         </div>
 
         {/* Watchlist Quick Button */}
@@ -79,7 +88,7 @@ export function TvMediaCard({ media, onSelect, className }: TvMediaCardProps) {
             toggleWatchlist(media);
           }}
           className={cn(
-            'absolute top-1.5 right-1.5 grid size-7 place-items-center rounded-full text-xs shadow-md transition-all',
+            'absolute top-1.5 right-1.5 grid size-7 place-items-center rounded-full text-xs shadow-md transition-all z-10',
             saved
               ? 'bg-brand text-on-brand'
               : 'bg-black/60 text-white/90 backdrop-blur-sm hover:bg-black/90 active:scale-90',
@@ -89,8 +98,8 @@ export function TvMediaCard({ media, onSelect, className }: TvMediaCardProps) {
         </button>
 
         {/* Media type pill */}
-        <div className="absolute bottom-1.5 left-1.5">
-          <span className="rounded bg-black/60 px-1 py-0.5 text-[9px] font-medium tracking-wide uppercase text-white/80 backdrop-blur-sm">
+        <div className="absolute bottom-1.5 left-1.5 z-10">
+          <span className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold tracking-wide uppercase text-white/90 backdrop-blur-sm border border-white/10">
             {mediaType === 'movie' ? 'Movie' : 'Series'}
           </span>
         </div>
