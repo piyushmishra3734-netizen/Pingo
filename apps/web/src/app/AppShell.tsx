@@ -258,9 +258,10 @@ export function AppShell() {
       <main
         className={cn(
           'min-h-0 flex-1',
-          // Clears the floating dock: its height, the assistant's line under
-          // it, and the gap they leave below.
-          !fullscreen && 'pb-[8rem]',
+          // Exactly the dock: its tab row (58px), its bottom padding (0.5rem, or
+          // the phone's gesture bar if larger) and its 1px border. Any more is a
+          // blank band above the dock that the screen's content is cut off at.
+          !fullscreen && 'pb-[calc(58px+1px+max(0.5rem,env(safe-area-inset-bottom)))]',
         )}
       >
         {/*
