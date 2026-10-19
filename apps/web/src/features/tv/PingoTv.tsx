@@ -1,19 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import {
-  Bookmark,
-  Clapperboard,
-  Compass,
-  Film,
-  Flame,
-  Laugh,
-  Loader2,
-  Search,
-  Skull,
-  Sparkles,
-  Star,
-  TrendingUp,
-  Tv,
-} from 'lucide-react';
+import { Bookmark, Loader2, Search } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
 import {
@@ -27,7 +13,7 @@ import {
   fetchTrending,
 } from './api/tmdb.js';
 import { useWatchlist } from './hooks/useWatchlist.js';
-import { TvNavigationTabs } from './components/TvNavigationTabs.js';
+import { TvLogo } from './components/TvLogo.js';
 import { TvHeroBanner } from './components/TvHeroBanner.js';
 import { TvMediaRail } from './components/TvMediaRail.js';
 import { TvMediaCard } from './components/TvMediaCard.js';
@@ -121,355 +107,182 @@ export function PingoTv() {
     release_date: w.release_year ? `${w.release_year}-01-01` : undefined,
   }));
 
-  const navItems: Array<{ id: TvTab; label: string; icon: React.ReactNode }> = [
-    { id: 'home', label: 'Home', icon: <Flame className="size-5" /> },
-    { id: 'shows', label: 'TV Shows', icon: <Tv className="size-5" /> },
-    { id: 'movies', label: 'Movies', icon: <Film className="size-5" /> },
-    { id: 'search', label: 'Search', icon: <Search className="size-5" /> },
-    { id: 'watchlist', label: 'My Space', icon: <Bookmark className="size-5" /> },
+  const tabs: Array<{ id: TvTab; label: string }> = [
+    { id: 'home', label: 'Home' },
+    { id: 'shows', label: 'Shows' },
+    { id: 'movies', label: 'Movies' },
+    { id: 'watchlist', label: 'My Space' },
   ];
 
-  return (
-    <div className="relative flex h-full min-h-0 w-full overflow-hidden bg-page text-ink">
-      {/* ─── Desktop Left Navigation Rail (.srail) ───────────────────────────
-          88px fixed expanding to 216px on hover, pure CSS transitions, 0ms lag */}
-      <aside className="group/sidebar fixed inset-y-0 left-0 z-50 hidden md:flex w-[88px] hover:w-[216px] flex-col items-start bg-[#090a0f] border-r border-white/5 py-6 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] hover:shadow-[12px_0_36px_rgba(0,0,0,0.85)] overflow-hidden">
-        {/* Brand Logo Header */}
-        <div className="w-[88px] flex justify-center shrink-0 mb-8">
-          <button
-            type="button"
-            onClick={() => setTab('home')}
-            aria-label="Pingo TV Home"
-            className="group/logo flex items-center justify-center cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"
-          >
-            <div className="flex size-10 items-center justify-center rounded-xl bg-brand text-on-brand shadow-[0_4px_16px_rgba(67,85,249,0.4)]">
-              <Tv className="size-5" />
-            </div>
-          </button>
-        </div>
+  const open = (m: TmdbMedia) => setSelectedMedia(m);
+  const play = (m: TmdbMedia) => setStreamingTarget({ media: m, season: 1, episode: 1 });
+  const hero = (items: TmdbMedia[]) => (
+    <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={setTrailerMedia} onOpenDetails={open} />
+  );
+  const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean }) => (
+    <TvMediaRail title={title} items={items} onSelect={open} {...extra} />
+  );
 
-        {/* Sidebar Navigation Items */}
-        <nav aria-label="Primary TV Navigation" className="w-full flex flex-col items-start gap-1 px-3">
-          {navItems.map((item) => {
-            const isActive = tab === item.id;
-            return (
+  // The bar floats over the hero, and turns solid once the page has moved under it.
+  const [scrolled, setScrolled] = useState(false);
+
+  return (
+    <div className="tv-theme relative flex h-full min-h-0 w-full flex-col overflow-hidden">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onScroll={(e) => {
+          const past = e.currentTarget.scrollTop > 24;
+          setScrolled((was) => (was === past ? was : past));
+        }}
+      >
+        <header
+          className={cn(
+            'sticky top-0 z-40 -mb-[var(--tv-bar)] transition-colors duration-300 [--tv-bar:theme(spacing.24)] md:[--tv-bar:theme(spacing.16)]',
+            scrolled ? 'bg-page/95 backdrop-blur-xl' : 'bg-gradient-to-b from-black/55 to-transparent',
+          )}
+        >
+          <div className="flex items-center gap-4 px-4 pt-[max(0.6rem,env(safe-area-inset-top))] md:h-16 md:gap-8 md:px-10 md:pt-0">
+            <TvLogo />
+            <nav aria-label="Pingo TV" className="hidden items-center gap-1 md:flex">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    tab === t.id ? 'bg-white/12 text-white' : 'text-white/60 hover:text-white',
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            <div className="ml-auto flex items-center gap-1">
               <button
-                key={item.id}
                 type="button"
-                onClick={() => setTab(item.id)}
+                aria-label="Search"
+                onClick={() => setTab('search')}
+                className={cn('grid size-10 place-items-center rounded-full transition-colors hover:bg-white/10', tab === 'search' ? 'text-white' : 'text-white/85')}
+              >
+                <Search className="size-[22px]" />
+              </button>
+              <button
+                type="button"
+                aria-label="My Space"
+                onClick={() => setTab('watchlist')}
+                className="relative grid size-10 place-items-center rounded-full text-white/85 transition-colors hover:bg-white/10 md:hidden"
+              >
+                <Bookmark className="size-[22px]" />
+                {watchlist.length > 0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand ring-2 ring-black/40" />}
+              </button>
+            </div>
+          </div>
+          <nav aria-label="Pingo TV" className="flex items-center gap-6 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
                 className={cn(
-                  'w-full flex items-center gap-4 rounded-xl px-3.5 py-3 text-left transition-all duration-200 group/btn cursor-pointer whitespace-nowrap overflow-hidden',
-                  isActive
-                    ? 'bg-white/10 text-white font-semibold'
-                    : 'text-[#8f98b2] hover:bg-white/5 hover:text-white',
+                  'relative shrink-0 py-2 text-[15px] font-semibold transition-colors',
+                  tab === t.id ? 'text-white' : 'text-white/55',
                 )}
               >
-                <span
-                  className={cn(
-                    'shrink-0 transition-colors',
-                    isActive ? 'text-brand' : 'group-hover/btn:text-white',
-                  )}
-                >
-                  {item.icon}
-                </span>
-                <span
-                  className={cn(
-                    'text-sm font-medium tracking-wide transition-all duration-200 opacity-0 group-hover/sidebar:opacity-100 -translate-x-2 group-hover/sidebar:translate-x-0',
-                    isActive ? 'text-white font-semibold' : 'text-[#8f98b2] group-hover/btn:text-white',
-                  )}
-                >
-                  {item.label}
-                </span>
+                {t.label}
+                <span className={cn('absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-white transition-opacity', tab === t.id ? 'opacity-100' : 'opacity-0')} />
               </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      {/* ─── Main Content Container ────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-y-auto md:pl-[88px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* Mobile Header (Hidden on Desktop) */}
-        <header className="sticky top-0 z-40 flex md:hidden items-center justify-between border-b border-line bg-page/90 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-brand text-on-brand shadow-sm">
-              <Tv className="size-4" />
-            </span>
-            <span className="text-base font-black tracking-tight text-ink sm:text-lg">
-              PINGO <span className="text-brand">TV</span>
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setTab('search')}
-            className="flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-line hover:text-ink"
-          >
-            <span>Search</span>
-          </button>
+            ))}
+          </nav>
         </header>
 
-        {/* Mobile Category Navigation Tabs (Hidden on Desktop) */}
-        <div className="sticky top-[calc(2.75rem+max(0.75rem,env(safe-area-inset-top)))] z-30 flex md:hidden border-b border-line/60 bg-page/80 backdrop-blur-sm">
-          <TvNavigationTabs
-            currentTab={tab}
-            onTabChange={setTab}
-            watchlistCount={watchlist.length}
-          />
-        </div>
-
-        {/* Dynamic Content Views */}
-        <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <main className="pb-10">
           {loading ? (
-            <div className="flex h-96 flex-col items-center justify-center gap-3 text-text-secondary">
-              <Loader2 className="size-8 animate-spin text-brand" />
-              <span className="text-sm font-medium">Curating Pingo TV titles...</span>
-            </div>
+            <TvSkeleton />
           ) : (
             <>
-              {/* 1. HOME / FEATURED VIEW (All 9 Rails from e:\pingo tv\server.js) */}
               {tab === 'home' && (
                 <>
-                  <TvHeroBanner
-                    items={trending}
-                    onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
-                    onPlayTrailer={(media) => setTrailerMedia(media)}
-                    onOpenDetails={(media) => setSelectedMedia(media)}
-                  />
-
-                  {/* Watchlist Rail (if items saved) */}
-                  {watchlistAsMedia.length > 0 && (
-                    <TvMediaRail
-                      title="Your Watchlist"
-                      icon={<Bookmark className="size-5" />}
-                      items={watchlistAsMedia}
-                      onSelect={(m) => setSelectedMedia(m)}
-                    />
-                  )}
-
-                  {/* 1. Trending on Pingo */}
-                  <TvMediaRail
-                    title="Trending on Pingo"
-                    icon={<Flame className="size-5" />}
-                    items={trending}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 2. Top 10 in India Today - Hindi (JioHotstar Signature Outlined Rank Numeral) */}
-                  <TvMediaRail
-                    title="Top 10 in India Today - Hindi"
-                    sub="The most-watched Hindi movies and series right now"
-                    icon={<TrendingUp className="size-5" />}
-                    items={top10Hindi}
-                    isTop10={true}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 3. Latest Releases Just for You */}
-                  <TvMediaRail
-                    title="Latest Releases Just for You"
-                    icon={<Clapperboard className="size-5" />}
-                    items={nowPlaying}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 4. Latest Episodes & Dubs */}
-                  <TvMediaRail
-                    title="Latest Episodes & Dubs"
-                    sub="Fresh drops, Hindi audio & multi-language dubs"
-                    icon={<Tv className="size-5" />}
-                    items={latestEpisodes}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 5. Action & Thrillers */}
-                  <TvMediaRail
-                    title="Action & Thrillers"
-                    icon={<Flame className="size-5" />}
-                    items={actionMovies}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 6. Comedy Carnival */}
-                  <TvMediaRail
-                    title="Comedy Carnival"
-                    icon={<Laugh className="size-5" />}
-                    items={comedyMovies}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 7. Blockbuster Cinema */}
-                  <TvMediaRail
-                    title="Blockbuster Cinema"
-                    icon={<Film className="size-5" />}
-                    items={blockbusters}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 8. Anime & Asian Dramas */}
-                  <TvMediaRail
-                    title="Anime & Asian Dramas"
-                    sub="Top anime simulcasts, shonen & romance"
-                    icon={<Sparkles className="size-5" />}
-                    items={animeShows}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 9. Edge-of-the-Seat Horror */}
-                  <TvMediaRail
-                    title="Edge-of-the-Seat Horror"
-                    icon={<Skull className="size-5" />}
-                    items={horrorMovies}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  {/* 10. Top Rated on IMDb */}
-                  <TvMediaRail
-                    title="Top Rated on IMDb"
-                    icon={<Star className="size-5" />}
-                    items={topRated}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
+                  {hero(trending)}
+                  <div className="relative z-10 -mt-6 md:-mt-10">
+                    {watchlistAsMedia.length > 0 && rail('Continue with My Space', watchlistAsMedia)}
+                    {rail('Trending on Pingo', trending)}
+                    {rail('Top 10 in India Today', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}
+                    {rail('Latest Releases', nowPlaying)}
+                    {rail('Latest Episodes and Dubs', latestEpisodes, { sub: 'Fresh drops with Hindi audio and multi-language dubs' })}
+                    {rail('Action and Thrillers', actionMovies)}
+                    {rail('Comedy Carnival', comedyMovies)}
+                    {rail('Blockbuster Cinema', blockbusters)}
+                    {rail('Anime and Asian Dramas', animeShows)}
+                    {rail('Edge of the Seat Horror', horrorMovies)}
+                    {rail('Top Rated on IMDb', topRated)}
+                  </div>
                 </>
               )}
 
-              {/* 2. MOVIES VIEW */}
               {tab === 'movies' && (
                 <>
-                  <TvHeroBanner
-                    items={blockbusters}
-                    onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
-                    onPlayTrailer={(media) => setTrailerMedia(media)}
-                    onOpenDetails={(media) => setSelectedMedia(media)}
-                  />
-
-                  <TvMediaRail
-                    title="Top 10 in India Today - Hindi"
-                    icon={<TrendingUp className="size-5" />}
-                    items={top10Hindi}
-                    isTop10={true}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Now In Theatres & Streaming"
-                    icon={<Clapperboard className="size-5" />}
-                    items={nowPlaying}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Blockbuster Cinema"
-                    icon={<Film className="size-5" />}
-                    items={blockbusters}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Critically Acclaimed Cinema"
-                    icon={<Star className="size-5" />}
-                    items={topRated}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Action & Thrillers"
-                    icon={<Flame className="size-5" />}
-                    items={actionMovies}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Comedy Carnival"
-                    icon={<Laugh className="size-5" />}
-                    items={comedyMovies}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
+                  {hero(blockbusters)}
+                  <div className="relative z-10 -mt-6 md:-mt-10">
+                    {rail('Top 10 Movies in India', top10Hindi, { isTop10: true })}
+                    {rail('Now in Theatres and Streaming', nowPlaying)}
+                    {rail('Blockbuster Cinema', blockbusters)}
+                    {rail('Critically Acclaimed', topRated)}
+                    {rail('Action and Thrillers', actionMovies)}
+                    {rail('Comedy Carnival', comedyMovies)}
+                    {rail('Edge of the Seat Horror', horrorMovies)}
+                  </div>
                 </>
               )}
 
-              {/* 3. SHOWS VIEW */}
               {tab === 'shows' && (
                 <>
-                  <TvHeroBanner
-                    items={popularShows}
-                    onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
-                    onPlayTrailer={(media) => setTrailerMedia(media)}
-                    onOpenDetails={(media) => setSelectedMedia(media)}
-                  />
-
-                  <TvMediaRail
-                    title="Latest Episodes & Dubs"
-                    icon={<Tv className="size-5" />}
-                    items={latestEpisodes}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Trending TV Series"
-                    icon={<Flame className="size-5" />}
-                    items={popularShows}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
-
-                  <TvMediaRail
-                    title="Anime & Asian Series"
-                    icon={<Sparkles className="size-5" />}
-                    items={animeShows}
-                    onSelect={(m) => setSelectedMedia(m)}
-                  />
+                  {hero(popularShows)}
+                  <div className="relative z-10 -mt-6 md:-mt-10">
+                    {rail('Latest Episodes and Dubs', latestEpisodes)}
+                    {rail('Trending Series', popularShows)}
+                    {rail('Anime and Asian Series', animeShows)}
+                  </div>
                 </>
               )}
 
-              {/* 4. SEARCH & DISCOVER VIEW */}
               {tab === 'search' && (
-                <TvSearch onSelect={(media) => setSelectedMedia(media)} />
+                <div className="pt-24 md:pt-20">
+                  <TvSearch onSelect={open} />
+                </div>
               )}
 
-              {/* 5. WATCHLIST VIEW (My Space) */}
               {tab === 'watchlist' && (
-                <div className="px-4 pt-4 sm:px-8">
-                  <div className="mb-6 flex items-center justify-between border-b border-line pb-4">
+                <div className="px-4 pt-28 md:px-10 md:pt-24">
+                  <div className="mb-5 flex items-end justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-ink sm:text-2xl">My Watchlist</h2>
-                      <p className="mt-1 text-xs text-text-secondary">
-                        Saved movies and series on Pingo TV
-                      </p>
+                      <h2 className="text-2xl font-bold text-ink">My Space</h2>
+                      <p className="mt-1 text-sm text-text-secondary">Titles you saved to watch later</p>
                     </div>
-                    <span className="rounded-full bg-sunken px-3 py-1 text-xs font-semibold text-text-secondary">
-                      {watchlist.length} titles
-                    </span>
+                    <span className="text-sm font-semibold text-text-secondary">{watchlist.length} saved</span>
                   </div>
 
                   {watchlist.length === 0 ? (
-                    <div className="flex h-72 flex-col items-center justify-center gap-2 text-center text-text-secondary">
-                      <Bookmark className="size-12 text-text-secondary/40" />
-                      <p className="text-base font-semibold text-ink">Your watchlist is empty</p>
-                      <p className="max-w-xs text-xs">
-                        Bookmark movies and TV series you want to watch later and access them anytime.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setTab('home')}
-                        className="mt-4 rounded-xl bg-brand px-5 py-2.5 text-xs font-bold text-on-brand shadow-sm transition-transform active:scale-95"
-                      >
-                        Explore Featured
+                    <div className="flex min-h-[50svh] flex-col items-center justify-center gap-3 text-center">
+                      <span className="grid size-16 place-items-center rounded-full bg-white/8 text-text-secondary">
+                        <Bookmark className="size-7" />
+                      </span>
+                      <p className="text-lg font-semibold text-ink">Nothing saved yet</p>
+                      <p className="max-w-xs text-sm text-text-secondary">Tap the plus on any title and it waits for you here.</p>
+                      <button type="button" onClick={() => setTab('home')} className="mt-2 h-11 rounded-xl bg-white px-6 text-sm font-bold text-black transition active:scale-95">
+                        Browse titles
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    <div className="grid grid-cols-3 gap-x-2.5 gap-y-5 sm:grid-cols-4 md:grid-cols-5 md:gap-x-3.5 lg:grid-cols-6 xl:grid-cols-7">
                       {watchlistAsMedia.map((m) => (
-                        <TvMediaCard
-                          key={`${m.media_type || 'm'}-${m.id}`}
-                          media={m}
-                          onSelect={(selected) => setSelectedMedia(selected)}
-                        />
+                        <TvMediaCard key={`${m.media_type || 'm'}-${m.id}`} media={m} onSelect={open} />
                       ))}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* TMDB Legal Attribution */}
               <TmdbAttribution />
             </>
           )}
@@ -527,6 +340,26 @@ export function PingoTv() {
           />
         </Suspense>
       )}
+    </div>
+  );
+}
+
+
+/** What the page looks like while it loads: the shape of the hero and two rails, not a spinner. */
+function TvSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading Pingo TV">
+      <div className="h-[min(78svh,640px)] min-h-[460px] w-full animate-pulse bg-gradient-to-b from-white/[0.06] to-transparent md:h-[min(72svh,720px)]" />
+      {[0, 1].map((r) => (
+        <div key={r} className="mt-7 px-4 md:px-10">
+          <div className="mb-3 h-5 w-44 animate-pulse rounded bg-white/10" />
+          <div className="flex gap-2.5 overflow-hidden md:gap-3.5">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="aspect-[2/3] w-[108px] shrink-0 animate-pulse rounded-[10px] bg-white/[0.07] md:w-[150px]" />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

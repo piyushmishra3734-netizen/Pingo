@@ -153,7 +153,7 @@ export function AppShell() {
    * untouched: the cap is above any phone width, so it only ever engages on a
    * desktop window.
    */
-  const wide = fullscreen || /^\/(chats|camera)(\/|$)/.test(location.pathname);
+  const wide = fullscreen || /^\/(chats|camera|tv)(\/|$)/.test(location.pathname);
 
   /*
    * Which way the screen should travel.

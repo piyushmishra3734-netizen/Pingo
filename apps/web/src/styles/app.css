@@ -1310,3 +1310,27 @@ video {
   width: 100%;
   height: 100%;
 }
+
+/*
+ * Pingo TV is always a cinema: dark in light mode too, like every streaming
+ * app. It repoints the same tokens the rest of the app reads, so the cards,
+ * the details sheet and the players below it need no colours of their own.
+ */
+.tv-theme {
+  --color-page: #090a0e;
+  --color-ink: #f5f6fa;
+  --color-text: #f5f6fa;
+  --color-muted: #9a9eb0;
+  --color-surface: #15161d;
+  --color-sunken: #1b1d26;
+  --color-text-secondary: #a3a7b8;
+  --color-text-tertiary: rgba(245, 246, 250, 0.45);
+  --color-line: rgba(255, 255, 255, 0.09);
+  --color-line-strong: rgba(255, 255, 255, 0.16);
+  --color-hover: rgba(255, 255, 255, 0.07);
+  --color-pressed: rgba(255, 255, 255, 0.12);
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+  background: var(--color-page);
+  color: var(--color-ink);
+}
