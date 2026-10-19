@@ -1,7 +1,9 @@
 import React, { Suspense, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Bookmark, Loader2, Search } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
+import { TAB_PATH, parseTvPath, titlePath, trailerPath, useRouteMedia, watchPath, type TvNavState } from './routes.js';
 import {
   fetchByGenre,
   fetchNowPlaying,
@@ -26,7 +28,16 @@ const TvTrailerPlayer = React.lazy(() => import('./components/TvTrailerPlayer.js
 const TvStreamPlayer = React.lazy(() => import('./components/TvStreamPlayer.js'));
 
 export function PingoTv() {
-  const [tab, setTab] = useState<TvTab>('home');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const route = parseTvPath(location.pathname, location.search);
+  const carried = (location.state ?? {}) as TvNavState;
+  // Title, player and trailer pages sit over the tab they were opened from.
+  const tab: TvTab = route.kind === 'tab' ? route.tab : (carried.tab ?? 'home');
+  const setTab = (t: TvTab) => {
+    if (t !== tab || route.kind !== 'tab') navigate(TAB_PATH[t]);
+  };
+  const overlayMedia = useRouteMedia(route, carried.media);
   const [loading, setLoading] = useState(true);
 
   // Exact 9 rails matching e:\pingo tv\server.js
@@ -41,15 +52,6 @@ export function PingoTv() {
   const [topRated, setTopRated] = useState<TmdbMedia[]>([]);
   const [animeShows, setAnimeShows] = useState<TmdbMedia[]>([]);
   const [popularShows, setPopularShows] = useState<TmdbMedia[]>([]);
-
-  // Modals
-  const [selectedMedia, setSelectedMedia] = useState<TmdbMedia | null>(null);
-  const [trailerMedia, setTrailerMedia] = useState<TmdbMedia | null>(null);
-  const [streamingTarget, setStreamingTarget] = useState<{
-    media: TmdbMedia;
-    season: number;
-    episode: number;
-  } | null>(null);
 
   const { watchlist } = useWatchlist();
 
@@ -114,10 +116,18 @@ export function PingoTv() {
     { id: 'watchlist', label: 'My List' },
   ];
 
-  const open = (m: TmdbMedia) => setSelectedMedia(m);
-  const play = (m: TmdbMedia) => setStreamingTarget({ media: m, season: 1, episode: 1 });
+  const state = (m: TmdbMedia): { state: TvNavState } => ({ state: { media: m, tab } });
+  const open = (m: TmdbMedia) => navigate(titlePath(m), state(m));
+  const play = (m: TmdbMedia, season = 1, episode = 1) => navigate(watchPath(m, season, episode), state(m));
+  const trailer = (m: TmdbMedia) => navigate(trailerPath(m), state(m));
+  // Back goes to the page before when there is one inside the app; a link opened cold goes to the tab.
+  const goBack = () => {
+    const index = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (index > 0) navigate(-1);
+    else navigate(TAB_PATH[tab], { replace: true });
+  };
   const hero = (items: TmdbMedia[]) => (
-    <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={setTrailerMedia} onOpenDetails={open} />
+    <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={trailer} onOpenDetails={open} />
   );
   const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean }) => (
     <TvMediaRail title={title} items={items} onSelect={open} {...extra} />
@@ -288,55 +298,39 @@ export function PingoTv() {
         </main>
       </div>
 
-      {/* Details Sheet / Modal */}
-      {selectedMedia && (
+      {route.kind !== 'tab' && !overlayMedia && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/85">
+          <Loader2 className="size-8 animate-spin text-white/80" />
+        </div>
+      )}
+
+      {route.kind === 'title' && overlayMedia && (
         <TvMediaDetailsModal
-          media={selectedMedia}
-          onClose={() => setSelectedMedia(null)}
-          onPlayStream={(m, s = 1, ep = 1) => {
-            setSelectedMedia(null);
-            setStreamingTarget({ media: m, season: s, episode: ep });
-          }}
-          onPlayTrailer={(m) => setTrailerMedia(m)}
-          onSelectMedia={(m) => setSelectedMedia(m)}
+          key={overlayMedia.id}
+          media={overlayMedia}
+          onClose={goBack}
+          onPlayStream={(m, season = 1, episode = 1) => play(m, season, episode)}
+          onPlayTrailer={trailer}
+          onSelectMedia={open}
         />
       )}
 
-      {/* Lazy-Loaded Streaming Player (NHD Hindi / Multi-Source) */}
-      {streamingTarget && (
-        <Suspense
-          fallback={
-            <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90">
-              <Loader2 className="size-8 animate-spin text-brand" />
-            </div>
-          }
-        >
+      {route.kind === 'watch' && overlayMedia && (
+        <Suspense fallback={<div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/90"><Loader2 className="size-8 animate-spin text-white/80" /></div>}>
           <TvStreamPlayer
-            media={streamingTarget.media}
-            initialSeason={streamingTarget.season}
-            initialEpisode={streamingTarget.episode}
-            onClose={() => setStreamingTarget(null)}
-            onOpenTrailer={(m) => {
-              setStreamingTarget(null);
-              setTrailerMedia(m);
-            }}
+            key={overlayMedia.id}
+            media={overlayMedia}
+            initialSeason={route.season}
+            initialEpisode={route.episode}
+            onClose={goBack}
+            onOpenTrailer={(m) => navigate(trailerPath(m), { replace: true, ...state(m) })}
           />
         </Suspense>
       )}
 
-      {/* Lazy-Loaded Trailer Player */}
-      {trailerMedia && (
-        <Suspense
-          fallback={
-            <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80">
-              <Loader2 className="size-8 animate-spin text-brand" />
-            </div>
-          }
-        >
-          <TvTrailerPlayer
-            media={trailerMedia}
-            onClose={() => setTrailerMedia(null)}
-          />
+      {route.kind === 'trailer' && overlayMedia && (
+        <Suspense fallback={<div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80"><Loader2 className="size-8 animate-spin text-white/80" /></div>}>
+          <TvTrailerPlayer media={overlayMedia} onClose={goBack} />
         </Suspense>
       )}
     </div>

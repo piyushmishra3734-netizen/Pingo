@@ -567,7 +567,7 @@ export function App() {
                   <Route path="/chats/:conversationId" element={<ChatsScreen />} />
                   <Route path="/calls" element={<CallsScreen />} />
                   <Route path="/camera" element={<CameraScreen />} />
-                  <Route path="/tv" element={<PingoTvScreen />} />
+                  <Route path="/tv/*" element={<PingoTvScreen />} />
                   <Route path="/communities" element={<CommunitiesScreen />} />
                   <Route path="/notifications" element={<NotificationsFeedScreen />} />
                   <Route path="/requests" element={<FollowRequestsScreen />} />
