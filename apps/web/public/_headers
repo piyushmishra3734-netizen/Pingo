@@ -1,2 +1,10 @@
+# Everything on the site: any http:// picture, sound or request a page asks for
+# (a profile photo, a cover, a song, a link preview from somewhere that still
+# hands out http links) is fetched as https:// instead. One insecure resource
+# is enough for Chrome to call the whole page "not secure" even with a valid
+# certificate; this makes that impossible without touching each source.
+/*
+  Content-Security-Policy: upgrade-insecure-requests
+
 /stickers/*
   Access-Control-Allow-Origin: *
