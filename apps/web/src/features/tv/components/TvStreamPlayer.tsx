@@ -360,8 +360,9 @@ export function TvStreamPlayer({
             key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
             src={streamUrl}
             title={`${title} Live Stream`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
             allowFullScreen
+            referrerPolicy="no-referrer"
             className="h-full w-full border-0"
             onError={() => {
               if (autoSwitchEnabled) {
