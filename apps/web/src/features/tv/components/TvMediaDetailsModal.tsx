@@ -9,6 +9,7 @@ import { TvMediaCard } from './TvMediaCard.js';
 interface TvMediaDetailsModalProps {
   media: TmdbMedia;
   onClose: () => void;
+  onPlayStream: (media: TmdbMedia, season?: number, episode?: number) => void;
   onPlayTrailer: (media: TmdbMedia) => void;
   onSelectMedia: (media: TmdbMedia) => void;
 }
@@ -16,6 +17,7 @@ interface TvMediaDetailsModalProps {
 export function TvMediaDetailsModal({
   media,
   onClose,
+  onPlayStream,
   onPlayTrailer,
   onSelectMedia,
 }: TvMediaDetailsModalProps) {
@@ -148,14 +150,22 @@ export function TvMediaDetailsModal({
           </div>
 
           {/* Action CTAs */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => onPlayStream(media, 1, 1)}
+              className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-xs font-bold text-on-brand shadow-md transition-all hover:opacity-95 active:scale-95 sm:text-sm"
+            >
+              <Play className="size-4 fill-current" />
+              <span>Watch Now</span>
+            </button>
+
             <button
               type="button"
               onClick={() => onPlayTrailer(media)}
-              className="flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-xs font-semibold text-on-brand shadow-sm transition-all hover:opacity-95 active:scale-95 sm:text-sm"
+              className="flex items-center gap-1.5 rounded-xl bg-sunken px-4 py-2.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-line active:scale-95 sm:text-sm"
             >
-              <Play className="size-4 fill-current" />
-              <span>Watch Official Trailer</span>
+              <span>Watch Trailer</span>
             </button>
 
             <button
@@ -172,6 +182,31 @@ export function TvMediaDetailsModal({
               <span>{saved ? 'In Watchlist' : 'Add to Watchlist'}</span>
             </button>
           </div>
+
+          {/* Quick TV Episode Launcher (if series) */}
+          {mediaType === 'tv' && (
+            <div className="mt-4 rounded-xl bg-sunken p-3 ring-1 ring-line">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+                  Season 1 Episodes:
+                </span>
+                <span className="text-[11px] text-brand font-medium">Click to stream</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((ep) => (
+                  <button
+                    key={ep}
+                    type="button"
+                    onClick={() => onPlayStream(media, 1, ep)}
+                    className="flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-brand hover:text-on-brand active:scale-95 transition-all"
+                  >
+                    <Play className="size-2.5 fill-current" />
+                    <span>Ep {ep}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Genre Badges */}
           {genres.length > 0 && (

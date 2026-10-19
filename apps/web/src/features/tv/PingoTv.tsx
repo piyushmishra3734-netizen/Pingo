@@ -17,8 +17,9 @@ import { TvSearch } from './components/TvSearch.js';
 import { TvMediaDetailsModal } from './components/TvMediaDetailsModal.js';
 import { TmdbAttribution } from './components/TmdbAttribution.js';
 
-// Lazy-load the trailer player for code-splitting
+// Lazy-load the heavy players for code-splitting
 const TvTrailerPlayer = React.lazy(() => import('./components/TvTrailerPlayer.js'));
+const TvStreamPlayer = React.lazy(() => import('./components/TvStreamPlayer.js'));
 
 export function PingoTv() {
   const [tab, setTab] = useState<TvTab>('home');
@@ -37,6 +38,11 @@ export function PingoTv() {
   // Modals
   const [selectedMedia, setSelectedMedia] = useState<TmdbMedia | null>(null);
   const [trailerMedia, setTrailerMedia] = useState<TmdbMedia | null>(null);
+  const [streamingTarget, setStreamingTarget] = useState<{
+    media: TmdbMedia;
+    season: number;
+    episode: number;
+  } | null>(null);
 
   const { watchlist } = useWatchlist();
 
@@ -133,6 +139,7 @@ export function PingoTv() {
               <>
                 <TvHeroBanner
                   items={trending}
+                  onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
                   onPlayTrailer={(media) => setTrailerMedia(media)}
                   onOpenDetails={(media) => setSelectedMedia(media)}
                 />
@@ -189,6 +196,7 @@ export function PingoTv() {
               <>
                 <TvHeroBanner
                   items={popularMovies}
+                  onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
                   onPlayTrailer={(media) => setTrailerMedia(media)}
                   onOpenDetails={(media) => setSelectedMedia(media)}
                 />
@@ -228,6 +236,7 @@ export function PingoTv() {
               <>
                 <TvHeroBanner
                   items={popularShows}
+                  onPlayStream={(media) => setStreamingTarget({ media, season: 1, episode: 1 })}
                   onPlayTrailer={(media) => setTrailerMedia(media)}
                   onOpenDetails={(media) => setSelectedMedia(media)}
                 />
@@ -308,9 +317,35 @@ export function PingoTv() {
         <TvMediaDetailsModal
           media={selectedMedia}
           onClose={() => setSelectedMedia(null)}
+          onPlayStream={(m, s = 1, ep = 1) => {
+            setSelectedMedia(null);
+            setStreamingTarget({ media: m, season: s, episode: ep });
+          }}
           onPlayTrailer={(m) => setTrailerMedia(m)}
           onSelectMedia={(m) => setSelectedMedia(m)}
         />
+      )}
+
+      {/* Lazy-Loaded Streaming Player (NHD Hindi / Multi-Source) */}
+      {streamingTarget && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90">
+              <Loader2 className="size-8 animate-spin text-brand" />
+            </div>
+          }
+        >
+          <TvStreamPlayer
+            media={streamingTarget.media}
+            initialSeason={streamingTarget.season}
+            initialEpisode={streamingTarget.episode}
+            onClose={() => setStreamingTarget(null)}
+            onOpenTrailer={(m) => {
+              setStreamingTarget(null);
+              setTrailerMedia(m);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Lazy-Loaded Trailer Player */}

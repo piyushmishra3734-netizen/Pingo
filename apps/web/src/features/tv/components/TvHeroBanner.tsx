@@ -7,11 +7,12 @@ import { useWatchlist } from '../hooks/useWatchlist.js';
 
 interface TvHeroBannerProps {
   items: TmdbMedia[];
+  onPlayStream: (media: TmdbMedia) => void;
   onPlayTrailer: (media: TmdbMedia) => void;
   onOpenDetails: (media: TmdbMedia) => void;
 }
 
-export function TvHeroBanner({ items, onPlayTrailer, onOpenDetails }: TvHeroBannerProps) {
+export function TvHeroBanner({ items, onPlayStream, onPlayTrailer, onOpenDetails }: TvHeroBannerProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const { isSaved, toggleWatchlist } = useWatchlist();
 
@@ -90,11 +91,19 @@ export function TvHeroBanner({ items, onPlayTrailer, onOpenDetails }: TvHeroBann
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => onPlayTrailer(current)}
-                className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-on-brand shadow-sm transition-all hover:opacity-95 active:scale-95 sm:text-sm"
+                onClick={() => onPlayStream(current)}
+                className="flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-bold text-on-brand shadow-md transition-all hover:opacity-95 active:scale-95 sm:text-sm"
               >
                 <Play className="size-4 fill-current" />
-                <span>Watch Trailer</span>
+                <span>Watch Now</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onPlayTrailer(current)}
+                className="flex items-center gap-1.5 rounded-xl bg-surface/80 px-3.5 py-2.5 text-xs font-semibold text-ink backdrop-blur-sm transition-all hover:bg-surface active:scale-95 ring-1 ring-line sm:text-sm"
+              >
+                <span>Trailer</span>
               </button>
 
               <button
