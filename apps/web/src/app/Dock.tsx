@@ -3,7 +3,6 @@ import { Badge, CameraIcon, ChatIcon, UserIcon, cn } from '@pingo/ui';
 import { Music2, TvMinimalPlay } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
-import { AiPill } from './AiPill.js';
 import { useT } from '../features/i18n/useT.js';
 import { openMusic, preloadMusic } from '../features/music/app/sheet-store.js';
 
@@ -33,9 +32,6 @@ export function Dock() {
       aria-label={t('nav.primary')}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-200 flex flex-col items-center"
     >
-      <div className="pointer-events-auto mb-1">
-        <AiPill />
-      </div>
       <div
         className={cn(
           'pointer-events-auto flex w-full items-end border-t border-line bg-page/95 px-2 backdrop-blur-xl',
