@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { TmdbMedia } from '../types.js';
 import { TvMediaCard } from './TvMediaCard.js';
+import { TvLandscapeCard } from './TvLandscapeCard.js';
 
 interface TvMediaRailProps {
   title: string;
@@ -11,9 +12,15 @@ interface TvMediaRailProps {
   /** Kept so existing callers compile; rails are text-only now, like Hotstar's. */
   icon?: React.ReactNode;
   isTop10?: boolean;
+  /** Wide scenes with the title underneath (Continue Watching, Trending Now) instead of posters. */
+  landscape?: boolean;
+  /** The line under a wide card, per title ("S1 E8"). */
+  caption?: (media: TmdbMedia) => string | undefined;
+  /** A play mark on wide cards: things you can pick up where you left off. */
+  playMark?: boolean;
 }
 
-export function TvMediaRail({ title, sub, items, onSelect, isTop10 = false }: TvMediaRailProps) {
+export function TvMediaRail({ title, sub, items, onSelect, isTop10 = false, landscape = false, caption, playMark = false }: TvMediaRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   if (!items || items.length === 0) return null;
 
@@ -60,6 +67,13 @@ export function TvMediaRail({ title, sub, items, onSelect, isTop10 = false }: Tv
                 <div className="relative w-[104px] md:w-[138px]">
                   <TvMediaCard media={media} onSelect={onSelect} showTitle={false} />
                 </div>
+              </div>
+            );
+          }
+          if (landscape) {
+            return (
+              <div key={key} className="w-[220px] shrink-0 snap-start md:w-[270px]">
+                <TvLandscapeCard media={media} onSelect={onSelect} caption={caption?.(media)} play={playMark} />
               </div>
             );
           }

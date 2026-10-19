@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Info, Play, Plus, Volume2, VolumeX } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Info, Play, Plus, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { TmdbMedia } from '../types.js';
 import { fetchVideos, getTmdbBackdropUrl, getTmdbPosterUrl } from '../api/tmdb.js';
@@ -115,6 +115,7 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails, paused = fals
 
   const title = current.title || current.name || 'Featured';
   const type = current.media_type || (current.title ? 'movie' : 'tv');
+  const year = (current.release_date || current.first_air_date || '').slice(0, 4);
   const genres = [...new Set((current.genre_ids ?? []).map((id) => GENRES[id]).filter((g): g is string => !!g))].slice(0, 3);
   const saved = isSaved(current.id, type);
   const backdrop = getTmdbBackdropUrl(current.backdrop_path, 'w1280');
@@ -171,6 +172,17 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails, paused = fals
       <div aria-hidden className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-page/90 via-page/40 via-45% to-transparent md:block" />
       <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-32 bg-gradient-to-b from-black/60 to-transparent" />
 
+      {slides.length > 1 && (
+        <>
+          <button type="button" aria-label="Previous" onClick={() => go(-1)} className="absolute left-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 lg:grid">
+            <ChevronLeft className="size-5" />
+          </button>
+          <button type="button" aria-label="Next" onClick={() => go(1)} className="absolute right-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 lg:grid">
+            <ChevronRight className="size-5" />
+          </button>
+        </>
+      )}
+
       {playTrailer && rolling && (
         <button
           type="button"
@@ -182,18 +194,24 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails, paused = fals
         </button>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-5 pb-9 text-center md:max-w-[640px] md:items-start md:px-10 md:pb-14 md:text-left">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-5 pb-9 text-center md:max-w-[640px] md:items-start md:px-10 md:pb-14 md:text-left lg:pl-[76px]">
         <h1 className="line-clamp-2 text-balance text-[34px] font-extrabold leading-[1.02] tracking-[-0.03em] text-white md:text-[56px]">{title}</h1>
 
+        <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] font-semibold md:justify-start">
+          {year && <span className="rounded border border-white/35 bg-black/30 px-2 py-0.5 text-white">{year}</span>}
+          <span className="rounded border border-white/35 bg-black/30 px-2 py-0.5 text-white">{type === 'movie' ? 'Movie' : 'Series'}</span>
+          {current.vote_average > 0 && <span className="rounded border border-white/35 bg-black/30 px-2 py-0.5 text-white">&#9733; {current.vote_average.toFixed(1)}</span>}
+          {current.original_language === 'hi' && <span className="rounded border border-white/35 bg-black/30 px-2 py-0.5 text-white">Hindi</span>}
+        </div>
+
         {genres.length > 0 && (
-          <p className="flex flex-wrap items-center justify-center gap-x-2 text-[13px] font-medium text-white md:justify-start md:text-sm">
-            {genres.map((g, i) => (
-              <React.Fragment key={g}>
-                {i > 0 && <span aria-hidden className="text-[8px] text-white/60">&bull;</span>}
-                <span>{g}</span>
-              </React.Fragment>
+          <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+            {genres.map((g) => (
+              <span key={g} className="rounded border border-white/20 bg-white/[0.07] px-2 py-0.5 text-[11.5px] font-medium text-white/85">
+                {g}
+              </span>
             ))}
-          </p>
+          </div>
         )}
 
         <p className="hidden max-w-lg text-base leading-snug text-white/90 md:line-clamp-3 md:block">{current.overview}</p>
@@ -202,23 +220,25 @@ export function TvHeroBanner({ items, onPlayStream, onOpenDetails, paused = fals
           <button
             type="button"
             onClick={() => onPlayStream(current)}
-            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-white px-6 text-base font-bold text-black transition hover:bg-white/80 active:scale-[0.97] md:h-12 md:flex-none md:px-8 md:text-lg"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-brand px-6 text-[15px] font-bold text-white transition hover:brightness-110 active:scale-[0.97] md:h-12 md:flex-none md:px-8"
           >
-            <Play className="size-6 fill-black" /> Play
+            <Play className="size-5 fill-white" /> Watch Now
           </button>
           <button
             type="button"
             onClick={() => toggleWatchlist(current)}
-            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-[#6d6d6eb3] px-5 text-base font-semibold text-white transition hover:bg-[#6d6d6e66] active:scale-[0.97] md:h-12 md:flex-none md:px-7 md:text-lg"
+            className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-white/25 bg-black/45 px-5 text-[15px] font-semibold text-white backdrop-blur-sm transition hover:bg-black/65 active:scale-[0.97] md:h-12 md:flex-none md:px-7"
           >
-            {saved ? <Check className="size-5" strokeWidth={2.6} /> : <Plus className="size-5" strokeWidth={2.4} />} My List
+            {saved ? <Check className="size-5" strokeWidth={2.6} /> : <Plus className="size-5" strokeWidth={2.4} />}
+            <span className="truncate">{saved ? 'In Watchlist' : 'Add to Watchlist'}</span>
           </button>
           <button
             type="button"
+            aria-label="More info"
             onClick={() => onOpenDetails(current)}
-            className="hidden h-12 items-center justify-center gap-2 rounded-md bg-[#6d6d6eb3] px-7 text-lg font-semibold text-white transition hover:bg-[#6d6d6e66] active:scale-[0.97] md:flex"
+            className="hidden size-12 items-center justify-center rounded-md border border-white/25 bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65 active:scale-95 md:flex"
           >
-            <Info className="size-5" /> More Info
+            <Info className="size-5" />
           </button>
         </div>
 

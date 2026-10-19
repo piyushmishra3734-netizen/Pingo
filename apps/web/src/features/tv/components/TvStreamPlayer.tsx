@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { MediaType, TmdbMedia } from '../types.js';
+import { TvEpisodePanel } from './TvEpisodePanel.js';
 
 export interface StreamProvider {
   id: string;
@@ -112,6 +113,8 @@ interface TvStreamPlayerProps {
   onOpenTrailer?: (media: TmdbMedia) => void;
   /** Told when the episode changes, so friends can see which one this is. */
   onEpisodeChange?: (season: number, episode: number) => void;
+  /** A title picked from "More Like This". */
+  onOpenMedia?: (media: TmdbMedia) => void;
 }
 
 export function TvStreamPlayer({
@@ -121,6 +124,7 @@ export function TvStreamPlayer({
   onClose,
   onOpenTrailer,
   onEpisodeChange,
+  onOpenMedia,
 }: TvStreamPlayerProps) {
   // Initialize with last good working source or default to NHD Hindi
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
@@ -219,15 +223,12 @@ export function TvStreamPlayer({
   }, [selectedProviderId, reloadKey, season, episode, autoSwitchEnabled]);
 
   return (
-    <div className="fixed inset-0 z-[230] flex items-center justify-center bg-black/95 p-1 sm:p-4 backdrop-blur-md animate-fadeIn">
-      {/* Click backdrop to close */}
-      <div className="absolute inset-0" onClick={onClose} aria-hidden />
+    <div className="fixed inset-0 z-[230] flex bg-black animate-fadeIn">
 
       {/* Main Player Box */}
       <div
         className={cn(
-          'relative z-10 flex flex-col overflow-hidden rounded-2xl bg-[#090a0f] shadow-2xl ring-1 ring-white/10 transition-all duration-300',
-          isTheater ? 'h-full w-full max-w-full rounded-none' : 'h-full max-h-[96dvh] w-full max-w-5xl',
+          'relative z-10 flex h-full w-full flex-col overflow-hidden bg-[#090a0f]',
         )}
       >
         {/* Player Header Bar */}
@@ -327,8 +328,10 @@ export function TvStreamPlayer({
           </div>
         </div>
 
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Video Frame */}
-        <div className="relative aspect-video w-full flex-1 bg-black">
+        <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
           {/* Notification Toast */}
           {notification && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/85 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
@@ -424,53 +427,22 @@ export function TvStreamPlayer({
             </div>
           </div>
 
-          {/* TV Season & Episode Navigation */}
-          {isTv && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-text-secondary">Season:</span>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => {
-                        setSeason(s);
-                        setEpisode(1);
-                      }}
-                      className={cn(
-                        'size-6 rounded-md text-xs font-bold transition-all',
-                        season === s
-                          ? 'bg-brand text-on-brand'
-                          : 'bg-white/5 text-text-secondary hover:bg-white/10 ring-1 ring-white/10',
-                      )}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        </div>
+        </div>
 
-              <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="font-semibold text-text-secondary shrink-0">Episode:</span>
-                {Array.from({ length: 24 }, (_, i) => i + 1).map((ep) => (
-                  <button
-                    key={ep}
-                    type="button"
-                    onClick={() => setEpisode(ep)}
-                    className={cn(
-                      'min-w-6 px-1.5 h-6 rounded-md text-xs font-bold transition-all',
-                      episode === ep
-                        ? 'bg-brand text-on-brand'
-                        : 'bg-white/5 text-text-secondary hover:bg-white/10 ring-1 ring-white/10',
-                    )}
-                  >
-                    {ep}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        {!isTheater && (
+          <TvEpisodePanel
+            media={media}
+            isTv={isTv}
+            season={season}
+            episode={episode}
+            onPick={(s, e) => {
+              setSeason(s);
+              setEpisode(e);
+            }}
+            onOpenMedia={(m) => onOpenMedia?.(m)}
+          />
+        )}
         </div>
       </div>
     </div>

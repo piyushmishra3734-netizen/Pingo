@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bookmark, Loader2, Search, X } from 'lucide-react';
+import { Bookmark, History, Loader2, Search, Trash2, X } from 'lucide-react';
 import { Toggle, cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
 import { TAB_PATH, parseTvPath, titlePath, trailerPath, useRouteMedia, watchPath, type TvNavState } from './routes.js';
@@ -15,6 +15,8 @@ import {
   fetchTrending,
 } from './api/tmdb.js';
 import { useWatchlist } from './hooks/useWatchlist.js';
+import { clearWatched, recordWatched, removeWatched, useWatchHistory, watchedAsMedia, type WatchedItem } from './hooks/useWatchHistory.js';
+import { TvLandscapeCard } from './components/TvLandscapeCard.js';
 import { setMyWatching, setShareWatching, smallPoster, useShareWatching, useWatching, watchingPath } from './watching.js';
 import { TvLogo } from './components/TvLogo.js';
 import { TvHeroBanner } from './components/TvHeroBanner.js';
@@ -149,11 +151,38 @@ export function PingoTv() {
     release_date: w.release_year ? `${w.release_year}-01-01` : undefined,
   }));
 
+  // Anime and Kids load when first opened, so Home does not wait on them.
+  const [animeMovies, setAnimeMovies] = useState<TmdbMedia[]>([]);
+  const [kidsMovies, setKidsMovies] = useState<TmdbMedia[]>([]);
+  const [kidsShows, setKidsShows] = useState<TmdbMedia[]>([]);
+  useEffect(() => {
+    let live = true;
+    if (tab === 'anime' && animeMovies.length === 0) void fetchByGenre('movie', 16).then((r) => live && setAnimeMovies(r));
+    if (tab === 'kids' && kidsMovies.length === 0) {
+      void fetchByGenre('movie', 10751).then((r) => live && setKidsMovies(r));
+      void fetchByGenre('tv', 10762).then((r) => live && setKidsShows(r));
+    }
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const history = useWatchHistory();
+  const [listTab, setListTab] = useState<'watchlist' | 'history'>('watchlist');
+  // Remembered as watched while a player page is open (the episode as it changes).
+  useEffect(() => {
+    if (route.kind !== 'watch' || !overlayMedia) return;
+    recordWatched(overlayMedia, route.type, episodeNow?.s ?? route.season, episodeNow?.e ?? route.episode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchKey, overlayMedia?.id, episodeNow?.s, episodeNow?.e]);
+
   const tabs: Array<{ id: TvTab; label: string }> = [
     { id: 'home', label: 'Home' },
-    { id: 'shows', label: 'Shows' },
     { id: 'movies', label: 'Movies' },
-    { id: 'watchlist', label: 'My List' },
+    { id: 'shows', label: 'Series' },
+    { id: 'anime', label: 'Anime' },
+    { id: 'kids', label: 'Kids' },
   ];
 
   const state = (m: TmdbMedia): { state: TvNavState } => ({ state: { media: m, tab } });
@@ -169,7 +198,7 @@ export function PingoTv() {
   const hero = (items: TmdbMedia[]) => (
     <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={trailer} onOpenDetails={open} paused={route.kind !== 'tab'} />
   );
-  const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean }) => (
+  const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean; landscape?: boolean }) => (
     <TvMediaRail title={title} items={items} onSelect={open} {...extra} />
   );
 
@@ -201,7 +230,7 @@ export function PingoTv() {
                   onClick={() => setTab(t.id)}
                   className={cn(
                     'px-3 py-2 text-sm transition-colors',
-                    tab === t.id ? 'font-bold text-white' : 'font-medium text-white/70 hover:text-white/95',
+                    tab === t.id ? 'border-b-2 border-brand font-bold text-brand' : 'border-b-2 border-transparent font-medium text-white/70 hover:text-white/95',
                   )}
                 >
                   {t.label}
@@ -211,11 +240,27 @@ export function PingoTv() {
             <div className="ml-auto flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => setTab('search')}
+                className="hidden h-10 w-[min(32vw,380px)] items-center gap-2.5 rounded-full border border-white/12 bg-white/[0.07] px-4 text-left text-sm text-white/55 transition hover:bg-white/10 lg:flex"
+              >
+                <Search className="size-[18px] shrink-0" />
+                <span className="truncate">Search movies, series, anime...</span>
+              </button>
+              <button
+                type="button"
                 aria-label="Search"
                 onClick={() => setTab('search')}
-                className={cn('grid size-10 place-items-center rounded-full transition-colors hover:bg-white/10', tab === 'search' ? 'text-white' : 'text-white/85')}
+                className={cn('grid size-10 place-items-center rounded-full transition-colors hover:bg-white/10 lg:hidden', tab === 'search' ? 'text-white' : 'text-white/85')}
               >
                 <Search className="size-[22px]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('watchlist')}
+                className={cn('relative hidden h-10 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition hover:bg-white/10 md:flex', tab === 'watchlist' ? 'text-white' : 'text-white/75')}
+              >
+                <Bookmark className="size-[18px]" /> Watchlist
+                {watchlist.length > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-bold leading-[18px] text-white">{watchlist.length}</span>}
               </button>
               <button
                 type="button"
@@ -253,18 +298,42 @@ export function PingoTv() {
               {tab === 'home' && (
                 <>
                   {hero(trending)}
-                  <div className="relative z-10 -mt-6 md:-mt-10">
-                    {watchlistAsMedia.length > 0 && rail('My List', watchlistAsMedia)}
-                    {rail('Trending on Pingo', trending)}
-                    {rail('Top 10 in India Today', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}
-                    {rail('Latest Releases', nowPlaying)}
-                    {rail('Latest Episodes and Dubs', latestEpisodes, { sub: 'Fresh drops with Hindi audio and multi-language dubs' })}
-                    {rail('Action and Thrillers', actionMovies)}
-                    {rail('Comedy Carnival', comedyMovies)}
-                    {rail('Blockbuster Cinema', blockbusters)}
-                    {rail('Anime and Asian Dramas', animeShows)}
-                    {rail('Edge of the Seat Horror', horrorMovies)}
-                    {rail('Top Rated on IMDb', topRated)}
+                  <div className="relative z-10 -mt-6 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-8 xl:pr-10 md:-mt-10">
+                    <div className="min-w-0">
+                      {history.length > 0 &&
+                        (
+                          <TvMediaRail
+                            title="Continue Watching"
+                            items={history.map(watchedAsMedia)}
+                            onSelect={(m) => {
+                              const w = history.find((h) => h.id === m.id);
+                              play(m, w?.s ?? 1, w?.e ?? 1);
+                            }}
+                            landscape
+                            playMark
+                            caption={(m) => {
+                              const w = history.find((h) => h.id === m.id);
+                              return w?.type === 'tv' ? `S${w.s ?? 1} E${w.e ?? 1}` : 'Movie';
+                            }}
+                          />
+                        )}
+                      {rail('Trending Now', trending, { landscape: true })}
+                      <div className="xl:hidden">{rail('Top 10 in India', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}</div>
+                      {rail('Latest Episodes and Dubs', latestEpisodes, { sub: 'Fresh drops with Hindi audio and multi-language dubs', landscape: true })}
+                      {rail('Latest Releases', nowPlaying)}
+                      {rail('Action and Thrillers', actionMovies)}
+                      {rail('Comedy Carnival', comedyMovies)}
+                      {rail('Blockbuster Cinema', blockbusters)}
+                      {rail('Anime and Asian Dramas', animeShows)}
+                      {rail('Edge of the Seat Horror', horrorMovies)}
+                      {rail('Top Rated on IMDb', topRated)}
+                    </div>
+                    {/* Wide screens: the lists that sit beside the rails, as in a TV app's home. */}
+                    <aside aria-label="Picks" className="mt-7 hidden min-w-0 xl:block">
+                      <TvSideTop10 items={top10Hindi} onSelect={open} />
+                      <TvSideGrid title="New Releases" items={nowPlaying.slice(0, 6)} onSelect={open} />
+                      <TvSideGrid title="Recommended For You" items={topRated.slice(0, 6)} onSelect={open} />
+                    </aside>
                   </div>
                 </>
               )}
@@ -295,6 +364,26 @@ export function PingoTv() {
                 </>
               )}
 
+              {tab === 'anime' && (
+                <>
+                  {hero(animeShows)}
+                  <div className="relative z-10 -mt-6 md:-mt-10">
+                    {rail('Trending Anime', animeShows, { landscape: true })}
+                    {rail('Anime Movies', animeMovies)}
+                  </div>
+                </>
+              )}
+
+              {tab === 'kids' && (
+                <>
+                  {hero(kidsMovies.length ? kidsMovies : animeShows)}
+                  <div className="relative z-10 -mt-6 md:-mt-10">
+                    {rail('Family Movies', kidsMovies)}
+                    {rail('Kids Shows', kidsShows, { landscape: true })}
+                  </div>
+                </>
+              )}
+
               {tab === 'search' && (
                 <div className="pt-24 md:pt-20">
                   <TvSearch onSelect={open} />
@@ -303,40 +392,58 @@ export function PingoTv() {
 
               {tab === 'watchlist' && (
                 <div className="px-4 pt-28 md:px-10 md:pt-24">
-                  <div className="mb-5 flex items-end justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold text-ink">My List</h2>
-                      <p className="mt-1 text-sm text-text-secondary">Titles you saved to watch later</p>
-                    </div>
-                    <span className="text-sm font-semibold text-text-secondary">{watchlist.length} saved</span>
-                  </div>
-
-                  <div className="mb-5 flex items-center gap-3 rounded-lg bg-white/[0.06] px-4 py-3">
-                    <span className="min-w-0 flex-1">
-                      <b id="tv-share-watching" className="block text-[15px] font-semibold">Show what I'm watching</b>
-                      <small className="block text-[12.5px] text-text-secondary">Friends see it on your photo and can watch along. Off when your activity status is off.</small>
-                    </span>
-                    <Toggle checked={shareWatching} onChange={setShareWatching} labelledBy="tv-share-watching" size="sm" />
-                  </div>
-
-                  {watchlist.length === 0 ? (
-                    <div className="flex min-h-[50svh] flex-col items-center justify-center gap-3 text-center">
-                      <span className="grid size-16 place-items-center rounded-full bg-white/8 text-text-secondary">
-                        <Bookmark className="size-7" />
-                      </span>
-                      <p className="text-lg font-semibold text-ink">Nothing saved yet</p>
-                      <p className="max-w-xs text-sm text-text-secondary">Tap the plus on any title and it waits for you here.</p>
-                      <button type="button" onClick={() => setTab('home')} className="mt-2 h-11 rounded-md bg-white px-6 text-sm font-bold text-black transition active:scale-95">
-                        Browse titles
+                  <div className="mb-5 flex items-center gap-1 border-b border-white/10">
+                    {(['watchlist', 'history'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setListTab(t)}
+                        className={cn('-mb-px border-b-2 px-4 py-3 text-[15px] transition-colors', listTab === t ? 'border-brand font-bold text-brand' : 'border-transparent font-medium text-white/65 hover:text-white')}
+                      >
+                        {t === 'watchlist' ? `Watchlist${watchlist.length ? ` (${watchlist.length})` : ''}` : 'History'}
                       </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-x-2.5 gap-y-5 sm:grid-cols-4 md:grid-cols-5 md:gap-x-3.5 lg:grid-cols-6 xl:grid-cols-7">
-                      {watchlistAsMedia.map((m) => (
-                        <TvMediaCard key={`${m.media_type || 'm'}-${m.id}`} media={m} onSelect={open} />
-                      ))}
-                    </div>
+                    ))}
+                  </div>
+
+                  {listTab === 'watchlist' && (
+                    <>
+                      <div className="mb-5 flex items-center gap-3 rounded-lg bg-white/[0.06] px-4 py-3">
+                        <span className="min-w-0 flex-1">
+                          <b id="tv-share-watching" className="block text-[15px] font-semibold">Show what I'm watching</b>
+                          <small className="block text-[12.5px] text-text-secondary">Friends see it on your photo and can watch along. Off when your activity status is off.</small>
+                        </span>
+                        <Toggle checked={shareWatching} onChange={setShareWatching} labelledBy="tv-share-watching" size="sm" />
+                      </div>
+
+                      {watchlist.length === 0 ? (
+                        <TvEmpty icon={<Bookmark className="size-7" />} title="Nothing saved yet" body="Tap the plus on any title and it waits for you here." action="Browse titles" onAction={() => setTab('home')} />
+                      ) : (
+                        <div className="grid grid-cols-3 gap-x-2.5 gap-y-5 sm:grid-cols-4 md:grid-cols-5 md:gap-x-3.5 lg:grid-cols-6 xl:grid-cols-7">
+                          {watchlistAsMedia.map((m) => (
+                            <TvMediaCard key={`${m.media_type || 'm'}-${m.id}`} media={m} onSelect={open} />
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
+
+                  {listTab === 'history' &&
+                    (history.length === 0 ? (
+                      <TvEmpty icon={<History className="size-7" />} title="No history yet" body="What you watch shows up here, with the episode you were on." action="Browse titles" onAction={() => setTab('home')} />
+                    ) : (
+                      <>
+                        <div className="mb-4 flex justify-end">
+                          <button type="button" onClick={clearWatched} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white">
+                            <Trash2 className="size-4" /> Clear history
+                          </button>
+                        </div>
+                        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {history.map((w) => (
+                            <HistoryCard key={`${w.type}-${w.id}`} item={w} onPlay={() => play(watchedAsMedia(w), w.s ?? 1, w.e ?? 1)} />
+                          ))}
+                        </div>
+                      </>
+                    ))}
                 </div>
               )}
 
@@ -370,6 +477,7 @@ export function PingoTv() {
             media={overlayMedia}
             initialSeason={route.season}
             initialEpisode={route.episode}
+            onOpenMedia={open}
             onEpisodeChange={(s, e) => setEpisodeNow((was) => (was && was.s === s && was.e === e ? was : { s, e }))}
             onClose={goBack}
             onOpenTrailer={(m) => navigate(trailerPath(m), { replace: true, ...state(m) })}
@@ -419,6 +527,72 @@ function TvSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+function TvEmpty({ icon, title, body, action, onAction }: { icon: React.ReactNode; title: string; body: string; action: string; onAction: () => void }) {
+  return (
+    <div className="flex min-h-[44svh] flex-col items-center justify-center gap-3 text-center">
+      <span className="grid size-16 place-items-center rounded-full bg-white/8 text-text-secondary">{icon}</span>
+      <p className="text-lg font-semibold text-ink">{title}</p>
+      <p className="max-w-xs text-sm text-text-secondary">{body}</p>
+      <button type="button" onClick={onAction} className="mt-2 h-11 rounded-md bg-brand px-6 text-sm font-bold text-white transition active:scale-95">
+        {action}
+      </button>
+    </div>
+  );
+}
+
+/** A title you watched: the scene, where you were, and a way to take it off the list. */
+function HistoryCard({ item, onPlay }: { item: WatchedItem; onPlay: () => void }) {
+  return (
+    <div className="group relative">
+      <TvLandscapeCard media={watchedAsMedia(item)} onSelect={onPlay} play caption={item.type === 'tv' ? `S${item.s ?? 1} E${item.e ?? 1}` : 'Movie'} />
+      <button
+        type="button"
+        aria-label={`Remove ${item.title} from history`}
+        onClick={() => removeWatched(item.id, item.type)}
+        className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur-sm transition hover:bg-black/80 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** The five most watched, small, with their rank: a column on a wide screen. */
+function TvSideTop10({ items, onSelect }: { items: TmdbMedia[]; onSelect: (m: TmdbMedia) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-[17px] font-semibold text-white/95">Top 10 in India</h2>
+      <ol className="grid grid-cols-5 gap-2">
+        {items.slice(0, 5).map((m, i) => (
+          <li key={m.id} className="relative">
+            <span aria-hidden className="pointer-events-none absolute -left-1 -top-1 z-10 text-[38px] font-black leading-none tracking-[-0.08em]" style={{ color: 'transparent', WebkitTextStroke: '1.5px rgba(255,255,255,0.7)' }}>
+              {i + 1}
+            </span>
+            <TvMediaCard media={m} onSelect={onSelect} showTitle={false} />
+            <p className="mt-1 truncate text-[11px] text-text-secondary">{m.title || m.name}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** Six posters in a grid, each with its title: New Releases, Recommended. */
+function TvSideGrid({ title, items, onSelect }: { title: string; items: TmdbMedia[]; onSelect: (m: TmdbMedia) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-[17px] font-semibold text-white/95">{title}</h2>
+      <div className="grid grid-cols-3 gap-x-2.5 gap-y-4">
+        {items.map((m) => (
+          <TvMediaCard key={m.id} media={m} onSelect={onSelect} />
+        ))}
+      </div>
+    </section>
   );
 }
 

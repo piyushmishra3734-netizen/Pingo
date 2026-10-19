@@ -19,6 +19,8 @@ export const TAB_PATH: Record<TvTab, string> = {
   home: '/tv',
   movies: '/tv/movies',
   shows: '/tv/shows',
+  anime: '/tv/anime',
+  kids: '/tv/kids',
   search: '/tv/search',
   watchlist: '/tv/list',
 };

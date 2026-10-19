@@ -58,6 +58,7 @@ export interface TmdbMediaDetails {
   genres: TmdbGenre[];
   runtime?: number;
   number_of_seasons?: number;
+  seasons?: { season_number: number; name: string; episode_count: number }[];
   number_of_episodes?: number;
   tagline?: string;
   status?: string;
@@ -93,4 +94,15 @@ export interface WatchlistItem {
   created_at?: string;
 }
 
-export type TvTab = 'home' | 'movies' | 'shows' | 'search' | 'watchlist';
+export type TvTab = 'home' | 'movies' | 'shows' | 'anime' | 'kids' | 'search' | 'watchlist';
+
+export interface TmdbEpisode {
+  id: number;
+  episode_number: number;
+  season_number: number;
+  name: string;
+  overview: string;
+  still_path: string | null;
+  runtime?: number | null;
+  air_date?: string | null;
+}

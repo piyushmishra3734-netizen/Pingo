@@ -1,4 +1,4 @@
-import type { MediaType, TmdbMedia, TmdbMediaDetails, TmdbResponse, TmdbVideo } from '../types.js';
+import type { MediaType, TmdbEpisode, TmdbMedia, TmdbMediaDetails, TmdbResponse, TmdbVideo } from '../types.js';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
@@ -530,4 +530,14 @@ export async function fetchVideos(mediaType: MediaType, id: number | string): Pr
     return resp.results.filter((v) => v.site === 'YouTube');
   }
   return [];
+}
+
+/** One season's episodes, with their stills and running times. Empty when it cannot be read. */
+export async function fetchSeason(id: number | string, season: number): Promise<TmdbEpisode[]> {
+  const resp = await callProxy<{ episodes?: TmdbEpisode[] }>(`/tv/${id}/season/${season}`);
+  return Array.isArray(resp?.episodes) ? resp.episodes : [];
+}
+
+export function getTmdbStillUrl(path: string | null | undefined): string {
+  return path ? `https://image.tmdb.org/t/p/w300${path}` : '';
 }

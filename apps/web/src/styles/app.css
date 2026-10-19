@@ -1330,6 +1330,9 @@ video {
   --color-hover: rgba(255, 255, 255, 0.07);
   --color-pressed: rgba(255, 255, 255, 0.12);
   --color-scrim: rgba(0, 0, 0, 0.6);
+  /* Pingo TV's own accent: the hot pink of its logo, not the app's violet. */
+  --color-brand: #ee2a7b;
+  --color-on-brand: #ffffff;
   color-scheme: dark;
   background: var(--color-page);
   color: var(--color-ink);
