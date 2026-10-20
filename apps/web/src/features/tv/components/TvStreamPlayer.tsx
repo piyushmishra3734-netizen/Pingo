@@ -950,6 +950,29 @@ export function TvStreamPlayer({
     if (best && best.id !== activeId) selectSource(best.id, false);
   };
 
+  /*
+   * The finding screen only goes once something has been on screen for a
+   * moment. Auto mode may try a source, drop it and try the next; letting the
+   * screen follow each of those would flash it on and off. Once settled it
+   * stays gone until the episode changes or the stream is reloaded.
+   */
+  const playing = provider.kind === 'hls' ? hasStarted : frameLoaded;
+  const [settled, setSettled] = useState<boolean>(false);
+  useEffect(() => {
+    setSettled(false);
+  }, [media.id, season, episode, reloadKey]);
+  useEffect(() => {
+    if (settled || !playing) return;
+    const t = window.setTimeout(() => setSettled(true), provider.kind === 'hls' ? 1200 : 2500);
+    return () => window.clearTimeout(t);
+  }, [settled, playing, provider.id, provider.kind]);
+  // A stream that died after settling leaves a blank frame: bring the screen back.
+  useEffect(() => {
+    if (!settled || provider.kind !== 'hls' || hasStarted) return;
+    const t = window.setTimeout(() => setSettled(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [settled, provider.kind, hasStarted]);
+
   useEffect(() => {
     setFrameLoaded(false);
     // A frame that never fires `load` must not hide the picture forever.
@@ -1234,7 +1257,7 @@ export function TvStreamPlayer({
                   ) : null}
 
                   {/* The finding screen lasts until the film is actually moving. */}
-                  {!hasStarted && <TvFindingScreen compact={mini} />}
+                  {!settled && <TvFindingScreen compact={mini} />}
                 </>
               ) : (
                 <>
@@ -1261,7 +1284,7 @@ export function TvStreamPlayer({
                     }
                   }}
                 />
-                {!frameLoaded && <TvFindingScreen compact={mini} />}
+                {!settled && <TvFindingScreen compact={mini} />}
                 </>
               )}
 
