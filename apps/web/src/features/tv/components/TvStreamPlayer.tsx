@@ -309,12 +309,28 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'fx-hogrider',
     'fx-lavahound',
   ],
+  /*
+   * Shows lead with the iframes, which is the opposite of films, and the reason
+   * is measured rather than stylistic. Asking the resolver for episodes:
+   *
+   *   Breaking Bad S5E16 (finale)      4/9 providers
+   *   The Simpsons S38E1 (current)     1/9
+   *   Grey's Anatomy S23E1 (current)   0/9
+   *   Khatron Ke Khiladi S15E1         0/9
+   *
+   * It indexes finished shows and not running ones — so its nine providers are
+   * empty exactly where a viewer is most likely to be, which is the newest
+   * episode. The iframes answer all four: EmbedMaster and NontonGo both resolve
+   * 'The Simpsons', "Grey's Anatomy" and 'Khatron Ke Khiladi' for the same
+   * episodes. Hence the iframes first, and the resolver kept for the older
+   * library it does hold.
+   */
   tv: [
-    'fx-giant',
-    'autoembed',
-    'nontongo',
     'embedmaster',
+    'nontongo',
+    'autoembed',
     'vidfast',
+    'fx-giant',
     'fx-super',
     'fx-bowler',
     'fx-titan',
