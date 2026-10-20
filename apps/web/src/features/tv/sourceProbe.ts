@@ -80,12 +80,25 @@ async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: num
  * playlist is 200, the content type is right, the segments exist. The player
  * then spins, retries, and restarts from the beginning, which is the load loop
  * that was reported as a player bug.
+ *
+ * This only reads the names, so it is a hint and never a verdict: some hosts
+ * (Giant) name real MPEG-TS video segments `.jpg`. The first segment's own
+ * bytes decide, see {@link bytesArePicture}.
  */
 export function playlistIsImages(text: string): boolean {
   const segments = [...text.matchAll(/^https?:\/\/\S+$/gim)].map((match) => match[0]);
   if (!segments.length) return false;
   const imagey = segments.filter((url) => /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url)).length;
   return imagey / segments.length > 0.8;
+}
+
+/** JPEG, PNG, GIF or WebP file signature: a picture, whatever the URL says. */
+export function bytesArePicture(b: Uint8Array): boolean {
+  if (b.length < 4) return false;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true;
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return true;
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return true;
+  return b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
 }
 
 /**
@@ -183,7 +196,7 @@ export async function probeResolver(
     // Not a playlist, or a playlist of pictures: the two shapes of "it answers
     // but there is nothing to watch".
     if (!text || !/#EXTM3U/i.test(text)) continue;
-    if (playlistIsImages(text)) continue;
+    const looksLikeImages = playlistIsImages(text);
     if (!playlistIsPlayable(text)) continue;
 
     /*
@@ -201,9 +214,19 @@ export async function probeResolver(
           headers: { range: 'bytes=0-1023' },
           signal,
         });
-        return response.ok || response.status === 206;
+        if (!(response.ok || response.status === 206)) return 'gone' as const;
+        // Read only the first bytes: a host that ignores Range would send it all.
+        const reader = response.body?.getReader();
+        if (!reader) return 'video' as const;
+        const { value } = await reader.read();
+        void reader.cancel().catch(() => undefined);
+        return value && bytesArePicture(value) ? ('picture' as const) : ('video' as const);
       }, SEGMENT_TIMEOUT_MS);
-      if (verdict === false) continue;
+      if (verdict === 'gone' || verdict === 'picture') continue;
+      // Too slow to tell: names that say pictures are trusted, anything else is not blamed.
+      if (verdict === null && looksLikeImages) continue;
+    } else if (looksLikeImages) {
+      continue;
     }
 
     if (!playableUrls.length) {
