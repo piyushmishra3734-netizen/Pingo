@@ -146,6 +146,15 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
         ? `https://embedmaster.link/movie/${id}`
         : `https://embedmaster.link/tv/${id}/${s}/${e}`,
   },
+  {
+    id: 'embedwave',
+    name: 'EmbedWave',
+    badge: 'No ads',
+    buildUrl: (type, id, s, e) =>
+      type === 'movie'
+        ? `https://embedwave.cc/embed/movie/${id}`
+        : `https://embedwave.cc/embed/tv/${id}/${s}/${e}`,
+  },
 
   /*
    * FrameXTV providers. These are not pages: the resolver returns a playlist,
@@ -269,6 +278,7 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'vidfast',
     'nontongo',
     'embedmaster',
+    'embedwave',
     'autoembed',
     'vidrock',
     'fx-super',
@@ -298,6 +308,7 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
    */
   tv: [
     'embedmaster',
+    'embedwave',
     'nontongo',
     'autoembed',
     'vidfast',
