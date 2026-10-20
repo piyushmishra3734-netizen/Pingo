@@ -33,6 +33,8 @@ export interface Watching {
   /** Season and episode, for a series. */
   s?: number;
   e?: number;
+  /** The server (provider) the film is playing from, so a friend watching along opens the very same one. */
+  p?: string;
   /** Whom this person is watching along with, so two people do not follow each other in a circle. */
   w?: string;
 }
@@ -119,6 +121,7 @@ export function parseWatching(raw: unknown): Watching | undefined {
   const s = int(r.s, 500);
   const e = int(r.e, 5000);
   const w = clip(r.w, 64);
+  const p = clip(r.p, 24);
   return {
     n,
     y: r.y,
@@ -127,6 +130,7 @@ export function parseWatching(raw: unknown): Watching | undefined {
     ...(s ? { s } : {}),
     ...(e ? { e } : {}),
     ...(w ? { w } : {}),
+    ...(/^[A-Za-z0-9_-]{1,24}$/.test(p) ? { p } : {}),
   };
 }
 
@@ -167,8 +171,8 @@ export const watchingLine = (w: Watching) => (w.y === 'tv' && w.s && w.e ? `${w.
 
 /** The route that opens exactly what they are watching. */
 export const watchingPath = (w: Watching, along?: string) =>
-  `/tv/watch/${w.y}/${w.id}?s=${w.s ?? 1}&e=${w.e ?? 1}${along ? `&along=${encodeURIComponent(along)}` : ''}`;
+  `/tv/watch/${w.y}/${w.id}?s=${w.s ?? 1}&e=${w.e ?? 1}${w.p ? `&src=${encodeURIComponent(w.p)}` : ''}${along ? `&along=${encodeURIComponent(along)}` : ''}`;
 
 /** The full-page player for a title, optionally following a friend. */
-export const watchPathFor = (type: 'movie' | 'tv', id: number, season = 1, episode = 1, along?: string) =>
-  `/tv/watch/${type}/${id}?s=${season}&e=${episode}${along ? `&along=${encodeURIComponent(along)}` : ''}`;
+export const watchPathFor = (type: 'movie' | 'tv', id: number, season = 1, episode = 1, along?: string, source?: string) =>
+  `/tv/watch/${type}/${id}?s=${season}&e=${episode}${source ? `&src=${encodeURIComponent(source)}` : ''}${along ? `&along=${encodeURIComponent(along)}` : ''}`;

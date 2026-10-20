@@ -56,6 +56,7 @@ export function WatchAlongBar({ userId, name, myId, top }: { userId: string; nam
               season: tv.s ?? 1,
               episode: tv.e ?? 1,
               ...(tv.i ? { poster: tv.i } : {}),
+              ...(tv.p ? { source: tv.p } : {}),
               along: { id: userId, name },
             })
           }

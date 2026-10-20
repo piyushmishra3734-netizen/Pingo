@@ -15,6 +15,8 @@ export interface MiniTarget {
   media: TmdbMedia;
   season: number;
   episode: number;
+  /** The server to open on (a friend's); the player keeps it unless it cannot play. */
+  source?: string;
   /** A small poster URL, for telling friends what this person is watching. */
   poster?: string;
   /** The friend this is following, if any: it moves to whatever they move to. */

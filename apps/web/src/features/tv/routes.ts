@@ -28,7 +28,7 @@ export const TAB_PATH: Record<TvTab, string> = {
 export type TvRoute =
   | { kind: 'tab'; tab: TvTab }
   | { kind: 'title' | 'trailer'; type: MediaType; id: string }
-  | { kind: 'watch'; type: MediaType; id: string; season: number; episode: number };
+  | { kind: 'watch'; type: MediaType; id: string; season: number; episode: number; src?: string };
 
 /** What a navigation carries along, so a title opens instantly and Back lands on the tab it came from. */
 export interface TvNavState {
@@ -48,7 +48,8 @@ export function parseTvPath(pathname: string, search: string): TvRoute {
   if ((head === 'title' || head === 'watch' || head === 'trailer') && (type === 'movie' || type === 'tv') && id) {
     if (head === 'watch') {
       const q = new URLSearchParams(search);
-      return { kind: 'watch', type, id, season: Math.max(1, Number(q.get('s')) || 1), episode: Math.max(1, Number(q.get('e')) || 1) };
+      const src = q.get('src') ?? '';
+      return { kind: 'watch', type, id, season: Math.max(1, Number(q.get('s')) || 1), episode: Math.max(1, Number(q.get('e')) || 1), ...(/^[A-Za-z0-9_-]{1,24}$/.test(src) ? { src } : {}) };
     }
     return { kind: head, type, id };
   }

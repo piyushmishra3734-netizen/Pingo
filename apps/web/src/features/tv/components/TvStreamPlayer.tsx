@@ -391,6 +391,10 @@ interface TvStreamPlayerProps {
   onOpenMedia?: (media: TmdbMedia) => void;
   /** Shrinks the film into the floating mini player, at this episode. */
   onMinimize?: (season: number, episode: number) => void;
+  /** Open on this server (a friend's, when watching along) and keep it unless it cannot play. */
+  initialSource?: string;
+  /** Told which server is playing, so friends can open the same one. */
+  onSourceChange?: (id: string) => void;
   /**
    * Just the picture, in a box the caller sizes: no header, source list or
    * episode panel. Everything that decides what plays (the probe, the ranking,
@@ -409,6 +413,8 @@ export function TvStreamPlayer({
   onEpisodeChange,
   onOpenMedia,
   onMinimize,
+  initialSource,
+  onSourceChange,
   mini = false,
 }: TvStreamPlayerProps) {
   const title = media.title || media.name || 'Untitled';
@@ -436,7 +442,12 @@ export function TvStreamPlayer({
   // last source used anywhere, if it is still shipped. A saved id that is no
   // longer in the lineup (anyone who had `nhd` stored) falls through to the
   // default rather than selecting a provider that does not exist.
+  const requestedSource = useRef<string | null>(null);
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
+    if (initialSource && available.some((p) => p.id === initialSource)) {
+      requestedSource.current = initialSource;
+      return initialSource;
+    }
     try {
       const forTitle = localStorage.getItem(rememberedKey);
       if (forTitle && available.some((p) => p.id === forTitle)) return forTitle;
@@ -572,6 +583,7 @@ export function TvStreamPlayer({
 
   // Manual pick: the viewer knows better than the heuristic, so stop guessing.
   const handleSelectProvider = (id: string) => {
+    requestedSource.current = null;
     manualPickRef.current = true;
     claimedRef.current = true;
     selectSource(id, true);
@@ -590,6 +602,11 @@ export function TvStreamPlayer({
     claimedRef.current = false;
     playingRef.current = false;
     manualPickRef.current = false;
+    // Asked to open on a particular server: stay on it, and do not let the ranking move us off it.
+    if (requestedSource.current) {
+      manualPickRef.current = true;
+      setSelectedProviderId(requestedSource.current);
+    }
     setHasStarted(false);
     autoVisitedRef.current = new Set();
     setProbes({});
@@ -679,7 +696,7 @@ export function TvStreamPlayer({
 
   /* -- 0a. A new audio preference re-ranks the answers we already have ------ */
   useEffect(() => {
-    if (probing) return;
+    if (probing || requestedSource.current) return;
     const answers = Object.values(probes);
     if (!answers.length) return;
 
@@ -891,6 +908,11 @@ export function TvStreamPlayer({
 
   // A playlist is only playable if this exact source answered with one during
   // the batch probe; everything else about it is a guess.
+  useEffect(() => {
+    onSourceChange?.(provider.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider.id]);
+
   const activeProbe = probes[provider.id];
   const activeStream =
     provider.kind === 'hls' && activeProbe?.status === 'ready' ? activeProbe.url : null;
@@ -942,7 +964,7 @@ export function TvStreamPlayer({
                   type="button"
                   aria-pressed={audioPref === pref}
                   onClick={() => {
-                    setAudioPref(pref);
+                    { requestedSource.current = null; setAudioPref(pref); };
                     try {
                       localStorage.setItem(AUDIO_PREF_KEY, pref);
                     } catch {

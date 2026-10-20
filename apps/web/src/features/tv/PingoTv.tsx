@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bookmark, History, Loader2, Search, Trash2, X } from 'lucide-react';
 import { Toggle, cn } from '@pingo/ui';
@@ -51,6 +51,8 @@ export function PingoTv() {
   const alongId = route.kind === 'watch' ? (new URLSearchParams(location.search).get('along') ?? undefined) : undefined;
   const alongName = (location.state as { along?: string } | null)?.along;
   const [episodeNow, setEpisodeNow] = useState<{ s: number; e: number } | null>(null);
+  // The server the film is playing from, told to friends so they can open the same one.
+  const [sourceNow, setSourceNow] = useState<string | undefined>(undefined);
   const shareWatching = useShareWatching();
   const watchKey = route.kind === 'watch' ? `${route.type}-${route.id}-${route.season}-${route.episode}` : '';
   useEffect(() => setEpisodeNow(null), [watchKey]);
@@ -68,10 +70,11 @@ export function PingoTv() {
       id: overlayMedia.id,
       ...(poster ? { i: poster } : {}),
       ...(route.type === 'tv' ? { s: episodeNow?.s ?? route.season, e: episodeNow?.e ?? route.episode } : {}),
+      ...(sourceNow ? { p: sourceNow } : {}),
       ...(alongId ? { w: alongId } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchKey, overlayMedia?.id, episodeNow?.s, episodeNow?.e, alongId]);
+  }, [watchKey, overlayMedia?.id, episodeNow?.s, episodeNow?.e, alongId, sourceNow]);
   useEffect(
     () => () => {
       if (!currentMini()) setMyWatching(undefined);
@@ -82,6 +85,17 @@ export function PingoTv() {
   useEffect(() => {
     if (route.kind === 'watch') closeMini();
   }, [route.kind]);
+
+  // ...and when they switch server, so does this (once per change, so a server this phone cannot use does not loop).
+  const followedSource = useRef<string | undefined>(undefined);
+  const alongNow = useWatching(alongId);
+  useEffect(() => {
+    if (!alongId || !alongNow?.p || route.kind !== 'watch') return;
+    if (followedSource.current === alongNow.p) return;
+    followedSource.current = alongNow.p;
+    if (alongNow.p !== (sourceNow ?? route.src)) navigate(watchingPath(alongNow, alongId), { replace: true, state: { tab, along: alongName } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alongNow?.p]);
 
   // Watching along: when the friend moves to another title or episode, this follows.
   const along = useWatching(alongId);
@@ -483,8 +497,10 @@ export function PingoTv() {
             initialSeason={route.season}
             initialEpisode={route.episode}
             onOpenMedia={open}
+            initialSource={route.src}
+            onSourceChange={setSourceNow}
             onMinimize={(s, e) => {
-              openMini({ media: overlayMedia, season: s, episode: e, ...(smallPoster(overlayMedia.poster_path) ? { poster: smallPoster(overlayMedia.poster_path) as string } : {}), ...(alongId ? { along: { id: alongId, name: alongName ?? 'a friend' } } : {}) });
+              openMini({ media: overlayMedia, season: s, episode: e, ...(sourceNow ? { source: sourceNow } : {}), ...(smallPoster(overlayMedia.poster_path) ? { poster: smallPoster(overlayMedia.poster_path) as string } : {}), ...(alongId ? { along: { id: alongId, name: alongName ?? 'a friend' } } : {}) });
               goBack();
             }}
             onEpisodeChange={(s, e) => setEpisodeNow((was) => (was && was.s === s && was.e === e ? was : { s, e }))}

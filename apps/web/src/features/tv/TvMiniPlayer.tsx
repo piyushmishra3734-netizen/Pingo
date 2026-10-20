@@ -32,6 +32,8 @@ export function TvMiniPlayer() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  // The server actually playing here, told to friends.
+  const [sourceNow, setSourceNow] = useState<string | undefined>(undefined);
 
   // Following a friend: when they move to another title or episode, so does this.
   const friend = useWatching(target?.along?.id);
@@ -39,7 +41,8 @@ export function TvMiniPlayer() {
     if (!target?.along || !friend) return;
     const sameTitle = friend.id === target.media.id && friend.y === (target.media.media_type ?? 'movie');
     const sameEpisode = friend.y === 'movie' || ((friend.s ?? 1) === target.season && (friend.e ?? 1) === target.episode);
-    if (sameTitle && sameEpisode) return;
+    const sameSource = !friend.p || friend.p === target.source || friend.p === sourceNow;
+    if (sameTitle && sameEpisode && sameSource) return;
     updateMini({
       media: {
         id: friend.id,
@@ -53,6 +56,7 @@ export function TvMiniPlayer() {
       season: friend.s ?? 1,
       episode: friend.e ?? 1,
       ...(friend.i ? { poster: friend.i } : {}),
+      ...(friend.p ? { source: friend.p } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friend]);
@@ -67,11 +71,12 @@ export function TvMiniPlayer() {
       y: type,
       id: target.media.id,
       ...(target.poster ? { i: target.poster } : {}),
+      ...(sourceNow ? { p: sourceNow } : {}),
       ...(type === 'tv' ? { s: target.season, e: target.episode } : {}),
       ...(target.along ? { w: target.along.id } : {}),
     });
     recordWatched(target.media, type, target.season, target.episode);
-  }, [target?.media.id, target?.season, target?.episode, target?.along?.id]);
+  }, [target?.media.id, target?.season, target?.episode, target?.along?.id, sourceNow]);
   // Closed: nothing left to say to friends.
   useEffect(() => {
     if (!target) setMyWatching(undefined);
@@ -103,7 +108,7 @@ export function TvMiniPlayer() {
 
   const expand = () => {
     closeMini();
-    navigate(watchPathFor(type, target.media.id, target.season, target.episode, target.along?.id), {
+    navigate(watchPathFor(type, target.media.id, target.season, target.episode, target.along?.id, sourceNow ?? target.source), {
       state: { media: target.media, tab: 'home', ...(target.along ? { along: target.along.name } : {}) },
     });
   };
@@ -119,11 +124,13 @@ export function TvMiniPlayer() {
       <div className="relative aspect-video w-full">
         <Suspense fallback={<div className="grid size-full place-items-center bg-black"><TvLogo markOnly className="animate-pulse [&_img]:h-8" /></div>}>
           <TvStreamPlayer
-            key={`${target.media.id}-${target.season}-${target.episode}`}
+            key={`${target.media.id}-${target.season}-${target.episode}-${target.source ?? ''}`}
             mini
             media={target.media}
             initialSeason={target.season}
             initialEpisode={target.episode}
+            {...(target.source ? { initialSource: target.source } : {})}
+            onSourceChange={setSourceNow}
             onClose={closeMini}
           />
         </Suspense>
