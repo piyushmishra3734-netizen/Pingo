@@ -94,24 +94,40 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
         ? `https://vidrock.net/movie/${id}`
         : `https://vidrock.net/tv/${id}/${s}/${e}`,
   },
+  {
+    id: 'nontongo',
+    name: 'NontonGo',
+    badge: 'MIX',
+    autoStarts: true,
+    buildUrl: (type, id, s, e) =>
+      type === 'movie'
+        ? `https://www.nontongo.win/embed/movie/${id}`
+        : `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
+  },
 ];
 
 /**
  * Which source to try first, per kind of title. This is measurement, not taste.
  *
  *   movie  VidFast plays on its own in seconds and has a multiple-audio server;
- *          AutoEmbed needs a tap; VidRock resolved a film's exact runtime.
+ *          NontonGo resolves a real CDN and lets its own player pick between
+ *          MIX / HD / VIP; AutoEmbed needs a tap; VidRock resolved a film's
+ *          exact runtime.
  *   tv     AutoEmbed opens a real episode player ("Breaking Bad 2008 1-1").
- *          VidFast sat on "LOADING, ONE MOMENT..." for 42s on the same episode,
- *          so it is the fallback here rather than the first thing a viewer sees.
- *          VidRock is absent: it has no episodes at all.
+ *          NontonGo opens its player and buffers. VidFast sat on "LOADING, ONE
+ *          MOMENT..." for 42s on the same episode, so it is last here.
  *
  * A source left out of a list is not shown for that kind of title, which is the
  * point — offering a source that cannot work is the bug this replaced.
+ *
+ * NontonGo is the only one of the four that is not a `vidsrc`-style aggregator
+ * or a paid embed: it is its own site with its own CDN, and it is the only one
+ * that sends `X-Frame-Options: ALLOWALL`, so it is the least likely to break
+ * because of a framing change.
  */
 const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
-  movie: ['vidfast', 'autoembed', 'vidrock'],
-  tv: ['autoembed', 'vidfast'],
+  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock'],
+  tv: ['autoembed', 'nontongo', 'vidfast'],
 };
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
