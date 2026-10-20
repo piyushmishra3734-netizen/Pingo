@@ -806,8 +806,26 @@ export function TvStreamPlayer({
   };
 
   // A resolved playlist that dies is the same situation as a resolver that
-  // returned nothing: walk on, or hand the viewer the site.
+  // A playlist that answered but will not play is the same as one that did not
+  // answer: mark it and go to the next source that is already confirmed.
   const handleStreamFailure = () => {
+    setProbes((current) => ({
+      ...current,
+      [provider.id]: { ...(current[provider.id] ?? { id: provider.id }), status: 'empty', url: undefined },
+    }));
+
+    const nextReady = rankProbes(
+      Object.values(probes).filter((probe) => probe.status === 'ready' && probe.id !== provider.id),
+      SOURCE_ORDER[mediaType] ?? [],
+      audioPrefValue.current,
+    )[0];
+
+    if (nextReady) {
+      selectSource(nextReady.id, false);
+      notify(`Switched to ${nextReady.id.replace(/^fx-/, '')}`, 2500);
+      return;
+    }
+
     const next = available[providerIndex + 1];
     if (next && !autoVisitedRef.current.has(next.id)) {
       autoVisitedRef.current.add(next.id);

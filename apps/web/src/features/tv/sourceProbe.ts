@@ -54,10 +54,30 @@ async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: num
 }
 
 /**
+ * Does this playlist contain a variant the browser can actually decode?
+ *
+ * A playlist URL that answers 200 is not a stream that plays. Several of these
+ * servers publish 4K variants in HEVC (`hvc1`/`hev1`), which Chrome on Windows
+ * has no decoder for — the element reports MEDIA_ERR_SRC_NOT_SUPPORTED (code 4)
+ * and the viewer gets a black rectangle that looked like a working source in
+ * every check before this one.
+ *
+ * H.264 (`avc1`) is the codec every browser here can play, so a playlist with at
+ * least one `avc1` variant is playable; one with only HEVC is not.
+ */
+export function playlistIsPlayable(text: string): boolean {
+  const codecLists = [...text.matchAll(/CODECS="([^"]+)"/gi)].map((match) => (match[1] ?? '').toLowerCase());
+  if (!codecLists.length) return true; // a media playlist, not a master: let the player try
+  return codecLists.some((list) => list.includes('avc1'));
+}
+
+/**
  * Ask one resolver provider for this exact episode.
  *
  * This is the only probe that can answer "does this source have it", because it
- * returns the playlist itself rather than a page that has to be trusted.
+ * returns the playlist itself rather than a page that has to be trusted — and
+ * because the playlist can be read, the audio it carries and the codecs it
+ * offers are both answerable before anything is shown to the viewer.
  */
 export async function probeResolver(
   apiProvider: string,
@@ -92,13 +112,26 @@ export async function probeResolver(
     return { id: apiProvider, status: 'empty', ms };
   }
 
+  // Read the playlist itself: an URL that answers is not the same as a stream
+  // this browser can decode.
+  const playlistUrl = first.url;
+  const playlist = await withTimeout(async (signal) => {
+    const response = await fetch(playlistUrl, { signal });
+    if (!response.ok) return null;
+    return await response.text();
+  }, PROBE_TIMEOUT_MS);
+
+  if (playlist === null || !playlistIsPlayable(playlist)) {
+    return { id: apiProvider, status: 'empty', quality: first.quality, ms: Date.now() - started };
+  }
+
   return {
     id: apiProvider,
     status: 'ready',
     url: first.url,
     quality: first.quality,
     audio: (first.audioTracks ?? []).map((track) => track.label || track.language || '').filter(Boolean),
-    ms,
+    ms: Date.now() - started,
   };
 }
 
