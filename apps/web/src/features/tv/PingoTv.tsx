@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bookmark, History, Loader2, Search, Trash2, X } from 'lucide-react';
+import { Bookmark, History, Loader2, MessageCircle, Search, Trash2, X } from 'lucide-react';
 import { Toggle, cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
 import { TAB_PATH, parseTvPath, titlePath, trailerPath, useRouteMedia, watchPath, type TvNavState } from './routes.js';
@@ -24,6 +24,7 @@ import { TvHeroBanner } from './components/TvHeroBanner.js';
 import { TvMediaRail } from './components/TvMediaRail.js';
 import { TvMediaCard } from './components/TvMediaCard.js';
 import { TvSearch } from './components/TvSearch.js';
+import { TvChatDrawer } from './components/TvChatDrawer.js';
 import { TvMediaDetailsModal } from './components/TvMediaDetailsModal.js';
 import { TmdbAttribution } from './components/TmdbAttribution.js';
 
@@ -50,6 +51,7 @@ export function PingoTv() {
    */
   const alongId = route.kind === 'watch' ? (new URLSearchParams(location.search).get('along') ?? undefined) : undefined;
   const alongName = (location.state as { along?: string } | null)?.along;
+  const [chatOpen, setChatOpen] = useState(false);
   const [episodeNow, setEpisodeNow] = useState<{ s: number; e: number } | null>(null);
   // The server the film is playing from, told to friends so they can open the same one.
   const [sourceNow, setSourceNow] = useState<string | undefined>(undefined);
@@ -296,6 +298,15 @@ export function PingoTv() {
                 <Bookmark className="size-[22px]" />
                 {watchlist.length > 0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand ring-2 ring-black/40" />}
               </button>
+              <button
+                type="button"
+                aria-label="Chat"
+                title="Chat with friends"
+                onClick={() => setChatOpen(true)}
+                className="grid size-10 place-items-center rounded-full text-white/85 transition-colors hover:bg-white/10"
+              >
+                <MessageCircle className="size-[22px]" />
+              </button>
             </div>
           </div>
           <nav aria-label="Pingo TV" className="flex items-center gap-2 overflow-x-auto px-4 pb-3 pt-1 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
@@ -532,6 +543,8 @@ export function PingoTv() {
           <TvTrailerPlayer media={overlayMedia} onClose={goBack} />
         </Suspense>
       )}
+
+      {route.kind !== 'watch' && <TvChatDrawer variant="browse" open={chatOpen} onClose={() => setChatOpen(false)} {...(alongId ? { alongId } : {})} />}
     </div>
   );
 }

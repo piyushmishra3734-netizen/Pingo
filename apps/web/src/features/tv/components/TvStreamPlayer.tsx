@@ -4,6 +4,7 @@ import {
   ExternalLink,
   Film,
   Maximize2,
+  MessageCircle,
   PictureInPicture2,
   Play,
   RefreshCw,
@@ -21,6 +22,7 @@ import { TvLogo } from './TvLogo.js';
 import { setPopupGuard } from '../../native/popup-guard.js';
 import { TvFindingScreen } from './TvFindingScreen.js';
 import { TvSourceMenu } from './TvSourceMenu.js';
+import { TvChatDrawer } from './TvChatDrawer.js';
 import {
   probeIframe,
   probeResolver,
@@ -482,6 +484,7 @@ export function TvStreamPlayer({
   }, [season, episode]);
 
   const [isTheater, setIsTheater] = useState<boolean>(false);
+  const [chatOpen, setChatOpen] = useState<boolean>(false);
   const [autoFallback, setAutoFallback] = useState<boolean>(true);
   const [countdown, setCountdown] = useState<number | null>(null);
   /** Set when no source would play here, so the viewer is offered the real site. */
@@ -1418,6 +1421,22 @@ export function TvStreamPlayer({
                   }}
                 />
                 {!settled && <TvFindingScreen compact={mini} slow={slow} />}
+                </>
+              )}
+
+              {/* Full screen has no side panel, so the chat comes over the picture. */}
+              {isTheater && !mini && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Chat"
+                    title="Chat"
+                    onClick={() => setChatOpen((open) => !open)}
+                    className="absolute right-[8.5rem] top-3 z-30 grid size-8 place-items-center rounded-lg bg-black/60 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition hover:bg-black/75 active:scale-95"
+                  >
+                    <MessageCircle className="size-4" />
+                  </button>
+                  <TvChatDrawer variant="overlay" open={chatOpen} onClose={() => setChatOpen(false)} {...(alongId ? { alongId } : {})} />
                 </>
               )}
 
