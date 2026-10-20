@@ -566,7 +566,14 @@ export function TvStreamPlayer({
     // Every source is asked in the same tick: the answers arrive together and
     // are ranked once, instead of one source holding up the queue.
     void Promise.all([
-      ...resolverSources.map(async (p) => probeResolver(p.apiProvider!, mediaType, media.id, season, episode)),
+      // The resolver answers with its own provider name ('giant'), so the result
+      // is re-keyed to the app's id ('fx-giant') — everything downstream looks
+      // the answer up by the id the lineup uses, not by the API's.
+      ...resolverSources.map(async (p) =>
+        Object.assign(await probeResolver(p.apiProvider!, mediaType, media.id, season, episode), {
+          id: p.id,
+        }),
+      ),
       ...iframeSources.map(async (p): Promise<SourceProbe> => {
         const started = Date.now();
         const status = await probeIframe(p.buildUrl(mediaType, media.id, season, episode));
@@ -625,7 +632,8 @@ export function TvStreamPlayer({
 
     void probeResolver(provider.apiProvider, mediaType, media.id, season, episode).then((result) => {
       if (!live) return;
-      setProbes((current) => ({ ...current, [result.id]: result }));
+      // Keyed by the lineup's id, not the resolver's.
+      setProbes((current) => ({ ...current, [provider.id]: { ...result, id: provider.id } }));
     });
 
     return () => {
