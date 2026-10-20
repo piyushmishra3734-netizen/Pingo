@@ -188,6 +188,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BackgroundPlugin.class);
         registerPlugin(PushActions.class);
         registerPlugin(MediaControlsPlugin.class);
+        registerPlugin(PopupGuardPlugin.class);
 
         super.onCreate(savedInstanceState);
 
@@ -284,6 +285,16 @@ public class MainActivity extends BridgeActivity {
                     }
                     callback.onReceiveValue(uris);
                 }, params);
+            }
+
+            /*
+             * Only ever called while PopupGuardPlugin has windows switched on,
+             * which is while an embedded player is on screen. Refusing means
+             * the page's window.open returns null and nothing opens.
+             */
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                return false;
             }
 
             @Override

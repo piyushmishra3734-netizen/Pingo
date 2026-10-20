@@ -18,6 +18,7 @@ import type { MediaType, TmdbMedia } from '../types.js';
 import { TvEpisodePanel } from './TvEpisodePanel.js';
 import { TvHlsPlayer } from './TvHlsPlayer.js';
 import { TvLogo } from './TvLogo.js';
+import { setPopupGuard } from '../../native/popup-guard.js';
 import { TvFindingScreen } from './TvFindingScreen.js';
 import { TvSourceMenu } from './TvSourceMenu.js';
 import {
@@ -590,6 +591,14 @@ export function TvStreamPlayer({
     return () => window.clearTimeout(t);
   }, [media.id, season, episode, reloadKey]);
   const holdFrame = autoMode && probing && !holdExpired && provider.kind !== 'hls';
+
+  // An embedded page is on screen: in the Android app it may not open windows.
+  const embedShown = provider.kind !== 'hls' && !holdFrame;
+  useEffect(() => {
+    if (!embedShown) return;
+    setPopupGuard(true);
+    return () => setPopupGuard(false);
+  }, [embedShown]);
 
 
   const rememberChoice = useCallback(
