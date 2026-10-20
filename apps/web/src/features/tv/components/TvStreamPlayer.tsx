@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Check,
   ExternalLink,
   Film,
   Maximize2,
   PictureInPicture2,
-  MonitorPlay,
   Play,
   RefreshCw,
   SkipForward,
@@ -20,6 +18,8 @@ import type { MediaType, TmdbMedia } from '../types.js';
 import { TvEpisodePanel } from './TvEpisodePanel.js';
 import { TvHlsPlayer } from './TvHlsPlayer.js';
 import { TvLogo } from './TvLogo.js';
+import { TvFindingScreen } from './TvFindingScreen.js';
+import { TvSourceMenu } from './TvSourceMenu.js';
 import {
   probeIframe,
   probeResolver,
@@ -475,6 +475,10 @@ export function TvStreamPlayer({
   const [hasStarted, setHasStarted] = useState<boolean>(false);
   /** By default only sources that answered are listed; this reveals the rest. */
   const [showAllSources, setShowAllSources] = useState<boolean>(false);
+  /** UI only: true while the viewer has not picked a source by hand. */
+  const [autoMode, setAutoMode] = useState<boolean>(!initialSource);
+  /** UI only: an embedded frame has rendered something, so the finding screen can go. */
+  const [frameLoaded, setFrameLoaded] = useState<boolean>(false);
   /**
    * Every source's answer for this title, keyed by provider id — the result of
    * asking all of them at once on mount.
@@ -583,6 +587,7 @@ export function TvStreamPlayer({
 
   // Manual pick: the viewer knows better than the heuristic, so stop guessing.
   const handleSelectProvider = (id: string) => {
+    setAutoMode(false);
     requestedSource.current = null;
     manualPickRef.current = true;
     claimedRef.current = true;
@@ -932,6 +937,26 @@ export function TvStreamPlayer({
   const hiddenCount = available.length - workingChips.length;
   const visibleChips = showAllSources ? available : workingChips;
 
+  // Back to automatic: the same ranking the batch probe used, over what it found.
+  const handleAutoSource = () => {
+    setAutoMode(true);
+    requestedSource.current = null;
+    manualPickRef.current = false;
+    const best = rankProbes(
+      Object.values(probes).filter((p) => p.status === 'ready' || p.status === 'reachable'),
+      SOURCE_ORDER[mediaType] ?? [],
+      audioPrefValue.current,
+    )[0];
+    if (best && best.id !== activeId) selectSource(best.id, false);
+  };
+
+  useEffect(() => {
+    setFrameLoaded(false);
+    // A frame that never fires `load` must not hide the picture forever.
+    const t = window.setTimeout(() => setFrameLoaded(true), 25000);
+    return () => window.clearTimeout(t);
+  }, [provider.id, season, episode, reloadKey]);
+
   return (
     <div className={cn(mini ? 'relative h-full w-full bg-black' : 'fixed inset-0 z-[230] flex bg-black animate-fadeIn')}>
       {/* Main Player Box */}
@@ -1209,23 +1234,10 @@ export function TvStreamPlayer({
                   ) : null}
 
                   {/* The finding screen lasts until the film is actually moving. */}
-                  {!hasStarted && (
-                    <div className="absolute inset-0 z-10 grid place-items-center bg-black/90 px-6">
-                      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-                        <div className="size-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
-                        <p className="text-sm font-semibold text-white/85">
-                          Finding the best provider for you…
-                        </p>
-                        <p className="text-[11px] leading-relaxed text-white/45">
-                          {activeStream
-                            ? 'Opening it now. It runs on your device and your connection.'
-                            : `${Object.keys(probes).length} of ${available.length} checked — playback starts the moment a source answers.`}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {!hasStarted && <TvFindingScreen compact={mini} />}
                 </>
               ) : (
+                <>
                 <iframe
                   key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
                   src={streamUrl}
@@ -1239,6 +1251,7 @@ export function TvStreamPlayer({
                     // timer: this is as close to "it works" as a cross-origin
                     // frame can get, and the fallback never overrides it.
                     loadedRef.current = true;
+                    setFrameLoaded(true);
                   }}
                   onError={() => {
                     if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
@@ -1248,97 +1261,29 @@ export function TvStreamPlayer({
                     }
                   }}
                 />
+                {!frameLoaded && <TvFindingScreen compact={mini} />}
+                </>
               )}
-            </div>
 
-            {/* Player Bottom Control Strip */}
-            <div className={cn('flex-col gap-2.5 border-t border-white/10 bg-[#12141c] px-4 py-2.5', mini ? 'hidden' : 'flex')}>
-              {/* Source Selector Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
-                  <MonitorPlay className="size-3.5 text-brand" />
-                  <span>
-                    {probing
-                      ? `Finding sources… ${workingChips.length}/${available.length}`
-                      : `Sources (${visibleChips.length})`}
-                  </span>
-                  {hiddenCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllSources((current) => !current)}
-                      className="rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold normal-case tracking-normal text-text-secondary ring-1 ring-white/10 transition-colors hover:text-white"
-                      title="Sources that answered nothing are hidden by default"
-                    >
-                      {showAllSources ? 'Only working' : `+${hiddenCount} not working`}
-                    </button>
-                  )}
-                  {/* Always available: some frames load and then show nothing,
-                      and nothing cross-origin can detect that. The viewer needs
-                      a way out that is not "give up". */}
-                  <a
-                    href={streamUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`Open ${provider.name} on its own site`}
-                    className="ml-1 flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold normal-case tracking-normal text-text-secondary ring-1 ring-white/10 transition-colors hover:text-white"
-                  >
-                    <ExternalLink className="size-3" />
-                    <span className="hidden sm:inline">Open on {provider.name}</span>
-                  </a>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {visibleChips.map((p) => {
-                    const active = activeId === p.id;
-                    const probe = probes[p.id];
-                    /*
-                     * Green is proof: this source returned a playlist for this
-                     * exact episode during the batch probe. Amber is weaker —
-                     * the host answered, but a cross-origin frame cannot be
-                     * asked whether it has the title. Dim is "no".
-                     */
-                    const dot =
-                      probe?.status === 'ready'
-                        ? 'bg-emerald-400'
-                        : probe?.status === 'reachable'
-                          ? 'bg-amber-400'
-                          : probe
-                            ? 'bg-white/25'
-                            : 'bg-white/10 animate-pulse';
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleSelectProvider(p.id)}
-                        title={probe ? `${p.name} · ${probe.status}` : `${p.name} · checking`}
-                        className={cn(
-                          'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all active:scale-95',
-                          active
-                            ? 'bg-brand text-on-brand shadow-sm'
-                            : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white ring-1 ring-white/10',
-                        )}
-                      >
-                        <span className={cn('size-1.5 shrink-0 rounded-full', dot)} aria-hidden />
-                        <span>{p.name}</span>
-                        {p.badge && (
-                          <span
-                            className={cn(
-                              'rounded px-1.5 py-0.2 text-[9px] font-bold uppercase',
-                              active
-                                ? 'bg-white/20 text-white'
-                                : p.isHindi
-                                  ? 'bg-amber-500/20 text-amber-300'
-                                  : 'bg-brand/20 text-brand',
-                            )}
-                          >
-                            {p.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {!mini && (
+                <TvSourceMenu
+                  items={visibleChips.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    status: probes[p.id]?.status,
+                    badge: p.badge,
+                  }))}
+                  activeId={activeId}
+                  autoMode={autoMode}
+                  onAuto={handleAutoSource}
+                  onPick={handleSelectProvider}
+                  hiddenCount={hiddenCount}
+                  showAll={showAllSources}
+                  onToggleAll={() => setShowAllSources((current) => !current)}
+                  openUrl={streamUrl}
+                  openName={provider.name}
+                />
+              )}
             </div>
           </div>
 
