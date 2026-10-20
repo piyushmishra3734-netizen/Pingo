@@ -1,5 +1,6 @@
+import { MusicMark } from './MusicMark.js';
 import { cn } from '@pingo/ui';
-import { AudioLines, Clapperboard, Music2, Pause, Play, Trash2, Upload, X } from 'lucide-react';
+import { AudioLines, Clapperboard, Pause, Play, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { fmt, type Song } from './sheets.js';
@@ -175,7 +176,7 @@ export function UploadsShelf({
           </button>
           <span className="min-w-0 flex-1">
             <span className={cn('flex items-center gap-1.5 truncate text-[14.5px] font-medium', t.title)}>
-              <Music2 size={12} className="shrink-0 opacity-60" />
+              <MusicMark size={13} className="opacity-70" />
               <span className="truncate">{song.name}</span>
             </span>
             <span className={cn('block truncate text-[12.5px]', t.sub)}>{[song.artist, song.secs ? fmt(song.secs) : ''].filter(Boolean).join(' · ') || 'Your upload'}</span>

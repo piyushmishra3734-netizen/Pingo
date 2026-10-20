@@ -1,5 +1,6 @@
+import { MusicMark } from '../MusicMark.js';
 import { cn } from '@pingo/ui';
-import { CircleArrowDown, Ellipsis, Loader2, Music2 } from 'lucide-react';
+import { CircleArrowDown, Ellipsis, Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { Album, Artist, Channel, Item, Playlist, Song, Station } from '../saavn/types.js';
@@ -108,7 +109,7 @@ export function Cover({ src, className, round }: { src?: string; className?: str
     <img src={src} alt="" loading="lazy" draggable={false} onError={() => setFailed(src)} className={cn('shrink-0 bg-sunken object-cover', round ? 'rounded-full' : 'rounded-[10px]', className)} />
   ) : (
     <span className={cn('grid shrink-0 place-items-center bg-sunken text-text-tertiary', round ? 'rounded-full' : 'rounded-[10px]', className)}>
-      <Music2 size={18} />
+      <MusicMark size={22} />
     </span>
   );
 }

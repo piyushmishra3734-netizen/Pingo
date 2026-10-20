@@ -95,9 +95,10 @@ import { DisappearingSheet } from './DisappearingSheet.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { useListening } from '../music/listening.js';
 import { ListenAlongBar } from '../music/ListenAlongBar.js';
+import { MusicMark } from '../music/MusicMark.js';
 import { useWatching, watchingLine } from '../tv/watching.js';
 import { WatchAlongBar } from '../tv/WatchAlongBar.js';
-import { Clapperboard, Headphones, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
+import { Clapperboard, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
@@ -1732,7 +1733,7 @@ export function ChatThread({
             </span>
           ) : (
             <span className={cn('flex max-w-full items-center gap-1 text-[12.5px]', headerLive ? 'text-brand' : 'text-text-secondary')}>
-              {partnerWatching ? <Clapperboard size={12} strokeWidth={2.4} className="shrink-0" aria-hidden /> : partnerListening && <Headphones size={12} strokeWidth={2.4} className="shrink-0" aria-hidden />}
+              {partnerWatching ? <Clapperboard size={12} strokeWidth={2.4} className="shrink-0" aria-hidden /> : partnerListening && <MusicMark size={14} />}
               <span className="truncate">{headerStatus}</span>
             </span>
           )}

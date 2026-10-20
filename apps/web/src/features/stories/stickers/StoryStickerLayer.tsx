@@ -1,5 +1,6 @@
+import { MusicMark } from '../../music/MusicMark.js';
 import { useChat, type StickerAnswer, type StickerResult, type Story, type StorySticker } from '@pingo/core';
-import { AtSign, ExternalLink, Hash, Image as ImageIcon, MapPin, Music2 } from 'lucide-react';
+import { AtSign, ExternalLink, Hash, Image as ImageIcon, MapPin } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useStories } from '../StoryContext.js';
@@ -91,7 +92,7 @@ export function StoryStickerLayer({
       case 'question': setReply(''); return setAsking(s);
       case 'loc': return setTip({ text: `See ${d.text} on the map`, icon: <MapPin size={16} />, go: () => window.open(`https://www.google.com/maps/search/${encodeURIComponent(d.text ?? '')}`, '_blank', 'noopener'), ...at });
       case 'tag': return setTip({ text: `See #${d.text}`, icon: <Hash size={16} />, ...at });
-      case 'music': return setTip({ text: `${d.name} · Play full song`, icon: <Music2 size={16} />, ...at });
+      case 'music': return setTip({ text: `${d.name} · Play full song`, icon: <MusicMark size={18} />, ...at });
       case 'post': return setTip({ text: 'View post', icon: <ImageIcon size={16} />, ...(d.user ? { go: () => onOpenProfile(d.user!) } : {}), ...at });
     }
   };

@@ -1,5 +1,6 @@
+import { MusicMark } from './MusicMark.js';
 import { cn } from '@pingo/ui';
-import { Music2, Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
+import { Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
 import { musicPlayer, useMusicPlayer } from './player.js';
 import { fmt } from './sheets.js';
 import type { SharedSong } from './song-share.js';
@@ -54,7 +55,7 @@ export function SongCard({ song, mine }: { song: SharedSong; mine: boolean }) {
 
       <div className="relative flex flex-col gap-3 p-3.5">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-white/80 uppercase">
-          <Music2 size={13} />
+          <MusicMark size={14} />
           PINGO Music
         </div>
 
@@ -62,7 +63,7 @@ export function SongCard({ song, mine }: { song: SharedSong; mine: boolean }) {
           {song.img ? (
             <img src={song.img} alt="" className={cn('size-16 shrink-0 rounded-[12px] object-cover shadow-lg transition-transform duration-500', on && 'scale-105')} />
           ) : (
-            <span className="grid size-16 shrink-0 place-items-center rounded-[12px] bg-white/15"><Music2 size={26} /></span>
+            <span className="grid size-16 shrink-0 place-items-center rounded-[12px] bg-white/15"><MusicMark size={32} /></span>
           )}
           <div className="min-w-0 flex-1">
             <p className="line-clamp-2 text-[15px] leading-snug font-bold">{song.name}</p>

@@ -1,6 +1,7 @@
+import { MusicMark } from '../music/MusicMark.js';
 import { STORY_PHOTO_MS, useChat, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Music2, Repeat2, Send, Star, Trash2, X } from 'lucide-react';
+import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Repeat2, Send, Star, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -387,7 +388,7 @@ export function StoryViewer({
                 )}
                 {song?.name && (
                   <div className="flex max-w-[190px] items-center gap-[5px] overflow-hidden text-[12px] opacity-[.92]">
-                    <Music2 size={12} className="shrink-0" />
+                    <MusicMark size={13} />
                     <span className="sv-marquee whitespace-nowrap">{song.name} · {song.artist}</span>
                   </div>
                 )}

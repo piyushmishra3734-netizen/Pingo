@@ -1,5 +1,6 @@
+import { MusicMark } from './MusicMark.js';
 import { cn } from '@pingo/ui';
-import { ChevronRight, ListMusic, Music2 } from 'lucide-react';
+import { ChevronRight, ListMusic } from 'lucide-react';
 
 import { openMusicAt, preloadMusic } from './app/sheet-store.js';
 import { KIND_LABEL, type SharedCollection } from './music-share.js';
@@ -28,7 +29,7 @@ export function CollectionCard({ item, mine }: { item: SharedCollection; mine: b
 
       <span className="relative flex flex-col gap-3 p-3.5">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-white/80 uppercase">
-          <Music2 size={13} />
+          <MusicMark size={14} />
           PINGO Music · {KIND_LABEL[item.kind]}
         </span>
         <span className="flex items-center gap-3">

@@ -1,5 +1,6 @@
+import { MusicMark } from './MusicMark.js';
 import { cn } from '@pingo/ui';
-import { Check, Music2, Pause, Play, Search, Upload } from 'lucide-react';
+import { Check, Pause, Play, Search, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { MUSIC_SHELVES, More, PlaylistRow, UPLOADS, useCatalogue } from './catalogue.js';
@@ -92,7 +93,7 @@ export function ClipSheet(p: { close: () => void; song?: Song; setSong: (s: Song
   return (
     <Panel onClose={p.close}>
       <div className="flex items-center gap-2.5 px-4 pb-3">
-        {s.img ? <img src={s.img} alt="" className="size-11 rounded-[8px]" /> : <span className="grid size-11 place-items-center rounded-[8px] bg-white/10"><Music2 size={20} /></span>}
+        {s.img ? <img src={s.img} alt="" className="size-11 rounded-[8px]" /> : <span className="grid size-11 place-items-center rounded-[8px] bg-white/10"><MusicMark size={24} /></span>}
         <div className="min-w-0 flex-1"><b className="block truncate">{s.name}</b><span className="text-[13px] text-white/60">{s.artist}</span></div>
         <button type="button" onClick={p.close} className="font-bold text-media-accent">Done</button>
       </div>

@@ -1,6 +1,7 @@
+import { MusicMark } from './MusicMark.js';
 import type { ProfileSong } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { Music2, Pause, Play } from 'lucide-react';
+import { Pause, Play } from 'lucide-react';
 
 import { musicPlayer, useMusicPlayer } from './player.js';
 
@@ -38,7 +39,7 @@ export function ProfileSongCard({ song, className, trailing }: { song: ProfileSo
         {song.img ? (
           <img src={song.img} alt="" className="size-full object-cover" />
         ) : (
-          <span className="grid size-full place-items-center bg-brand-soft text-brand"><Music2 size={20} /></span>
+          <span className="grid size-full place-items-center bg-brand-soft text-brand"><MusicMark size={24} /></span>
         )}
         <span className="absolute inset-0 grid place-items-center bg-black/30 text-white">
           {loading ? (
@@ -70,7 +71,7 @@ export function ProfileSongCard({ song, className, trailing }: { song: ProfileSo
 
 /** Three bars that dance while the song plays, and rest as a music mark when it does not. */
 function Equalizer({ on }: { on: boolean }) {
-  if (!on) return <Music2 size={13} className="shrink-0 text-brand" aria-hidden />;
+  if (!on) return <MusicMark size={14} />;
   return (
     <span aria-hidden className="flex h-3 shrink-0 items-end gap-[2px]">
       {[0, 150, 300].map((delay) => (

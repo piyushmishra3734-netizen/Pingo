@@ -1,5 +1,6 @@
+import { MusicMark } from '../music/MusicMark.js';
 import { useAuth, useProfile, type ChatMediaItem } from '@pingo/core';
-import { Camera, CloudOff, Images, LayoutTemplate, Music2, Radio, Settings, Trash2, X } from 'lucide-react';
+import { Camera, CloudOff, Images, LayoutTemplate, Radio, Settings, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
@@ -56,7 +57,7 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
           </header>
           <div className="scrollbar-none flex gap-2 overflow-x-auto px-3.5 pb-2.5">
             <button type="button" onClick={onTemplate} className={tab}><LayoutTemplate />Templates</button>
-            <button type="button" onClick={onMusic} className={tab}><Music2 />Music</button>
+            <button type="button" onClick={onMusic} className={tab}><MusicMark size={15} />Music</button>
             <button type="button" onClick={onCollage} className={tab}><Images />Collage</button>
             {onLive && <button type="button" onClick={onLive} className={tab}><Radio className="text-danger" />Live</button>}
           </div>

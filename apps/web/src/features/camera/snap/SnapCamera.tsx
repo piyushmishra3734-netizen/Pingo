@@ -1,6 +1,7 @@
+import { MusicMark } from '../../music/MusicMark.js';
 import { cn } from '@pingo/ui';
 import {
-  CircleOff, Grid3x3, ImagePlus, Moon, Music2, PictureInPicture2, Plus, ScanLine, Search, Sparkles, SwitchCamera, Timer, X, Zap, ZapOff,
+  CircleOff, Grid3x3, ImagePlus, Moon, PictureInPicture2, Plus, ScanLine, Search, Sparkles, SwitchCamera, Timer, X, Zap, ZapOff,
   Rows2, Columns2,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -495,7 +496,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
             <Tool label="Timer" on={timer > 0} onClick={() => { const t = TIMERS[(TIMERS.indexOf(timer) + 1) % TIMERS.length]!; setTimer(t); say(t ? `Timer ${t}s` : 'Timer off'); }}>
               <Timer />{timer > 0 && <small className="absolute -top-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-sweep text-[9px] font-bold text-white">{timer}</small>}
             </Tool>
-            <Tool label="Music" on={!!song} onClick={() => setSheet('music')}><Music2 /></Tool>
+            <Tool label="Music" on={!!song} onClick={() => setSheet('music')}><MusicMark size={22} /></Tool>
             <Tool label="Dual camera" on={dual !== 'off'} onClick={() => setDualOpen((o) => !o)}><PictureInPicture2 /></Tool>
             <Tool label="More" on={rail} onClick={() => setRail((r) => !r)}><Plus className={cn('transition-transform', rail && 'rotate-45')} /></Tool>
           </div>

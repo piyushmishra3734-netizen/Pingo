@@ -1,3 +1,4 @@
+import { MusicMark } from '../music/MusicMark.js';
 import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type StoryBoom, type StoryDecor, type StoryDraft, type StoryFrame, type StorySticker } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import {
@@ -837,7 +838,7 @@ function StickerTray(p: SheetsProps & { close: () => void }) {
   const chips: [string, ReactNode, string, () => void][] = [
     ['loc', <><MapPin size={14} />LOCATION</>, 'text-[#8b3dff]', () => p.setKind('loc')],
     ['men', <>@MENTION</>, 'text-[#ff7a00]', () => p.setKind('mention')],
-    ['music', <><Music2 size={14} />MUSIC</>, 'text-[#e0559b]', () => p.setKind('music')],
+    ['music', <><MusicMark size={15} />MUSIC</>, 'text-[#e0559b]', () => p.setKind('music')],
     ['question', <>QUESTIONS</>, 'text-white', () => { p.add({ type: 'question', d: { q: 'Ask me a question' } }); p.close(); }],
     ['poll', <><b className="text-[#16a34a]">POLL</b><i className="not-italic text-[#ff3b30]">•</i></>, '', () => { p.add({ type: 'poll', d: { q: 'Ask a question…', opts: ['YES', 'NO'] } }); p.close(); }],
     ['countdown', <><AlarmClock size={14} />COUNTDOWN</>, 'text-white', () => p.setKind('countdown')],

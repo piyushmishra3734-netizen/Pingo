@@ -1,9 +1,10 @@
+import { MusicMark } from '../features/music/MusicMark.js';
 import { isValidUsername, normaliseUsername, useProfile, type ProfileSong } from '@pingo/core';
 import { Sheet } from '../components/Sheet.js';
 import { ChatMusicPicker } from '../features/music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
 import { Avatar, Button, CameraIcon, TextField, TrashIcon, cn } from '@pingo/ui';
-import { AtSign, Briefcase, MapPin, Music2 } from 'lucide-react';
+import { AtSign, Briefcase, MapPin } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -518,7 +519,7 @@ export function EditProfileScreen() {
                 'transition-colors duration-instant hover:bg-hover active:scale-[0.99]',
               )}
             >
-              <span className="grid size-9 place-items-center rounded-full bg-brand-soft text-brand"><Music2 size={17} /></span>
+              <span className="grid size-9 place-items-center rounded-full bg-brand-soft text-brand"><MusicMark size={20} /></span>
               <span className="text-body font-medium text-ink">Add a song</span>
             </button>
           )}
