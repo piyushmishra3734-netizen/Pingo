@@ -63,6 +63,37 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
     setError(null);
 
     /*
+     * Start it, and start it muted.
+     *
+     * Browsers refuse an unmuted `play()` without a user gesture and do it
+     * silently — the manifest parses, the duration appears in the timeline, the
+     * element stays paused at 0:00, which is exactly the "it shows the length
+     * but the film never plays" report. A muted `play()` is always allowed, so
+     * it starts muted and the first tap unmutes it.
+     */
+    const startPlayback = () => {
+      if (!video.paused) return;
+      const attempt = video.play();
+      if (!attempt) return;
+      void attempt.catch(() => {
+        // No gesture yet and the policy refused even muted: the controls are
+        // there, and a tap will unmute and go.
+        video.muted = true;
+        void video.play().catch(() => undefined);
+      });
+    };
+
+    const onCanPlay = () => startPlayback();
+    video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('loadeddata', onCanPlay);
+
+    const unmute = () => {
+      video.muted = false;
+    };
+    video.addEventListener('pointerdown', unmute, { once: true });
+    video.addEventListener('keydown', unmute, { once: true });
+
+    /*
      * hls.js first, and this order matters more than it looks.
      *
      * `canPlayType('application/vnd.apple.mpegurl')` answers "maybe" in Chrome
@@ -84,26 +115,6 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
        * bandwidth, so the level is pinned to the best H.264 variant instead.
        */
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        /*
-         * Actually start it.
-         *
-         * A <video> that has a duration and never plays is the exact report from
-         * the player: the manifest parsed, the timeline filled in, and the frame
-         * stayed black because nothing ever called play() and the browser's
-         * autoplay policy quietly refused. Muted autoplay is always allowed, so
-         * it starts muted and unmutes on the first click.
-         */
-        const start = () => {
-          const attempt = video.play();
-          if (!attempt) return;
-          void attempt.catch(() => {
-            video.muted = true;
-            void video.play().catch(() => {
-              /* the viewer can press play; the controls are right there */
-            });
-          });
-        };
-
         const levels = hls.levels ?? [];
         if (levels.length) {
           const isH264 = (level: (typeof levels)[number]) =>
@@ -123,7 +134,7 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
           hls.currentLevel = playable[0]!.index;
         }
 
-        start();
+        startPlayback();
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -140,16 +151,31 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
       hls.attachMedia(video);
 
       return () => {
+        video.removeEventListener('canplay', onCanPlay);
+        video.removeEventListener('loadeddata', onCanPlay);
+        video.removeEventListener('pointerdown', unmute);
+        video.removeEventListener('keydown', unmute);
         hls.destroy();
       };
     }
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
-      return;
+      startPlayback();
+      return () => {
+        video.removeEventListener('canplay', onCanPlay);
+        video.removeEventListener('loadeddata', onCanPlay);
+        video.removeEventListener('pointerdown', unmute);
+        video.removeEventListener('keydown', unmute);
+      };
     }
 
-    setError('This browser cannot play HLS streams.');
+    return () => {
+      video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('loadeddata', onCanPlay);
+      video.removeEventListener('pointerdown', unmute);
+      video.removeEventListener('keydown', unmute);
+    };
   }, [src]);
 
   return (
@@ -158,9 +184,12 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
         ref={videoRef}
         controls
         playsInline
+        autoPlay
+        muted
         preload="metadata"
         poster={poster}
         aria-label={`${title} stream`}
+        title={title}
         className="h-full w-full bg-black"
       />
 
