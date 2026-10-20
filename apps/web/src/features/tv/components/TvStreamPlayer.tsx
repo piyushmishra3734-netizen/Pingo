@@ -966,6 +966,35 @@ export function TvStreamPlayer({
     const t = window.setTimeout(() => setSettled(true), provider.kind === 'hls' ? 1200 : 2500);
     return () => window.clearTimeout(t);
   }, [settled, playing, provider.id, provider.kind]);
+  /*
+   * The finding screen must not be a place somebody can be left.
+   *
+   * It goes when `playing` turns true, and every source here can fail to reach
+   * that: a playlist that answers the probe and then does not load, a host that
+   * goes down between the probe and the mount. Without this, the viewer sits on
+   * a spinner with no way out — reported as "it is stuck on finding the best
+   * provider".
+   *
+   * After this long the player opens regardless, with the source picker, so the
+   * person can choose or open a source on its own site.
+   */
+  useEffect(() => {
+    if (settled) return;
+    const t = window.setTimeout(() => setSettled(true), 15000);
+    return () => window.clearTimeout(t);
+  }, [settled, media.id, season, episode, reloadKey]);
+
+  /*
+   * And when the answers are already in and none of them is playable, there is
+   * nothing left to wait for.
+   */
+  useEffect(() => {
+    if (settled || playing || probing) return;
+    const answers = Object.values(probes);
+    if (!answers.length) return;
+    if (answers.some((probe) => probe.status === 'ready')) return;
+    setSettled(true);
+  }, [settled, playing, probing, probes]);
   // A stream that died after settling leaves a blank frame: bring the screen back.
   useEffect(() => {
     if (!settled || provider.kind !== 'hls' || hasStarted) return;
