@@ -467,6 +467,26 @@ export function TvStreamPlayer({
   /** The playlist a resolver returned for an `hls` source, once it has one. */
   const [hlsStream, setHlsStream] = useState<ResolvedStream | null>(null);
   const [hlsLoading, setHlsLoading] = useState<boolean>(false);
+  /**
+   * Whether the tab is actually being looked at.
+   *
+   * A background tab does not run an iframe's `load` promptly — Chrome throttles
+   * it — so the grace timer would report "never loaded" for a frame that is
+   * perfectly fine and walk the whole lineup to the end. That is a bug in the
+   * fallback, not in the sources, and the guard is here rather than in a comment
+   * because it was seen: thirteen sources were exhausted on a tab that was simply
+   * not in front.
+   */
+  const [tabVisible, setTabVisible] = useState<boolean>(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible',
+  );
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onChange = () => setTabVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
   const [reloadKey, setReloadKey] = useState<number>(0);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -630,6 +650,11 @@ export function TvStreamPlayer({
      */
     if (provider.kind === 'hls') return;
 
+    // Nobody is watching a hidden tab, and Chrome will not run an iframe's
+    // `load` promptly in one. Judging sources from there is how a working
+    // lineup walks itself to the end and shows the "won't play here" card.
+    if (!tabVisible) return;
+
     // A title that already worked here does not get second-guessed.
     let alreadyKnown = false;
     try {
@@ -693,6 +718,7 @@ export function TvStreamPlayer({
     };
   }, [
     autoFallback,
+    tabVisible,
     provider.id,
     nextProvider,
     reloadKey,
