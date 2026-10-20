@@ -472,7 +472,7 @@ export async function searchMedia(query: string, page = 1): Promise<TmdbMedia[]>
 
 export async function fetchDetails(mediaType: MediaType, id: number | string): Promise<TmdbMediaDetails | null> {
   const details = await callProxy<TmdbMediaDetails>(`/${mediaType}/${id}`, {
-    append_to_response: 'videos,credits,similar',
+    append_to_response: 'videos,credits,similar,external_ids',
   });
   if (details) return details;
 

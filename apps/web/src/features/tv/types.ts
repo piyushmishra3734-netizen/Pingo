@@ -18,6 +18,13 @@ export interface TmdbMedia {
   popularity?: number;
   origin_country?: string[];
   original_language?: string;
+  /**
+   * IMDb id, when the details call brought one back.
+   *
+   * Stremio and the addons around it are keyed by `tt` ids, not TMDB ones, so
+   * this is what makes the backup links possible at all.
+   */
+  imdb_id?: string;
 }
 
 export interface TmdbGenre {
@@ -62,6 +69,10 @@ export interface TmdbMediaDetails {
   number_of_episodes?: number;
   tagline?: string;
   status?: string;
+  /** Brought back by `append_to_response=external_ids`, for the Stremio backup link. */
+  external_ids?: {
+    imdb_id?: string | null;
+  };
   videos?: {
     results: TmdbVideo[];
   };

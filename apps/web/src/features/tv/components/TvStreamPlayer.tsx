@@ -1253,6 +1253,37 @@ export function TvStreamPlayer({
                         <ExternalLink className="size-4" />
                         Open {provider.name}
                       </a>
+
+                      {/*
+                        The last resort, and a different kind of source.
+                        Stremio's addons carry a much larger catalogue than any
+                        of the embeds here — Torrentio alone answers for this
+                        exact title — but their streams are torrents, which an
+                        iframe cannot play. So the backup is a link out, keyed by
+                        the IMDb id the details call now brings back.
+                      */}
+                      {media.imdb_id && (
+                        <div className="flex gap-2">
+                          <a
+                            href={`https://web.stremio.com/#/detail/${mediaType}/${media.imdb_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-500/20 px-3 py-2 text-xs font-semibold text-indigo-200 ring-1 ring-indigo-400/30 transition-colors hover:bg-indigo-500/30"
+                          >
+                            <ExternalLink className="size-3.5" />
+                            Open in Stremio
+                          </a>
+                          <a
+                            href="https://nuvio.tv/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-text-secondary ring-1 ring-white/10 transition-colors hover:text-white"
+                          >
+                            <ExternalLink className="size-3.5" />
+                            Nuvio
+                          </a>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         {nextProvider && (
                           <button

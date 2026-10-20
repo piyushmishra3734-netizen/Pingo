@@ -70,6 +70,9 @@ function fromDetails(type: MediaType, d: TmdbMediaDetails): TmdbMedia {
     ...(d.first_air_date ? { first_air_date: d.first_air_date } : {}),
     genre_ids: d.genres.map((g) => g.id),
     media_type: type,
+    // Carried so the player can offer the Stremio/Nuvio backup, which are keyed
+    // by IMDb id rather than TMDB id.
+    ...(d.external_ids?.imdb_id ? { imdb_id: d.external_ids.imdb_id } : {}),
   };
 }
 

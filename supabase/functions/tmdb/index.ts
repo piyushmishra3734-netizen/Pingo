@@ -17,7 +17,7 @@ const CORS_HEADERS = {
 };
 
 const ALLOWED_ENDPOINT_REGEX =
-  /^\/(trending\/(all|movie|tv)\/(day|week)|(movie|tv)\/(popular|top_rated|now_playing|upcoming|on_the_air|airing_today|\d+(\/(videos|credits|similar|recommendations))?)|tv\/\d+\/season\/\d+|search\/(multi|movie|tv)|discover\/(movie|tv)|genre\/(movie|tv)\/list)$/;
+  /^\/(trending\/(all|movie|tv)\/(day|week)|(movie|tv)\/(popular|top_rated|now_playing|upcoming|on_the_air|airing_today|\d+(\/(videos|credits|similar|recommendations|external_ids))?)|tv\/\d+\/season\/\d+|search\/(multi|movie|tv)|discover\/(movie|tv)|genre\/(movie|tv)\/list)$/;
 
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') {
