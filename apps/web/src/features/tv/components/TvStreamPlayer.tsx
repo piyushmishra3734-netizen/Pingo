@@ -499,6 +499,8 @@ export function TvStreamPlayer({
   const selectedIdRef = useRef<string>(selectedProviderId);
   /** Once the picture is moving, nothing may switch sources under it. */
   const playingRef = useRef<boolean>(false);
+  /** Only a real tap on a source chip stops the automatic choice. */
+  const manualPickRef = useRef<boolean>(false);
 
   useEffect(() => {
     audioPrefValue.current = audioPref;
@@ -554,6 +556,7 @@ export function TvStreamPlayer({
 
   // Manual pick: the viewer knows better than the heuristic, so stop guessing.
   const handleSelectProvider = (id: string) => {
+    manualPickRef.current = true;
     claimedRef.current = true;
     selectSource(id, true);
     const target = available.find((p) => p.id === id);
@@ -600,7 +603,7 @@ export function TvStreamPlayer({
       const best = ranked[0];
 
       // The viewer may have picked a source while the answers were arriving.
-      if (best && !claimedRef.current) {
+      if (best && !manualPickRef.current) {
         if (!openedReady && best.status === 'ready') {
           openedReady = true;
           setProbing(false);
@@ -629,7 +632,7 @@ export function TvStreamPlayer({
 
       if (arrived === total) {
         setProbing(false);
-        if (!openedReady && !claimedRef.current) {
+        if (!openedReady && !manualPickRef.current) {
           const top = ranked[0];
           if (top) setSelectedProviderId(top.id);
           else setShowExternal(true);
@@ -668,6 +671,20 @@ export function TvStreamPlayer({
     const best = ranked[0];
     if (best) setSelectedProviderId(best.id);
   }, [audioPref, probing, probes, mediaType]);
+
+  /* -- 0c. Never sit on a source that cannot play while one that can exists - */
+  useEffect(() => {
+    if (manualPickRef.current || playingRef.current) return;
+    if (provider.kind !== 'hls') return;
+    if (probes[provider.id]?.status === 'ready') return;
+
+    const ready = rankProbes(
+      Object.values(probes).filter((probe) => probe.status === 'ready'),
+      SOURCE_ORDER[mediaType] ?? [],
+      audioPref,
+    )[0];
+    if (ready) setSelectedProviderId(ready.id);
+  }, [provider.id, provider.kind, probes, mediaType, audioPref]);
 
   /* -- 0b. A resolver source picked by hand may not have been asked yet ----- */
   useEffect(() => {

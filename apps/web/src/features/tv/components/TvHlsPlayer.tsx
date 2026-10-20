@@ -84,24 +84,46 @@ export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlay
        * bandwidth, so the level is pinned to the best H.264 variant instead.
        */
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        /*
+         * Actually start it.
+         *
+         * A <video> that has a duration and never plays is the exact report from
+         * the player: the manifest parsed, the timeline filled in, and the frame
+         * stayed black because nothing ever called play() and the browser's
+         * autoplay policy quietly refused. Muted autoplay is always allowed, so
+         * it starts muted and unmutes on the first click.
+         */
+        const start = () => {
+          const attempt = video.play();
+          if (!attempt) return;
+          void attempt.catch(() => {
+            video.muted = true;
+            void video.play().catch(() => {
+              /* the viewer can press play; the controls are right there */
+            });
+          });
+        };
+
         const levels = hls.levels ?? [];
-        if (!levels.length) return;
+        if (levels.length) {
+          const isH264 = (level: (typeof levels)[number]) =>
+            /avc1/i.test(level.codecSet ?? level.videoCodec ?? '');
 
-        const isH264 = (level: (typeof levels)[number]) =>
-          /avc1/i.test(level.codecSet ?? level.videoCodec ?? '');
+          const playable = levels
+            .map((level, index) => ({ level, index }))
+            .filter(({ level }) => isH264(level))
+            .sort((a, b) => b.level.bitrate - a.level.bitrate);
 
-        const playable = levels
-          .map((level, index) => ({ level, index }))
-          .filter(({ level }) => isH264(level))
-          .sort((a, b) => b.level.bitrate - a.level.bitrate);
+          if (!playable.length) {
+            setError('This source streams a format this browser cannot decode.');
+            failRef.current?.();
+            return;
+          }
 
-        if (!playable.length) {
-          setError('This source streams a format this browser cannot decode.');
-          failRef.current?.();
-          return;
+          hls.currentLevel = playable[0]!.index;
         }
 
-        hls.currentLevel = playable[0]!.index;
+        start();
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
