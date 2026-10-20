@@ -12,7 +12,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { bytesArePicture, probeResolver } from '../src/features/tv/sourceProbe.js';
+import { bytesArePicture, playlistSeconds, probeResolver } from '../src/features/tv/sourceProbe.js';
 
 const TS = new Uint8Array([0x47, 0x40, 0x11, 0x10, 0, 0x42, 0xf0, 0x25]);
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46]);
@@ -27,6 +27,10 @@ const PLAYLIST = (ext: string) =>
   `#EXTM3U\n#EXT-X-TARGETDURATION:10\n${[0, 1, 2, 3, 4]
     .map((i) => `#EXTINF:10,\nhttps://cdn.example/seg/${i}.${ext}`)
     .join('\n')}\n#EXT-X-ENDLIST\n`;
+
+/** A feature length playlist: 600 segments of 10 seconds, a hundred minutes. */
+const FILM = (ext: string) =>
+  `#EXTM3U\n${Array.from({ length: 600 }, (_, i) => `#EXTINF:10,\nhttps://cdn.example/seg/${i}.${ext}`).join('\n')}\n#EXT-X-ENDLIST\n`;
 
 type Answer = { status?: number; body?: string | Uint8Array; json?: unknown };
 
@@ -51,19 +55,19 @@ async function probe() {
 }
 
 // 1. The reported bug: real video, segments named .jpg.
-fake(ok(), { body: PLAYLIST('jpg') }, { status: 206, body: TS });
+fake(ok(), { body: FILM('jpg') }, { status: 206, body: TS });
 assert.equal((await probe()).status, 'ready', 'TS segments named .jpg must count as video');
 
 // 2. Genuine pictures are still a slideshow, not a film.
-fake(ok(), { body: PLAYLIST('jpg') }, { status: 206, body: JPEG });
+fake(ok(), { body: FILM('jpg') }, { status: 206, body: JPEG });
 assert.equal((await probe()).status, 'empty', 'a playlist of real JPEGs is rejected');
 
 // 3. An ordinary playlist still passes.
-fake(ok(), { body: PLAYLIST('ts') }, { status: 206, body: TS });
+fake(ok(), { body: FILM('ts') }, { status: 206, body: TS });
 assert.equal((await probe()).status, 'ready', 'a plain .ts playlist is ready');
 
 // 4. Segments that are gone fail the source.
-fake(ok(), { body: PLAYLIST('ts') }, { status: 404, body: 'nope' });
+fake(ok(), { body: FILM('ts') }, { status: 404, body: 'nope' });
 assert.equal((await probe()).status, 'empty', 'a playlist whose segments 404 is rejected');
 
 // 5. The resolver itself saying no (upstream 429 and the like).
@@ -73,5 +77,18 @@ assert.equal((await probe()).status, 'empty', 'no sources means empty');
 // 6. A body that is not a playlist at all.
 fake(ok(), { body: '<html>404</html>' }, {});
 assert.equal((await probe()).status, 'empty', 'a non-playlist answer is rejected');
+
+// 7. A ten minute preview is video, and still not the film.
+fake(ok('https://cdn.example/hls_mps/abc/480/index_preview_266.m3u8'), { body: PLAYLIST('ts') }, { status: 206, body: TS });
+assert.equal((await probe()).status, 'empty', 'a playlist named preview is rejected');
+
+// 8. A movie that only runs a few minutes is a trailer.
+assert.equal(playlistSeconds(PLAYLIST('ts')), 50, 'seconds are summed from EXTINF');
+fake(ok(), { body: PLAYLIST('ts') }, { status: 206, body: TS });
+assert.equal((await probe()).status, 'empty', 'a 50 second movie is rejected');
+
+// 9. A full length movie passes.
+fake(ok(), { body: FILM('ts') }, { status: 206, body: TS });
+assert.equal((await probe()).status, 'ready', 'a 100 minute movie is ready');
 
 console.log('✓ tv probe: pictures and video told apart by their bytes');

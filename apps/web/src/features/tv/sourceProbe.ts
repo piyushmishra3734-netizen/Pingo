@@ -92,6 +92,14 @@ export function playlistIsImages(text: string): boolean {
   return imagey / segments.length > 0.8;
 }
 
+/** Total running time of a media playlist, in seconds. A master playlist has none: 0. */
+export function playlistSeconds(text: string): number {
+  return [...text.matchAll(/#EXTINF:([\d.]+)/g)].reduce((sum, match) => sum + Number(match[1] ?? 0), 0);
+}
+
+/** Shorter than this is a trailer or a preview, not a film. */
+const MIN_FILM_SECONDS = 25 * 60;
+
 /** JPEG, PNG, GIF or WebP file signature: a picture, whatever the URL says. */
 export function bytesArePicture(b: Uint8Array): boolean {
   if (b.length < 4) return false;
@@ -198,6 +206,16 @@ export async function probeResolver(
     if (!text || !/#EXTM3U/i.test(text)) continue;
     const looksLikeImages = playlistIsImages(text);
     if (!playlistIsPlayable(text)) continue;
+
+    /*
+     * A preview is real video and passes every check above, which is what makes
+     * it dangerous: Giant answers some films with a ten minute `index_preview`
+     * playlist, the player starts it, and the film ends ten minutes in. Named
+     * as a preview, or a "film" that runs under 25 minutes, it is not the film.
+     */
+    if (/preview/i.test(playlistUrl)) continue;
+    const runtime = playlistSeconds(text);
+    if (type === 'movie' && runtime > 0 && runtime < MIN_FILM_SECONDS) continue;
 
     /*
      * The last lie a source can tell: a valid playlist whose segments are gone.
