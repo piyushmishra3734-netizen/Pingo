@@ -6,6 +6,8 @@ import type { MediaType, TmdbMedia, TmdbMediaDetails } from '../types.js';
 import { fetchDetails, getTmdbBackdropUrl, getTmdbPosterUrl } from '../api/tmdb.js';
 import { useWatchlist } from '../hooks/useWatchlist.js';
 import { TvMediaCard } from './TvMediaCard.js';
+import { TvEpisodeBrowser } from './TvEpisodeBrowser.js';
+import { useWatchHistory } from '../hooks/useWatchHistory.js';
 
 interface TvMediaDetailsModalProps {
   media: TmdbMedia;
@@ -29,6 +31,8 @@ export function TvMediaDetailsModal({
   const title = media.title || media.name || 'Untitled';
   const mediaType: MediaType = media.media_type || (media.title ? 'movie' : 'tv');
   const saved = isSaved(media.id, mediaType);
+  // Where this person left off, if they have watched it here.
+  const resume = useWatchHistory().find((w) => w.id === media.id && w.type === mediaType);
 
   useEffect(() => {
     let active = true;
@@ -156,11 +160,11 @@ export function TvMediaDetailsModal({
           <div className="mt-4 flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={() => onPlayStream(media, 1, 1)}
+              onClick={() => onPlayStream(media, resume?.s ?? 1, resume?.e ?? 1)}
               className="flex items-center gap-2 rounded-md bg-white px-6 py-2.5 text-sm font-bold text-black transition active:scale-95 hover:bg-white/85"
             >
               <Play className="size-4 fill-current" />
-              <span>Watch Now</span>
+              <span>{resume && mediaType === 'tv' ? `Resume S${resume.s ?? 1} E${resume.e ?? 1}` : 'Watch Now'}</span>
             </button>
 
             <button
@@ -186,29 +190,12 @@ export function TvMediaDetailsModal({
             </button>
           </div>
 
-          {/* Quick TV Episode Launcher (if series) */}
+          {/* Episodes (series): the season menu and every episode, tap one to play it. */}
           {mediaType === 'tv' && (
-            <div className="mt-4 rounded-xl bg-sunken p-3 ring-1 ring-line">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-                  Season 1 Episodes:
-                </span>
-                <span className="text-[11px] text-brand font-medium">Click to stream</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((ep) => (
-                  <button
-                    key={ep}
-                    type="button"
-                    onClick={() => onPlayStream(media, 1, ep)}
-                    className="flex items-center gap-1 rounded-lg bg-surface px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-brand hover:text-on-brand active:scale-95 transition-all"
-                  >
-                    <Play className="size-2.5 fill-current" />
-                    <span>Ep {ep}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <section className="mt-6" aria-label="Episodes">
+              <h3 className="mb-3 text-lg font-bold text-ink">Episodes</h3>
+              <TvEpisodeBrowser media={media} variant="page" initialSeason={resume?.s ?? 1} onPick={(s, e) => onPlayStream(media, s, e)} />
+            </section>
           )}
 
           {/* Genre Badges */}

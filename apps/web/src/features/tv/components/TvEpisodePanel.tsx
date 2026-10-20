@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Play } from 'lucide-react';
 import { cn } from '@pingo/ui';
-import type { TmdbEpisode, TmdbMedia, TmdbMediaDetails } from '../types.js';
-import { fetchDetails, fetchSeason, getTmdbPosterUrl, getTmdbStillUrl } from '../api/tmdb.js';
+import type { TmdbMedia, TmdbMediaDetails } from '../types.js';
+import { fetchDetails, getTmdbPosterUrl } from '../api/tmdb.js';
+import { TvEpisodeBrowser } from './TvEpisodeBrowser.js';
 
 type PanelTab = 'episodes' | 'details' | 'more';
 
@@ -24,7 +25,6 @@ interface Props {
 export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMedia }: Props) {
   const [tab, setTab] = useState<PanelTab>(isTv ? 'episodes' : 'details');
   const [details, setDetails] = useState<TmdbMediaDetails | null>(null);
-  const [episodes, setEpisodes] = useState<TmdbEpisode[] | null>(null);
   const type = isTv ? 'tv' : 'movie';
 
   useEffect(() => {
@@ -35,19 +35,6 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
     };
   }, [type, media.id]);
 
-  useEffect(() => {
-    if (!isTv) return;
-    let live = true;
-    setEpisodes(null);
-    void fetchSeason(media.id, season).then((list) => live && setEpisodes(list));
-    return () => {
-      live = false;
-    };
-  }, [isTv, media.id, season]);
-
-  const seasons = (details?.seasons ?? []).filter((s) => s.season_number > 0);
-  const seasonCount = Math.max(seasons.length || details?.number_of_seasons || (details ? 1 : 10), season);
-  const knownEpisodes = seasons.find((x) => x.season_number === season)?.episode_count;
   const tabs: Array<{ id: PanelTab; label: string }> = [
     ...(isTv ? [{ id: 'episodes' as const, label: 'Episodes' }] : []),
     { id: 'details', label: 'Details' },
@@ -73,70 +60,7 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-width:thin]">
         {tab === 'episodes' && isTv && (
-          <>
-            {/* Seasons: every one of them, to pick with a tap. Unknown count shows a run of ten rather than none. */}
-            <div role="tablist" aria-label="Season" className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {Array.from({ length: seasonCount }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  role="tab"
-                  aria-selected={season === n}
-                  onClick={() => onPick(n, 1)}
-                  className={cn('h-9 shrink-0 rounded-full border px-4 text-[13.5px] font-semibold transition', season === n ? 'border-brand bg-brand text-on-brand' : 'border-white/20 text-white/85 hover:bg-white/10')}
-                >
-                  Season {n}
-                </button>
-              ))}
-            </div>
-
-            {episodes === null ? (
-              <div className="space-y-2" aria-busy="true">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-[74px] animate-pulse rounded-lg bg-white/[0.06]" />
-                ))}
-              </div>
-            ) : episodes.length === 0 ? (
-              <div className="grid grid-cols-6 gap-1.5">
-                {Array.from({ length: knownEpisodes || 24 }, (_, i) => i + 1).map((n) => (
-                  <button key={n} type="button" onClick={() => onPick(season, n)} className={cn('h-9 rounded-md text-sm font-bold transition', episode === n ? 'bg-brand text-white' : 'bg-white/[0.07] text-white/80 hover:bg-white/15')}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <ol className="space-y-1.5">
-                {episodes.map((ep) => {
-                  const on = ep.episode_number === episode;
-                  const still = getTmdbStillUrl(ep.still_path);
-                  return (
-                    <li key={ep.id}>
-                      <button
-                        type="button"
-                        onClick={() => onPick(season, ep.episode_number)}
-                        aria-current={on ? 'true' : undefined}
-                        className={cn('flex w-full items-center gap-3 rounded-lg border p-2 text-left transition', on ? 'border-brand bg-brand/10' : 'border-transparent hover:bg-white/[0.06]')}
-                      >
-                        <span className="w-4 shrink-0 text-center text-[13px] font-semibold text-white/60">{ep.episode_number}</span>
-                        <span className="relative aspect-video w-[104px] shrink-0 overflow-hidden rounded-md bg-white/[0.07]">
-                          {still && <img src={still} alt="" loading="lazy" draggable={false} className="size-full object-cover" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />}
-                          {on && (
-                            <span className="absolute inset-0 grid place-items-center bg-black/45">
-                              <Play className="size-5 fill-white text-white" />
-                            </span>
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-white">{ep.name || `Episode ${ep.episode_number}`}</span>
-                          <span className="mt-0.5 block text-[12px] text-white/55">{ep.runtime ? `${ep.runtime} min` : ep.air_date ?? ''}</span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </>
+          <TvEpisodeBrowser media={media} variant="panel" current={{ season, episode }} onPick={onPick} />
         )}
 
         {tab === 'details' && (
