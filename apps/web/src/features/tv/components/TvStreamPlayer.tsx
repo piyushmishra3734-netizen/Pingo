@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -24,87 +24,176 @@ export interface StreamProvider {
   name: string;
   badge?: string;
   isHindi?: boolean;
+  /**
+   * Starts playing without a click. Only providers observed doing this get the
+   * flag: it decides how long the player waits before looking elsewhere.
+   */
+  autoStarts?: boolean;
+  /**
+   * Some hosts refuse a request with no `Referer` at all (Videasy answers 403 to
+   * one and 200 to the other). Defaults to `no-referrer`, which is what every
+   * other source here gets: there is no reason to tell a third-party host which
+   * page of Pingo someone is watching.
+   */
+  referrerPolicy?: 'no-referrer' | 'origin';
   buildUrl: (mediaType: MediaType, id: number | string, season: number, episode: number) => string;
 }
 
-// Complete provider lineup with Hindi and fallback priority
+/**
+ * Streaming sources. Every entry below was played end to end in the real
+ * player on 20 Oct 2026, from India, before it earned a place here.
+ *
+ * The list used to hold eight. Six are gone, and not because they merely looked
+ * broken from a script - each was opened in the browser and watched:
+ *
+ *   NHD Embed   403 Forbidden (LiteSpeed) — and its certificate does not match
+ *               the hostname, so it can never be embedded
+ *   VidLink     page loads, spinner runs forever, stream never resolves
+ *   VidSrc.pm   HTTP 200, then a blank black frame for as long as you watch
+ *   VidSrc.pk   connection fails outright
+ *   ApiPlayer   renders a play button, then never gets a stream
+ *   VidSrc.io   host unreachable
+ *
+ * Keep them out even if a mirror appears: the entire `vidsrc.*` family
+ * (`.pm`, `.pk`, `.io`, `.to`, `.xyz`, `.net`, `.in`) is unreachable from this
+ * region — connect timeouts, not bad paths — so a new subdomain of the same
+ * family will fail the same way. `www.2embed.cc` embeds vidsrc, and it hung on
+ * "Connecting to VidSrc Stream" for the same reason.
+ *
+ * What each one is good at, measured rather than assumed:
+ *
+ *   vidfast   movies and TV, plays on its own in a few seconds, and its own
+ *             server list includes a "Multiple audio" server — the nearest
+ *             thing to Hindi audio this lineup has left
+ *   autoembed movies and TV, but needs one click on its poster. It is the
+ *             fallback because it starts slow, not because it is worse
+ *   vidrock   movies only. A TV episode sat on "Loading..." past 20s in
+ *             testing, so it is last and the fallback walks past it
+ */
 export const STREAM_PROVIDERS: StreamProvider[] = [
-  {
-    id: 'nhd',
-    name: 'NHD Embed',
-    badge: 'Hindi Audio',
-    isHindi: true,
-    buildUrl: (type, id, s, e) =>
-      type === 'movie' ? `https://nhdapi.com/movie/${id}` : `https://nhdapi.com/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: 'vidlink',
-    name: 'VidLink',
-    badge: 'Fast HD',
-    buildUrl: (type, id, s, e) =>
-      type === 'movie'
-        ? `https://vidlink.pro/movie/${id}`
-        : `https://vidlink.pro/tv/${id}/${s}/${e}`,
-  },
-  {
-    id: 'vidsrc_pm',
-    name: 'VidSrc.pm',
-    badge: 'Multi-Audio',
-    buildUrl: (type, id, s, e) =>
-      type === 'movie'
-        ? `https://vidsrc.pm/embed/movie/${id}`
-        : `https://vidsrc.pm/embed/tv/${id}/${s}/${e}`,
-  },
   {
     id: 'vidfast',
     name: 'VidFast',
-    badge: 'AutoPlay',
+    badge: 'Multi-Audio',
+    isHindi: true,
+    autoStarts: true,
     buildUrl: (type, id, s, e) =>
       type === 'movie'
         ? `https://vidfast.vc/movie/${id}?autoPlay=true`
         : `https://vidfast.vc/tv/${id}/${s}/${e}?autoPlay=true`,
   },
   {
-    id: 'vidsrc_pk',
-    name: 'VidSrc.pk',
-    badge: 'Hindi Dub',
-    isHindi: true,
-    buildUrl: (type, id, s, e) =>
-      type === 'movie'
-        ? `https://embed.vidsrc.pk/movie/${id}?lang=Hindi`
-        : `https://embed.vidsrc.pk/tv/${id}/${s}-${e}?lang=Hindi`,
-  },
-  {
-    id: 'apiplayer',
-    name: 'ApiPlayer',
-    badge: 'Hindi/Eng',
-    isHindi: true,
-    buildUrl: (type, id, s, e) =>
-      type === 'movie'
-        ? `https://apiplayer.ru/embed/movie/${id}?lang=hi`
-        : `https://apiplayer.ru/embed/tv/${id}/${s}/${e}?lang=hi`,
-  },
-  {
     id: 'autoembed',
     name: 'AutoEmbed',
-    badge: 'Global CDN',
+    badge: 'Tap to Play',
     buildUrl: (type, id, s, e) =>
       type === 'movie'
         ? `https://autoembed.co/movie/tmdb/${id}`
         : `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`,
   },
   {
-    id: 'vidsrc_io',
-    name: 'VidSrc.io',
-    badge: 'Alternative',
+    id: 'vidrock',
+    name: 'VidRock',
+    badge: 'Movies',
+    autoStarts: true,
     buildUrl: (type, id, s, e) =>
       type === 'movie'
-        ? `https://vidsrc.io/embed/movie/${id}`
-        : `https://vidsrc.io/embed/tv/${id}/${s}/${e}`,
+        ? `https://vidrock.net/movie/${id}`
+        : `https://vidrock.net/tv/${id}/${s}/${e}`,
+  },
+  {
+    id: 'nontongo',
+    name: 'NontonGo',
+    badge: 'MIX',
+    autoStarts: true,
+    buildUrl: (type, id, s, e) =>
+      type === 'movie'
+        ? `https://www.nontongo.win/embed/movie/${id}`
+        : `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
   },
 ];
 
+/**
+ * Which source to try first, per kind of title. This is measurement, not taste.
+ *
+ *   movie  VidFast plays on its own in seconds and has a multiple-audio server;
+ *          NontonGo resolves a real CDN and lets its own player pick between
+ *          MIX / HD / VIP; AutoEmbed needs a tap; VidRock resolved a film's
+ *          exact runtime.
+ *   tv     AutoEmbed opens a real episode player ("Breaking Bad 2008 1-1").
+ *          NontonGo opens its player and buffers. VidFast sat on "LOADING, ONE
+ *          MOMENT..." for 42s on the same episode, so it is last here.
+ *
+ * A source left out of a list is not shown for that kind of title, which is the
+ * point — offering a source that cannot work is the bug this replaced.
+ *
+ * NontonGo is the only one of the four that is not a `vidsrc`-style aggregator
+ * or a paid embed: it is its own site with its own CDN, and it is the only one
+ * that sends `X-Frame-Options: ALLOWALL`, so it is the least likely to break
+ * because of a framing change.
+ *
+ * Videasy was tried and removed. It was the one source that looked fixable: it
+ * answered 403 to a request with no `Referer` and 200 with one, so a per-source
+ * referrer policy was added (`referrerPolicy` below) to send `origin` for it.
+ * The document then loaded — and the frame stayed black, the same way VidSrc.pm
+ * did. A chip that opens a black rectangle is worse than four chips that work.
+ */
+const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
+  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock'],
+  tv: ['autoembed', 'nontongo', 'vidfast'],
+};
+
 const LAST_SOURCE_KEY = 'pingo:lastSource';
+
+/** Which source last worked for this exact title, so a return visit opens on it. */
+const titleSourceKey = (type: MediaType, id: number | string) => `pingo:tvSource:${type}:${id}`;
+
+/** A host that cannot be reached at all is skipped without waiting for a timer. */
+const REACH_TIMEOUT_MS = 4000;
+
+/**
+ * How long a freshly mounted frame gets to fire `load` before the next source
+ * is tried. Long enough for a slow host on a bad connection, short enough that
+ * a dead one is not a full minute of black.
+ */
+const GRACE_MS = 20000;
+
+/**
+ * Can the browser open a connection to this URL at all?
+ *
+ * `no-cors` on purpose: the answer we want is "did the host answer", not "what
+ * did it say". Any HTTP response — 200, 403, 500 — resolves as an opaque
+ * response; only a dead host, a bad certificate or a timeout rejects. That is
+ * exactly the difference between the six removed sources and the three kept
+ * ones, so a dead host is skipped in about a second instead of after a grace
+ * period of black screen.
+ *
+ * It cannot see a host that answers and then shows nothing (VidSrc.pm did
+ * that), which is why the timer still exists.
+ */
+const reachCache = new Map<string, Promise<boolean>>();
+function isReachable(url: string): Promise<boolean> {
+  const cached = reachCache.get(url);
+  if (cached) return cached;
+
+  const probe = (async () => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REACH_TIMEOUT_MS);
+      try {
+        await fetch(url, { mode: 'no-cors', referrerPolicy: 'no-referrer', signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  reachCache.set(url, probe);
+  return probe;
+}
 
 interface TvStreamPlayerProps {
   media: TmdbMedia;
@@ -127,17 +216,37 @@ export function TvStreamPlayer({
   onEpisodeChange,
   onOpenMedia,
 }: TvStreamPlayerProps) {
-  // Initialize with last good working source or default to NHD Hindi
+  const title = media.title || media.name || 'Untitled';
+  const mediaType: MediaType = media.media_type || (media.title ? 'movie' : 'tv');
+  const isTv = mediaType === 'tv';
+  const rememberedKey = titleSourceKey(mediaType, media.id);
+
+  // Only the sources that are known to work for this kind of title, in the
+  // order measured in SOURCE_ORDER.
+  //
+  // Memoised on purpose: it is read by an effect, and a fresh array each render
+  // would make that effect re-run on every render.
+  const available = useMemo(() => {
+    const byId = new Map(STREAM_PROVIDERS.map((p) => [p.id, p]));
+    return (SOURCE_ORDER[mediaType] ?? SOURCE_ORDER.movie)
+      .map((id) => byId.get(id))
+      .filter((p): p is StreamProvider => Boolean(p));
+  }, [mediaType]);
+
+  // A title that worked on a source last time opens on that source; then the
+  // last source used anywhere, if it is still shipped. A saved id that is no
+  // longer in the lineup (anyone who had `nhd` stored) falls through to the
+  // default rather than selecting a provider that does not exist.
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
     try {
+      const forTitle = localStorage.getItem(rememberedKey);
+      if (forTitle && available.some((p) => p.id === forTitle)) return forTitle;
       const saved = localStorage.getItem(LAST_SOURCE_KEY);
-      if (saved && STREAM_PROVIDERS.some((p) => p.id === saved)) {
-        return saved;
-      }
+      if (saved && available.some((p) => p.id === saved)) return saved;
     } catch {
       // Ignore localStorage errors
     }
-    return 'nhd';
+    return available[0]!.id;
   });
 
   const [season, setSeason] = useState<number>(initialSeason);
@@ -146,86 +255,182 @@ export function TvStreamPlayer({
     onEpisodeChange?.(season, episode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [season, episode]);
+
   const [isTheater, setIsTheater] = useState<boolean>(false);
-  const [autoSwitchEnabled, setAutoSwitchEnabled] = useState<boolean>(true);
+  const [autoFallback, setAutoFallback] = useState<boolean>(true);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState<number>(0);
   const [notification, setNotification] = useState<string | null>(null);
-  const [isCheckingNext, setIsCheckingNext] = useState<boolean>(false);
 
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const toastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Sources the fallback already moved to on its own, so it can never loop. */
+  const autoVisitedRef = useRef<Set<string>>(new Set());
+  /** True once the viewer has touched anything: the player stops second-guessing. */
+  const claimedRef = useRef<boolean>(false);
+  /** True once the frame fired `load` — something answered and rendered. */
+  const loadedRef = useRef<boolean>(false);
 
-  const title = media.title || media.name || 'Untitled';
-  const mediaType: MediaType = media.media_type || (media.title ? 'movie' : 'tv');
-  const isTv = mediaType === 'tv';
+  const notify = useCallback((message: string, holdMs = 2500) => {
+    setNotification(message);
+    if (toastRef.current) clearTimeout(toastRef.current);
+    toastRef.current = setTimeout(() => setNotification(null), holdMs);
+  }, []);
 
-  const providerIndex = STREAM_PROVIDERS.findIndex((p) => p.id === selectedProviderId);
-  const provider = STREAM_PROVIDERS[providerIndex >= 0 ? providerIndex : 0]!;
+  useEffect(
+    () => () => {
+      if (toastRef.current) clearTimeout(toastRef.current);
+    },
+    [],
+  );
+
+  const activeId = available.some((p) => p.id === selectedProviderId)
+    ? selectedProviderId
+    : available[0]!.id;
+  const providerIndex = Math.max(
+    0,
+    available.findIndex((p) => p.id === activeId),
+  );
+  const provider = available[providerIndex]!;
+  const nextProvider = available[providerIndex + 1] ?? null;
   const streamUrl = provider.buildUrl(mediaType, media.id, season, episode);
 
-  // Switch to next source in priority lineup
-  const switchToNextSource = useCallback(() => {
-    const nextIdx = (providerIndex + 1) % STREAM_PROVIDERS.length;
-    const nextProvider = STREAM_PROVIDERS[nextIdx];
-    if (nextProvider) {
-      setSelectedProviderId(nextProvider.id);
+  const rememberChoice = useCallback(
+    (id: string) => {
       try {
-        localStorage.setItem(LAST_SOURCE_KEY, nextProvider.id);
+        localStorage.setItem(LAST_SOURCE_KEY, id);
+        localStorage.setItem(rememberedKey, id);
       } catch {
         // Ignore
       }
-      setNotification(`Auto-switched to ${nextProvider.name}`);
-      setTimeout(() => setNotification(null), 3000);
-    }
-  }, [providerIndex]);
+    },
+    [rememberedKey],
+  );
 
-  // Handle manual provider selection
+  const selectSource = useCallback(
+    (id: string, remember: boolean) => {
+      setSelectedProviderId(id);
+      if (remember) rememberChoice(id);
+    },
+    [rememberChoice],
+  );
+
+  // Manual pick: the viewer knows better than the heuristic, so stop guessing.
   const handleSelectProvider = (id: string) => {
-    setSelectedProviderId(id);
+    claimedRef.current = true;
+    selectSource(id, true);
+    const target = available.find((p) => p.id === id);
+    if (target) notify(`Switched to ${target.name}`);
+  };
+
+  const handleReload = () => {
+    setReloadKey((k) => k + 1);
+    notify('Reloading stream...', 2000);
+  };
+
+  /* -- 1. A host that does not answer is skipped immediately -------------- */
+  useEffect(() => {
+    let live = true;
+    loadedRef.current = false;
+
+    void isReachable(streamUrl).then((reachable) => {
+      if (!live || reachable) return;
+
+      const next = available[providerIndex + 1];
+      if (!next || autoVisitedRef.current.has(next.id)) {
+        notify(`${provider.name} is not responding`, 3000);
+        return;
+      }
+
+      autoVisitedRef.current.add(next.id);
+      selectSource(next.id, false);
+      notify(`${provider.name} is unreachable — switched to ${next.name}`, 3000);
+    });
+    return () => {
+      live = false;
+    };
+  }, [streamUrl, provider.name, providerIndex, available, selectSource, notify]);
+
+  /* -- 2. A frame that never loads is left after the grace period ---------- */
+  useEffect(() => {
+    setCountdown(null);
+
+    if (!autoFallback || !nextProvider || claimedRef.current) return;
+    if (autoVisitedRef.current.has(nextProvider.id)) return;
+
+    // A title that already worked here does not get second-guessed.
+    let alreadyKnown = false;
     try {
-      localStorage.setItem(LAST_SOURCE_KEY, id);
+      alreadyKnown = localStorage.getItem(rememberedKey) === provider.id;
     } catch {
       // Ignore
     }
-    const target = STREAM_PROVIDERS.find((p) => p.id === id);
-    if (target) {
-      setNotification(`Switched to ${target.name}`);
-      setTimeout(() => setNotification(null), 2500);
-    }
-  };
+    if (alreadyKnown) return;
 
-  // Reload current iframe stream
-  const handleReload = () => {
-    setReloadKey((k) => k + 1);
-    setNotification('Reloading stream...');
-    setTimeout(() => setNotification(null), 2000);
-  };
+    const claim = () => {
+      claimedRef.current = true;
+      setCountdown(null);
+    };
 
-  // Auto-switch safety watcher: If a stream does not establish or encounters an issue,
-  // allow 12 seconds grace period before suggesting or performing auto-switch
-  useEffect(() => {
-    if (!autoSwitchEnabled) return;
+    window.addEventListener('blur', claim);
+    window.addEventListener('pointerdown', claim, true);
+    window.addEventListener('keydown', claim, true);
 
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    setCountdown(Math.round(GRACE_MS / 1000));
+    const tick = setInterval(() => {
+      setCountdown((left) => (left === null ? null : Math.max(0, left - 1)));
+    }, 1000);
 
-    setIsCheckingNext(false);
+    const jump = setTimeout(() => {
+      if (claimedRef.current) return;
 
-    // After 10 seconds of no interaction, arm the auto-switch banner
-    timeoutRef.current = setTimeout(() => {
-      setIsCheckingNext(true);
-    }, 10000);
+      /*
+       * The frame firing `load` means something answered and rendered. That is
+       * not proof the film is playing — nothing cross-origin can give us that —
+       * but taking a working player away from somebody is a worse bug than
+       * waiting, so the fallback only moves on from a frame that never loaded
+       * at all. A source that renders and then shows nothing is left to the
+       * viewer, who has the Next Source button.
+       */
+      if (loadedRef.current) {
+        setCountdown(null);
+        return;
+      }
+
+      autoVisitedRef.current.add(nextProvider.id);
+      selectSource(nextProvider.id, false);
+      notify(`${provider.name} did not load — trying ${nextProvider.name}`, 3000);
+    }, GRACE_MS);
 
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearInterval(tick);
+      clearTimeout(jump);
+      window.removeEventListener('blur', claim);
+      window.removeEventListener('pointerdown', claim, true);
+      window.removeEventListener('keydown', claim, true);
     };
-  }, [selectedProviderId, reloadKey, season, episode, autoSwitchEnabled]);
+  }, [
+    autoFallback,
+    provider.id,
+    nextProvider,
+    reloadKey,
+    season,
+    episode,
+    selectSource,
+    notify,
+    rememberedKey,
+  ]);
+
+  // Reaching the end of the lineup means the fallback did its job; the next
+  // viewer interaction records whatever they settled on.
+  const keepThisOne = () => {
+    claimedRef.current = true;
+    setCountdown(null);
+    rememberChoice(provider.id);
+    notify(`Keeping ${provider.name}`, 1800);
+  };
 
   return (
     <div className="fixed inset-0 z-[230] flex bg-black animate-fadeIn">
-
       {/* Main Player Box */}
       <div
         className={cn(
@@ -248,26 +453,39 @@ export function TvStreamPlayer({
 
           {/* Right Action Tools */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Auto-Switch Toggle */}
+            {/* Auto-fallback toggle */}
             <button
               type="button"
-              onClick={() => setAutoSwitchEnabled((prev) => !prev)}
+              onClick={() => {
+                const next = !autoFallback;
+                setAutoFallback(next);
+                if (!next) claimedRef.current = true;
+              }}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all active:scale-95',
-                autoSwitchEnabled
+                autoFallback
                   ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                   : 'bg-white/5 text-text-secondary border border-white/10',
               )}
-              title="Automatically hops to the next source if current server is unavailable"
+              title={
+                autoFallback
+                  ? 'Tries the next source on its own when this one does not start'
+                  : 'Stays on the source you picked'
+              }
             >
               <Zap className="size-3.5 fill-current" />
-              <span className="hidden sm:inline">Auto-Switch: {autoSwitchEnabled ? 'ON' : 'OFF'}</span>
+              <span className="hidden sm:inline">Auto-Fallback: {autoFallback ? 'ON' : 'OFF'}</span>
             </button>
 
             {/* Next Source Button */}
             <button
               type="button"
-              onClick={switchToNextSource}
+              onClick={() => {
+                const next = available[(providerIndex + 1) % available.length]!;
+                claimedRef.current = true;
+                selectSource(next.id, true);
+                notify(`Switched to ${next.name}`);
+              }}
               className="flex items-center gap-1.5 rounded-lg bg-brand/20 border border-brand/40 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand/30 transition-all active:scale-95 shadow-sm"
               title="Switch to next streaming source"
             >
@@ -328,120 +546,133 @@ export function TvStreamPlayer({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Video Frame */}
-        <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
-          {/* Notification Toast */}
-          {notification && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/85 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
-              <Zap className="size-3.5 text-brand" />
-              <span>{notification}</span>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* Video Frame */}
+            <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
+              {/* Notification Toast */}
+              {notification && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/85 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
+                  <Zap className="size-3.5 text-brand" />
+                  <span>{notification}</span>
+                </div>
+              )}
+
+              {/* Fallback countdown: honest about what is about to happen */}
+              {countdown !== null && countdown > 0 && nextProvider && autoFallback && (
+                <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-20 flex flex-wrap items-center gap-3 rounded-xl bg-[#12141c]/90 px-4 py-2.5 backdrop-blur-xl border border-white/10 shadow-2xl">
+                  <div className="flex items-center gap-2 text-xs text-white">
+                    <AlertCircle className="size-4 text-amber-400 shrink-0" />
+                    <span>
+                      Not starting? Trying <strong>{nextProvider.name}</strong> in {countdown}s
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={keepThisOne}
+                      className="rounded-lg bg-brand px-3 py-1 text-xs font-bold text-on-brand shadow-sm transition-transform active:scale-95"
+                    >
+                      It&apos;s playing — keep this
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        autoVisitedRef.current.add(nextProvider.id);
+                        selectSource(nextProvider.id, true);
+                        notify(`Switched to ${nextProvider.name}`);
+                      }}
+                      className="rounded-lg bg-white/10 px-2 py-1 text-xs text-text-secondary hover:text-white"
+                    >
+                      Switch now
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <iframe
+                key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
+                src={streamUrl}
+                title={`${title} Live Stream`}
+                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+                allowFullScreen
+                referrerPolicy={provider.referrerPolicy ?? 'no-referrer'}
+                className="h-full w-full border-0"
+                onLoad={() => {
+                  // Something answered and rendered. See the note in the grace
+                  // timer: this is as close to "it works" as a cross-origin
+                  // frame can get, and the fallback never overrides it.
+                  loadedRef.current = true;
+                }}
+                onError={() => {
+                  if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
+                    autoVisitedRef.current.add(nextProvider.id);
+                    selectSource(nextProvider.id, false);
+                    notify(`${provider.name} failed — trying ${nextProvider.name}`, 3000);
+                  }
+                }}
+              />
             </div>
-          )}
 
-          {/* Auto-Switch Assistance Floating Banner */}
-          {isCheckingNext && autoSwitchEnabled && (
-            <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-20 flex flex-wrap items-center gap-3 rounded-xl bg-[#12141c]/90 px-4 py-2.5 backdrop-blur-xl border border-white/10 shadow-2xl">
-              <div className="flex items-center gap-2 text-xs text-white">
-                <AlertCircle className="size-4 text-amber-400 shrink-0" />
-                <span>Stream not starting?</span>
-              </div>
-              <div className="flex items-center gap-2 ml-auto">
-                <button
-                  type="button"
-                  onClick={switchToNextSource}
-                  className="rounded-lg bg-brand px-3 py-1 text-xs font-bold text-on-brand shadow-sm transition-transform active:scale-95"
-                >
-                  Auto-Switch to Next Server
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsCheckingNext(false)}
-                  className="rounded-lg bg-white/10 px-2 py-1 text-xs text-text-secondary hover:text-white"
-                >
-                  Stay
-                </button>
-              </div>
-            </div>
-          )}
+            {/* Player Bottom Control Strip */}
+            <div className="flex flex-col gap-2.5 border-t border-white/10 bg-[#12141c] px-4 py-2.5">
+              {/* Source Selector Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
+                  <MonitorPlay className="size-3.5 text-brand" />
+                  <span>Sources ({available.length}):</span>
+                </div>
 
-          <iframe
-            key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
-            src={streamUrl}
-            title={`${title} Live Stream`}
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-            allowFullScreen
-            referrerPolicy="no-referrer"
-            className="h-full w-full border-0"
-            onError={() => {
-              if (autoSwitchEnabled) {
-                switchToNextSource();
-              }
-            }}
-          />
-        </div>
-
-        {/* Player Bottom Control Strip */}
-        <div className="flex flex-col gap-2.5 border-t border-white/10 bg-[#12141c] px-4 py-2.5">
-          {/* Source Selector Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
-              <MonitorPlay className="size-3.5 text-brand" />
-              <span>Sources ({STREAM_PROVIDERS.length}):</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {STREAM_PROVIDERS.map((p, idx) => {
-                const active = selectedProviderId === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleSelectProvider(p.id)}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all active:scale-95',
-                      active
-                        ? 'bg-brand text-on-brand shadow-sm'
-                        : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white ring-1 ring-white/10',
-                    )}
-                  >
-                    <span>{p.name}</span>
-                    {p.badge && (
-                      <span
+                <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {available.map((p) => {
+                    const active = activeId === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectProvider(p.id)}
                         className={cn(
-                          'rounded px-1.5 py-0.2 text-[9px] font-bold uppercase',
+                          'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all active:scale-95',
                           active
-                            ? 'bg-white/20 text-white'
-                            : p.isHindi
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : 'bg-brand/20 text-brand',
+                            ? 'bg-brand text-on-brand shadow-sm'
+                            : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white ring-1 ring-white/10',
                         )}
                       >
-                        {p.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                        <span>{p.name}</span>
+                        {p.badge && (
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.2 text-[9px] font-bold uppercase',
+                              active
+                                ? 'bg-white/20 text-white'
+                                : p.isHindi
+                                  ? 'bg-amber-500/20 text-amber-300'
+                                  : 'bg-brand/20 text-brand',
+                            )}
+                          >
+                            {p.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
-        </div>
-        </div>
-
-        {!isTheater && (
-          <TvEpisodePanel
-            media={media}
-            isTv={isTv}
-            season={season}
-            episode={episode}
-            onPick={(s, e) => {
-              setSeason(s);
-              setEpisode(e);
-            }}
-            onOpenMedia={(m) => onOpenMedia?.(m)}
-          />
-        )}
+          {!isTheater && (
+            <TvEpisodePanel
+              media={media}
+              isTv={isTv}
+              season={season}
+              episode={episode}
+              onPick={(s, e) => {
+                setSeason(s);
+                setEpisode(e);
+              }}
+              onOpenMedia={(m) => onOpenMedia?.(m)}
+            />
+          )}
         </div>
       </div>
     </div>
