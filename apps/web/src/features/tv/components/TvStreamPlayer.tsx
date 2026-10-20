@@ -29,8 +29,6 @@ export interface StreamProvider {
    * flag: it decides how long the player waits before looking elsewhere.
    */
   autoStarts?: boolean;
-  /** Defaults to both. A source that has no episode support must not offer itself for one. */
-  supports?: MediaType[];
   buildUrl: (mediaType: MediaType, id: number | string, season: number, episode: number) => string;
 }
 
@@ -91,13 +89,30 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
     name: 'VidRock',
     badge: 'Movies',
     autoStarts: true,
-    supports: ['movie'],
     buildUrl: (type, id, s, e) =>
       type === 'movie'
         ? `https://vidrock.net/movie/${id}`
         : `https://vidrock.net/tv/${id}/${s}/${e}`,
   },
 ];
+
+/**
+ * Which source to try first, per kind of title. This is measurement, not taste.
+ *
+ *   movie  VidFast plays on its own in seconds and has a multiple-audio server;
+ *          AutoEmbed needs a tap; VidRock resolved a film's exact runtime.
+ *   tv     AutoEmbed opens a real episode player ("Breaking Bad 2008 1-1").
+ *          VidFast sat on "LOADING, ONE MOMENT..." for 42s on the same episode,
+ *          so it is the fallback here rather than the first thing a viewer sees.
+ *          VidRock is absent: it has no episodes at all.
+ *
+ * A source left out of a list is not shown for that kind of title, which is the
+ * point — offering a source that cannot work is the bug this replaced.
+ */
+const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
+  movie: ['vidfast', 'autoembed', 'vidrock'],
+  tv: ['autoembed', 'vidfast'],
+};
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
 
@@ -177,16 +192,17 @@ export function TvStreamPlayer({
   const isTv = mediaType === 'tv';
   const rememberedKey = titleSourceKey(mediaType, media.id);
 
-  // A show is not offered a source that has no episodes (VidRock sat on
-  // "Loading..." past 20s for S1E1), because offering it and failing is the
-  // thing this whole change exists to stop.
+  // Only the sources that are known to work for this kind of title, in the
+  // order measured in SOURCE_ORDER.
   //
   // Memoised on purpose: it is read by an effect, and a fresh array each render
   // would make that effect re-run on every render.
-  const available = useMemo(
-    () => STREAM_PROVIDERS.filter((p) => !p.supports || p.supports.includes(mediaType)),
-    [mediaType],
-  );
+  const available = useMemo(() => {
+    const byId = new Map(STREAM_PROVIDERS.map((p) => [p.id, p]));
+    return (SOURCE_ORDER[mediaType] ?? SOURCE_ORDER.movie)
+      .map((id) => byId.get(id))
+      .filter((p): p is StreamProvider => Boolean(p));
+  }, [mediaType]);
 
   // A title that worked on a source last time opens on that source; then the
   // last source used anywhere, if it is still shipped. A saved id that is no
