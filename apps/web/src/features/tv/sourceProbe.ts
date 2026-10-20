@@ -36,7 +36,17 @@ export interface SourceProbe {
 }
 
 const FRAMEXTV_API = 'https://api.framextv.tech';
-const PROBE_TIMEOUT_MS = 9000;
+/**
+ * How long one provider gets, start to finish.
+ *
+ * Some of them answer in 1.5s and some need 11s because their source list has to
+ * be walked — and at 9s those slow ones timed out and were reported as empty,
+ * which is how a working provider looked dead.
+ */
+const PROBE_TIMEOUT_MS = 18000;
+
+/** The last-segment sanity check must not be what fails a provider. */
+const SEGMENT_TIMEOUT_MS = 6000;
 
 /** A host that cannot be reached at all; used for iframe sources. */
 const REACH_TIMEOUT_MS = 5000;
@@ -156,18 +166,24 @@ export async function probeResolver(
     if (playlistIsImages(text)) continue;
     if (!playlistIsPlayable(text)) continue;
 
-    // The last lie a source can tell: a valid playlist whose segments are gone.
-    // One small range request is enough to find out.
+    /*
+     * The last lie a source can tell: a valid playlist whose segments are gone.
+     *
+     * Only a definite "no" disqualifies. A slow segment — these hosts serve
+     * multi-megabyte parts with the wrong content type and take seconds — is
+     * not evidence of a broken source, and treating a timeout as failure is how
+     * working providers disappeared from the list.
+     */
     const segment = firstMediaUrl(text);
     if (segment) {
-      const reachable = await withTimeout(async (signal) => {
+      const verdict = await withTimeout(async (signal) => {
         const response = await fetch(segment, {
           headers: { range: 'bytes=0-1023' },
           signal,
         });
         return response.ok || response.status === 206;
-      }, PROBE_TIMEOUT_MS);
-      if (!reachable) continue;
+      }, SEGMENT_TIMEOUT_MS);
+      if (verdict === false) continue;
     }
 
     return {
