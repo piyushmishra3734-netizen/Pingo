@@ -111,17 +111,6 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
         ? `https://www.nontongo.win/embed/movie/${id}`
         : `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
   },
-  {
-    id: 'videasy',
-    name: 'Videasy',
-    badge: '10 servers',
-    isHindi: true,
-    referrerPolicy: 'origin',
-    buildUrl: (type, id, s, e) =>
-      type === 'movie'
-        ? `https://player.videasy.to/movie/${id}`
-        : `https://player.videasy.to/tv/${id}/${s}/${e}`,
-  },
 ];
 
 /**
@@ -142,10 +131,16 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
  * or a paid embed: it is its own site with its own CDN, and it is the only one
  * that sends `X-Frame-Options: ALLOWALL`, so it is the least likely to break
  * because of a framing change.
+ *
+ * Videasy was tried and removed. It was the one source that looked fixable: it
+ * answered 403 to a request with no `Referer` and 200 with one, so a per-source
+ * referrer policy was added (`referrerPolicy` below) to send `origin` for it.
+ * The document then loaded — and the frame stayed black, the same way VidSrc.pm
+ * did. A chip that opens a black rectangle is worse than four chips that work.
  */
 const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
-  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock', 'videasy'],
-  tv: ['autoembed', 'nontongo', 'vidfast', 'videasy'],
+  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock'],
+  tv: ['autoembed', 'nontongo', 'vidfast'],
 };
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
