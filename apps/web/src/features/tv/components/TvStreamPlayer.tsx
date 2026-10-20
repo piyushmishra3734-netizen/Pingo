@@ -19,6 +19,13 @@ import type { MediaType, TmdbMedia } from '../types.js';
 import { TvEpisodePanel } from './TvEpisodePanel.js';
 import { TvHlsPlayer } from './TvHlsPlayer.js';
 import { TvLogo } from './TvLogo.js';
+import {
+  probeIframe,
+  probeResolver,
+  rankProbes,
+  type AudioPreference,
+  type SourceProbe,
+} from '../sourceProbe.js';
 
 export interface StreamProvider {
   id: string;
@@ -55,44 +62,7 @@ export interface StreamProvider {
  *
  * CORS is `*`, so the browser calls it directly; there is no proxy in the way.
  */
-const FRAMEXTV_API = 'https://api.framextv.tech';
 const FRAMEXTV_SITE = 'https://framextv.xyz';
-
-interface ResolvedStream {
-  url: string;
-  quality?: string;
-  audioTracks: { label?: string; language?: string; id?: string }[];
-}
-
-async function resolveFrameXtv(
-  apiProvider: string,
-  type: MediaType,
-  id: number | string,
-  season: number,
-  episode: number,
-): Promise<ResolvedStream | null> {
-  const query = new URLSearchParams({ type, id: String(id), provider: apiProvider });
-  if (type === 'tv') {
-    query.set('season', String(season));
-    query.set('episode', String(episode));
-  }
-
-  try {
-    const response = await fetch(`${FRAMEXTV_API}/api/stream?${query}`, {
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
-      success?: boolean;
-      sources?: { url?: string; quality?: string; audioTracks?: { label?: string; language?: string; id?: string }[] }[];
-    };
-    const first = body.sources?.[0];
-    if (!body.success || !first?.url) return null;
-    return { url: first.url, quality: first.quality, audioTracks: first.audioTracks ?? [] };
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Streaming sources. Every entry below was played end to end in the real
@@ -355,6 +325,9 @@ const LAST_SOURCE_KEY = 'pingo:lastSource';
  */
 const lastSourceKey = (type: MediaType) => `${LAST_SOURCE_KEY}:${type}`;
 
+/** The audio language the viewer wants first: Hindi unless they say otherwise. */
+const AUDIO_PREF_KEY = 'pingo:tvAudio';
+
 /** Which source last worked for this exact title, so a return visit opens on it. */
 const titleSourceKey = (type: MediaType, id: number | string) => `pingo:tvSource:${type}:${id}`;
 
@@ -475,9 +448,21 @@ export function TvStreamPlayer({
   const [countdown, setCountdown] = useState<number | null>(null);
   /** Set when no source would play here, so the viewer is offered the real site. */
   const [showExternal, setShowExternal] = useState<boolean>(false);
-  /** The playlist a resolver returned for an `hls` source, once it has one. */
-  const [hlsStream, setHlsStream] = useState<ResolvedStream | null>(null);
-  const [hlsLoading, setHlsLoading] = useState<boolean>(false);
+  /**
+   * Every source's answer for this title, keyed by provider id — the result of
+   * asking all of them at once on mount.
+   */
+  const [probes, setProbes] = useState<Record<string, SourceProbe>>({});
+  const [probing, setProbing] = useState<boolean>(false);
+  const [audioPref, setAudioPref] = useState<AudioPreference>(() => {
+    try {
+      const saved = localStorage.getItem(AUDIO_PREF_KEY);
+      if (saved === 'hi' || saved === 'en' || saved === 'any') return saved;
+    } catch {
+      // Ignore
+    }
+    return 'hi';
+  });
   /**
    * Whether the tab is actually being looked at.
    *
@@ -566,56 +551,87 @@ export function TvStreamPlayer({
     notify('Reloading stream...', 2000);
   };
 
-  /* -- 0. An `hls` source is a playlist, not a page ------------------------ */
+  /* -- 0. Ask every source at once ----------------------------------------- */
   useEffect(() => {
-    setHlsStream(null);
-    setHlsLoading(false);
-
-    if (provider.kind !== 'hls' || !provider.apiProvider) return;
-
     let live = true;
-    loadedRef.current = false;
-    setHlsLoading(true);
+    claimedRef.current = false;
+    autoVisitedRef.current = new Set();
+    setProbes({});
+    setProbing(true);
+    setShowExternal(false);
 
-    void resolveFrameXtv(provider.apiProvider, mediaType, media.id, season, episode).then((stream) => {
+    const resolverSources = available.filter((p) => p.kind === 'hls' && p.apiProvider);
+    const iframeSources = available.filter((p) => p.kind !== 'hls');
+
+    // Every source is asked in the same tick: the answers arrive together and
+    // are ranked once, instead of one source holding up the queue.
+    void Promise.all([
+      ...resolverSources.map(async (p) => probeResolver(p.apiProvider!, mediaType, media.id, season, episode)),
+      ...iframeSources.map(async (p): Promise<SourceProbe> => {
+        const started = Date.now();
+        const status = await probeIframe(p.buildUrl(mediaType, media.id, season, episode));
+        return { id: p.id, status, ms: Date.now() - started };
+      }),
+    ]).then((results) => {
       if (!live) return;
-      setHlsLoading(false);
 
-      if (!stream) {
-        // Nothing to play: the resolver is the one failure this component can
-        // see outright, so it moves on immediately instead of waiting out a
-        // grace period on a black rectangle.
-        const next = available[providerIndex + 1];
-        if (next && !autoVisitedRef.current.has(next.id)) {
-          autoVisitedRef.current.add(next.id);
-          selectSource(next.id, false);
-          notify(`${provider.name} has nothing for this title — trying ${next.name}`, 3000);
-        } else {
-          setShowExternal(true);
-        }
+      const byId: Record<string, SourceProbe> = {};
+      for (const result of results) byId[result.id] = result;
+      setProbes(byId);
+      setProbing(false);
+
+      // The viewer may have picked a source while the answers were arriving.
+      if (claimedRef.current) return;
+
+      const ranked = rankProbes(results, SOURCE_ORDER[mediaType] ?? [], audioPref);
+      const best = ranked[0];
+      if (!best) {
+        setShowExternal(true);
         return;
       }
 
-      loadedRef.current = true;
-      setHlsStream(stream);
+      setSelectedProviderId(best.id);
+      if (best.status === 'ready') {
+        notify(`Best source: ${best.id.replace(/^fx-/, '')}${best.quality ? ` · ${best.quality}` : ''}`, 2500);
+      }
     });
 
     return () => {
       live = false;
     };
-  }, [
-    provider.id,
-    provider.kind,
-    provider.apiProvider,
-    mediaType,
-    media.id,
-    season,
-    episode,
-    available,
-    providerIndex,
-    selectSource,
-    notify,
-  ]);
+  }, [available, mediaType, media.id, season, episode, notify]);
+
+  /* -- 0a. A new audio preference re-ranks the answers we already have ------ */
+  useEffect(() => {
+    if (probing) return;
+    const answers = Object.values(probes);
+    if (!answers.length) return;
+
+    // Changing the language preference is a request to re-pick, so it overrides
+    // an earlier manual choice — unlike the batch probe, which never does.
+    const ranked = rankProbes(answers, SOURCE_ORDER[mediaType] ?? [], audioPref);
+    const best = ranked[0];
+    if (best) setSelectedProviderId(best.id);
+  }, [audioPref, probing, probes, mediaType]);
+
+  /* -- 0b. A resolver source picked by hand may not have been asked yet ----- */
+  useEffect(() => {
+    if (provider.kind !== 'hls' || !provider.apiProvider) return;
+    if (probes[provider.id]) return; // already answered in the batch above
+    if (probing) return;
+
+    let live = true;
+    loadedRef.current = false;
+
+    void probeResolver(provider.apiProvider, mediaType, media.id, season, episode).then((result) => {
+      if (!live) return;
+      setProbes((current) => ({ ...current, [result.id]: result }));
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [provider.id, provider.kind, provider.apiProvider, probes, probing, mediaType, media.id, season, episode]);
 
   /* -- 1. A host that does not answer is skipped immediately -------------- */
   useEffect(() => {
@@ -762,6 +778,12 @@ export function TvStreamPlayer({
     setShowExternal(true);
   };
 
+  // A playlist is only playable if this exact source answered with one during
+  // the batch probe; everything else about it is a guess.
+  const activeProbe = probes[provider.id];
+  const activeStream =
+    provider.kind === 'hls' && activeProbe?.status === 'ready' ? activeProbe.url : null;
+
   return (
     <div className="fixed inset-0 z-[230] flex bg-black animate-fadeIn">
       {/* Main Player Box */}
@@ -786,6 +808,38 @@ export function TvStreamPlayer({
 
           {/* Right Action Tools */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Audio preference: decides which source wins the ranking */}
+            <div className="flex items-center rounded-lg bg-white/5 p-0.5 ring-1 ring-white/10" role="group" aria-label="Preferred audio">
+              {(['hi', 'en', 'any'] as const).map((pref) => (
+                <button
+                  key={pref}
+                  type="button"
+                  aria-pressed={audioPref === pref}
+                  onClick={() => {
+                    setAudioPref(pref);
+                    try {
+                      localStorage.setItem(AUDIO_PREF_KEY, pref);
+                    } catch {
+                      // Ignore
+                    }
+                  }}
+                  className={cn(
+                    'rounded-md px-2 py-0.5 text-[10px] font-bold uppercase transition-colors',
+                    audioPref === pref ? 'bg-brand text-on-brand' : 'text-text-secondary hover:text-white',
+                  )}
+                  title={
+                    pref === 'hi'
+                      ? 'Prefer a source whose stream carries Hindi audio'
+                      : pref === 'en'
+                        ? 'Prefer English audio'
+                        : 'Whatever answers fastest'
+                  }
+                >
+                  {pref === 'hi' ? 'HI' : pref === 'en' ? 'EN' : 'ANY'}
+                </button>
+              ))}
+            </div>
+
             {/* Auto-fallback toggle */}
             <button
               type="button"
@@ -973,19 +1027,24 @@ export function TvStreamPlayer({
               )}
 
               {provider.kind === 'hls' ? (
-                hlsStream ? (
+                activeStream ? (
                   <TvHlsPlayer
-                    key={`${hlsStream.url}-${reloadKey}`}
-                    src={hlsStream.url}
+                    key={`${activeStream}-${reloadKey}`}
+                    src={activeStream}
                     title={title}
                     onFail={handleStreamFailure}
                   />
                 ) : (
-                  <div className="grid h-full w-full place-items-center bg-black">
-                    <div className="flex flex-col items-center gap-3">
+                  <div className="grid h-full w-full place-items-center bg-black px-6">
+                    <div className="flex max-w-sm flex-col items-center gap-3 text-center">
                       <div className="size-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
-                      <p className="text-xs text-white/60">
-                        {hlsLoading ? `Resolving ${provider.name}…` : `${provider.name} has no stream`}
+                      <p className="text-sm font-semibold text-white/85">
+                        {probing ? 'Checking every source…' : `${provider.name} has no stream`}
+                      </p>
+                      <p className="text-[11px] leading-relaxed text-white/45">
+                        {probing
+                          ? 'Speed depends on your device and your internet connection — each source is asked directly from your browser.'
+                          : 'Pick another source from the list below, or open this one on its own site.'}
                       </p>
                     </div>
                   </div>
@@ -1022,7 +1081,7 @@ export function TvStreamPlayer({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                   <MonitorPlay className="size-3.5 text-brand" />
-                  <span>Sources ({available.length}):</span>
+                  <span>{probing ? `Checking ${available.length} sources…` : `Sources (${available.length}):`}</span>
                   {/* Always available: some frames load and then show nothing,
                       and nothing cross-origin can detect that. The viewer needs
                       a way out that is not "give up". */}
@@ -1041,11 +1100,27 @@ export function TvStreamPlayer({
                 <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {available.map((p) => {
                     const active = activeId === p.id;
+                    const probe = probes[p.id];
+                    /*
+                     * Green is proof: this source returned a playlist for this
+                     * exact episode during the batch probe. Amber is weaker —
+                     * the host answered, but a cross-origin frame cannot be
+                     * asked whether it has the title. Dim is "no".
+                     */
+                    const dot =
+                      probe?.status === 'ready'
+                        ? 'bg-emerald-400'
+                        : probe?.status === 'reachable'
+                          ? 'bg-amber-400'
+                          : probe
+                            ? 'bg-white/25'
+                            : 'bg-white/10 animate-pulse';
                     return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => handleSelectProvider(p.id)}
+                        title={probe ? `${p.name} · ${probe.status}` : `${p.name} · checking`}
                         className={cn(
                           'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all active:scale-95',
                           active
@@ -1053,6 +1128,7 @@ export function TvStreamPlayer({
                             : 'bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white ring-1 ring-white/10',
                         )}
                       >
+                        <span className={cn('size-1.5 shrink-0 rounded-full', dot)} aria-hidden />
                         <span>{p.name}</span>
                         {p.badge && (
                           <span
