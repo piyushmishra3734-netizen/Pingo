@@ -222,7 +222,11 @@ export function TvStreamPlayer({
   const rememberedKey = titleSourceKey(mediaType, media.id);
 
   // Only the sources that are known to work for this kind of title, in the
-  // order measured in SOURCE_ORDER.
+  // order in SOURCE_ORDER. That order is where Hindi priority lives: VidFast
+  // carries the multi-audio server, so it is first for films. It is last for
+  // shows, deliberately — its episode path stalls, and a Hindi source that
+  // never starts is not a Hindi source. Lifting it above the working ones to
+  // satisfy a sort would trade a real Hindi option for a black screen.
   //
   // Memoised on purpose: it is read by an effect, and a fresh array each render
   // would make that effect re-run on every render.
@@ -259,6 +263,8 @@ export function TvStreamPlayer({
   const [isTheater, setIsTheater] = useState<boolean>(false);
   const [autoFallback, setAutoFallback] = useState<boolean>(true);
   const [countdown, setCountdown] = useState<number | null>(null);
+  /** Set when no source would play here, so the viewer is offered the real site. */
+  const [showExternal, setShowExternal] = useState<boolean>(false);
   const [reloadKey, setReloadKey] = useState<number>(0);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -331,6 +337,7 @@ export function TvStreamPlayer({
   useEffect(() => {
     let live = true;
     loadedRef.current = false;
+    setShowExternal(false);
 
     void isReachable(streamUrl).then((reachable) => {
       if (!live || reachable) return;
@@ -354,8 +361,8 @@ export function TvStreamPlayer({
   useEffect(() => {
     setCountdown(null);
 
-    if (!autoFallback || !nextProvider || claimedRef.current) return;
-    if (autoVisitedRef.current.has(nextProvider.id)) return;
+    if (!autoFallback || claimedRef.current) return;
+    if (nextProvider && autoVisitedRef.current.has(nextProvider.id)) return;
 
     // A title that already worked here does not get second-guessed.
     let alreadyKnown = false;
@@ -396,9 +403,19 @@ export function TvStreamPlayer({
         return;
       }
 
-      autoVisitedRef.current.add(nextProvider.id);
-      selectSource(nextProvider.id, false);
-      notify(`${provider.name} did not load — trying ${nextProvider.name}`, 3000);
+      if (nextProvider) {
+        autoVisitedRef.current.add(nextProvider.id);
+        selectSource(nextProvider.id, false);
+        notify(`${provider.name} did not load — trying ${nextProvider.name}`, 3000);
+        return;
+      }
+
+      /*
+       * Nothing left to try inside Pingo. Every provider is its own website, so
+       * the honest last resort is to hand the viewer that page instead of a
+       * black rectangle — same title, same episode, one tab away.
+       */
+      setShowExternal(true);
     }, GRACE_MS);
 
     return () => {
@@ -589,6 +606,56 @@ export function TvStreamPlayer({
                 </div>
               )}
 
+              {/* No source would play here: hand over the provider's own page */}
+              {showExternal && (
+                <div className="absolute inset-0 z-40 grid place-items-center bg-[#090a0f]/95 px-6">
+                  <div className="max-w-md rounded-2xl border border-white/10 bg-[#12141c] p-6 text-center shadow-2xl">
+                    <AlertCircle className="mx-auto size-6 text-amber-400" />
+                    <h4 className="mt-3 text-base font-bold text-white">
+                      {provider.name} won&apos;t play inside Pingo
+                    </h4>
+                    <p className="mt-1.5 text-xs leading-relaxed text-text-secondary">
+                      This server refuses to be embedded, so the film cannot start here. It still
+                      exists on {provider.name} — open it there, in a new tab.
+                    </p>
+                    <div className="mt-4 flex flex-col gap-2">
+                      <a
+                        href={streamUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-on-brand shadow-sm transition-transform active:scale-95"
+                      >
+                        <ExternalLink className="size-4" />
+                        Open {provider.name}
+                      </a>
+                      <div className="flex gap-2">
+                        {nextProvider && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              autoVisitedRef.current.add(nextProvider.id);
+                              selectSource(nextProvider.id, true);
+                              setShowExternal(false);
+                              notify(`Switched to ${nextProvider.name}`);
+                            }}
+                            className="flex-1 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20"
+                          >
+                            Try {nextProvider.name}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowExternal(false)}
+                          className="flex-1 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-white"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <iframe
                 key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
                 src={streamUrl}
@@ -620,6 +687,19 @@ export function TvStreamPlayer({
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                   <MonitorPlay className="size-3.5 text-brand" />
                   <span>Sources ({available.length}):</span>
+                  {/* Always available: some frames load and then show nothing,
+                      and nothing cross-origin can detect that. The viewer needs
+                      a way out that is not "give up". */}
+                  <a
+                    href={streamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open ${provider.name} on its own site`}
+                    className="ml-1 flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold normal-case tracking-normal text-text-secondary ring-1 ring-white/10 transition-colors hover:text-white"
+                  >
+                    <ExternalLink className="size-3" />
+                    <span className="hidden sm:inline">Open on {provider.name}</span>
+                  </a>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
