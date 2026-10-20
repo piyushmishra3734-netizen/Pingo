@@ -8,6 +8,14 @@ interface TvHlsPlayerProps {
   poster?: string;
   /** Called once when the stream fails in a way it will not recover from. */
   onFail?: () => void;
+  /**
+   * Called the first time the picture is actually moving.
+   *
+   * The player uses it to stop shopping for a better source: switching after
+   * playback has started restarts the film from the beginning, which is the
+   * "it loads, then starts over" loop.
+   */
+  onPlaying?: () => void;
 }
 
 /**
@@ -22,14 +30,31 @@ interface TvHlsPlayerProps {
  * Safari plays HLS natively and gets the `src` directly. Everything else goes
  * through hls.js.
  */
-export function TvHlsPlayer({ src, title, poster, onFail }: TvHlsPlayerProps) {
+export function TvHlsPlayer({ src, title, poster, onFail, onPlaying }: TvHlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const failRef = useRef(onFail);
+  const playingRef = useRef(onPlaying);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     failRef.current = onFail;
-  }, [onFail]);
+    playingRef.current = onPlaying;
+  }, [onFail, onPlaying]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let announced = false;
+    const announce = () => {
+      if (announced) return;
+      announced = true;
+      playingRef.current?.();
+    };
+
+    video.addEventListener('playing', announce);
+    return () => video.removeEventListener('playing', announce);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;

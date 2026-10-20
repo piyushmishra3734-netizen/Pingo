@@ -497,6 +497,8 @@ export function TvStreamPlayer({
   const audioPrefValue = useRef<AudioPreference>(audioPref);
   /** The source currently on screen, read from inside the same callback. */
   const selectedIdRef = useRef<string>(selectedProviderId);
+  /** Once the picture is moving, nothing may switch sources under it. */
+  const playingRef = useRef<boolean>(false);
 
   useEffect(() => {
     audioPrefValue.current = audioPref;
@@ -567,6 +569,7 @@ export function TvStreamPlayer({
   useEffect(() => {
     let live = true;
     claimedRef.current = false;
+    playingRef.current = false;
     autoVisitedRef.current = new Set();
     setProbes({});
     setProbing(true);
@@ -602,9 +605,22 @@ export function TvStreamPlayer({
           openedReady = true;
           setProbing(false);
           setSelectedProviderId(best.id);
-          notify(`${best.id.replace(/^fx-/, '')} · ${best.quality ?? 'ready'}`, 2200);
-        } else if (openedReady && best.status === 'ready' && best.id !== selectedIdRef.current) {
-          // A better ready source turned up after the first one opened.
+          const wantsHindi = audioPrefValue.current === 'hi';
+          const hasHindi = (best.audio ?? []).some((label) => /hindi|hin\b/i.test(label));
+          notify(
+            wantsHindi && best.audio?.length && !hasHindi
+              ? `${best.id.replace(/^fx-/, '')} · Hindi audio is not available here`
+              : `${best.id.replace(/^fx-/, '')} · ${best.quality ?? 'ready'}`,
+            2600,
+          );
+        } else if (
+          openedReady &&
+          best.status === 'ready' &&
+          best.id !== selectedIdRef.current &&
+          // Never swap a film that is already running: the new playlist starts
+          // at 0:00, which is the restart loop people notice.
+          !playingRef.current
+        ) {
           setSelectedProviderId(best.id);
         } else if (!openedReady) {
           setSelectedProviderId(best.id);
@@ -1091,6 +1107,9 @@ export function TvStreamPlayer({
                     src={activeStream}
                     title={title}
                     onFail={handleStreamFailure}
+                    onPlaying={() => {
+                      playingRef.current = true;
+                    }}
                   />
                 ) : (
                   <div className="grid h-full w-full place-items-center bg-black px-6">

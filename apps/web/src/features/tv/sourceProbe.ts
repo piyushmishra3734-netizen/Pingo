@@ -54,6 +54,23 @@ async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: num
 }
 
 /**
+ * A playlist whose segments are images is not a film.
+ *
+ * Several of these servers answer with a perfectly valid m3u8 whose segments
+ * are `.jpg` files, thousands of them — a slideshow, not video. It looks like a
+ * working source to every check that only asks "did the URL answer": the
+ * playlist is 200, the content type is right, the segments exist. The player
+ * then spins, retries, and restarts from the beginning, which is the load loop
+ * that was reported as a player bug.
+ */
+export function playlistIsImages(text: string): boolean {
+  const segments = [...text.matchAll(/^https?:\/\/\S+$/gim)].map((match) => match[0]);
+  if (!segments.length) return false;
+  const imagey = segments.filter((url) => /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url)).length;
+  return imagey / segments.length > 0.8;
+}
+
+/**
  * Does this playlist contain a variant the browser can actually decode?
  *
  * A playlist URL that answers 200 is not a stream that plays. Several of these
@@ -71,13 +88,27 @@ export function playlistIsPlayable(text: string): boolean {
   return codecLists.some((list) => list.includes('avc1'));
 }
 
+/** The first segment URL in a media playlist, or the first variant in a master. */
+function firstMediaUrl(text: string): string | null {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const segment = lines.find((line) => line.startsWith('http') && !line.startsWith('#'));
+  return segment ?? null;
+}
+
+type ApiSource = {
+  url?: string;
+  quality?: string;
+  audioTracks?: { label?: string; language?: string }[];
+};
+
 /**
- * Ask one resolver provider for this exact episode.
+ * Ask one resolver provider for this exact episode, and prove the answer.
  *
- * This is the only probe that can answer "does this source have it", because it
- * returns the playlist itself rather than a page that has to be trusted — and
- * because the playlist can be read, the audio it carries and the codecs it
- * offers are both answerable before anything is shown to the viewer.
+ * "Success" from the API is not the same as a stream. A provider can return
+ * several sources and most of them can be worthless: one points at a JPEG
+ * slideshow, another 404s, another is HEVC-only. So every source it offers is
+ * walked, and the first one that is a real, decodable, reachable video playlist
+ * is the one that counts.
  */
 export async function probeResolver(
   apiProvider: string,
@@ -99,40 +130,59 @@ export async function probeResolver(
       signal,
     });
     if (!response.ok) return null;
-    return (await response.json()) as {
-      success?: boolean;
-      sources?: { url?: string; quality?: string; audioTracks?: { label?: string; language?: string }[] }[];
+    return (await response.json()) as { success?: boolean; sources?: ApiSource[] };
+  }, PROBE_TIMEOUT_MS);
+
+  const candidates = (result?.sources ?? []).filter((source): source is ApiSource & { url: string } =>
+    Boolean(source.url),
+  );
+
+  if (!result?.success || !candidates.length) {
+    return { id: apiProvider, status: 'empty', ms: Date.now() - started };
+  }
+
+  for (const candidate of candidates) {
+    const playlistUrl = candidate.url;
+
+    const text = await withTimeout(async (signal) => {
+      const response = await fetch(playlistUrl, { signal });
+      if (!response.ok) return null;
+      return await response.text();
+    }, PROBE_TIMEOUT_MS);
+
+    // Not a playlist, or a playlist of pictures: the two shapes of "it answers
+    // but there is nothing to watch".
+    if (!text || !/#EXTM3U/i.test(text)) continue;
+    if (playlistIsImages(text)) continue;
+    if (!playlistIsPlayable(text)) continue;
+
+    // The last lie a source can tell: a valid playlist whose segments are gone.
+    // One small range request is enough to find out.
+    const segment = firstMediaUrl(text);
+    if (segment) {
+      const reachable = await withTimeout(async (signal) => {
+        const response = await fetch(segment, {
+          headers: { range: 'bytes=0-1023' },
+          signal,
+        });
+        return response.ok || response.status === 206;
+      }, PROBE_TIMEOUT_MS);
+      if (!reachable) continue;
+    }
+
+    return {
+      id: apiProvider,
+      status: 'ready',
+      url: playlistUrl,
+      quality: candidate.quality,
+      audio: (candidate.audioTracks ?? [])
+        .map((track) => track.label || track.language || '')
+        .filter(Boolean),
+      ms: Date.now() - started,
     };
-  }, PROBE_TIMEOUT_MS);
-
-  const first = result?.sources?.[0];
-  const ms = Date.now() - started;
-
-  if (!result?.success || !first?.url) {
-    return { id: apiProvider, status: 'empty', ms };
   }
 
-  // Read the playlist itself: an URL that answers is not the same as a stream
-  // this browser can decode.
-  const playlistUrl = first.url;
-  const playlist = await withTimeout(async (signal) => {
-    const response = await fetch(playlistUrl, { signal });
-    if (!response.ok) return null;
-    return await response.text();
-  }, PROBE_TIMEOUT_MS);
-
-  if (playlist === null || !playlistIsPlayable(playlist)) {
-    return { id: apiProvider, status: 'empty', quality: first.quality, ms: Date.now() - started };
-  }
-
-  return {
-    id: apiProvider,
-    status: 'ready',
-    url: first.url,
-    quality: first.quality,
-    audio: (first.audioTracks ?? []).map((track) => track.label || track.language || '').filter(Boolean),
-    ms: Date.now() - started,
-  };
+  return { id: apiProvider, status: 'empty', quality: candidates[0]?.quality, ms: Date.now() - started };
 }
 
 /**
