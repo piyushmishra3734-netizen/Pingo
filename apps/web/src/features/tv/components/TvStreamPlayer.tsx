@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -29,6 +29,8 @@ export interface StreamProvider {
    * flag: it decides how long the player waits before looking elsewhere.
    */
   autoStarts?: boolean;
+  /** Defaults to both. A source that has no episode support must not offer itself for one. */
+  supports?: MediaType[];
   buildUrl: (mediaType: MediaType, id: number | string, season: number, episode: number) => string;
 }
 
@@ -89,6 +91,7 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
     name: 'VidRock',
     badge: 'Movies',
     autoStarts: true,
+    supports: ['movie'],
     buildUrl: (type, id, s, e) =>
       type === 'movie'
         ? `https://vidrock.net/movie/${id}`
@@ -105,15 +108,11 @@ const titleSourceKey = (type: MediaType, id: number | string) => `pingo:tvSource
 const REACH_TIMEOUT_MS = 4000;
 
 /**
- * How long to give a source before assuming it did not start.
- *
- * One that plays on its own gets longer, because switching away from a film
- * that is *already playing* is the worst failure this component can have. One
- * that waits for a tap gets a short budget: if nobody tapped, nobody is
- * watching.
+ * How long a freshly mounted frame gets to fire `load` before the next source
+ * is tried. Long enough for a slow host on a bad connection, short enough that
+ * a dead one is not a full minute of black.
  */
 const GRACE_MS = 20000;
-const GRACE_AUTOSTART_MS = 35000;
 
 /**
  * Can the browser open a connection to this URL at all?
@@ -178,6 +177,17 @@ export function TvStreamPlayer({
   const isTv = mediaType === 'tv';
   const rememberedKey = titleSourceKey(mediaType, media.id);
 
+  // A show is not offered a source that has no episodes (VidRock sat on
+  // "Loading..." past 20s for S1E1), because offering it and failing is the
+  // thing this whole change exists to stop.
+  //
+  // Memoised on purpose: it is read by an effect, and a fresh array each render
+  // would make that effect re-run on every render.
+  const available = useMemo(
+    () => STREAM_PROVIDERS.filter((p) => !p.supports || p.supports.includes(mediaType)),
+    [mediaType],
+  );
+
   // A title that worked on a source last time opens on that source; then the
   // last source used anywhere, if it is still shipped. A saved id that is no
   // longer in the lineup (anyone who had `nhd` stored) falls through to the
@@ -185,13 +195,13 @@ export function TvStreamPlayer({
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
     try {
       const forTitle = localStorage.getItem(rememberedKey);
-      if (forTitle && STREAM_PROVIDERS.some((p) => p.id === forTitle)) return forTitle;
+      if (forTitle && available.some((p) => p.id === forTitle)) return forTitle;
       const saved = localStorage.getItem(LAST_SOURCE_KEY);
-      if (saved && STREAM_PROVIDERS.some((p) => p.id === saved)) return saved;
+      if (saved && available.some((p) => p.id === saved)) return saved;
     } catch {
       // Ignore localStorage errors
     }
-    return STREAM_PROVIDERS[0]!.id;
+    return available[0]!.id;
   });
 
   const [season, setSeason] = useState<number>(initialSeason);
@@ -212,6 +222,8 @@ export function TvStreamPlayer({
   const autoVisitedRef = useRef<Set<string>>(new Set());
   /** True once the viewer has touched anything: the player stops second-guessing. */
   const claimedRef = useRef<boolean>(false);
+  /** True once the frame fired `load` — something answered and rendered. */
+  const loadedRef = useRef<boolean>(false);
 
   const notify = useCallback((message: string, holdMs = 2500) => {
     setNotification(message);
@@ -226,12 +238,15 @@ export function TvStreamPlayer({
     [],
   );
 
+  const activeId = available.some((p) => p.id === selectedProviderId)
+    ? selectedProviderId
+    : available[0]!.id;
   const providerIndex = Math.max(
     0,
-    STREAM_PROVIDERS.findIndex((p) => p.id === selectedProviderId),
+    available.findIndex((p) => p.id === activeId),
   );
-  const provider = STREAM_PROVIDERS[providerIndex]!;
-  const nextProvider = STREAM_PROVIDERS[providerIndex + 1] ?? null;
+  const provider = available[providerIndex]!;
+  const nextProvider = available[providerIndex + 1] ?? null;
   const streamUrl = provider.buildUrl(mediaType, media.id, season, episode);
 
   const rememberChoice = useCallback(
@@ -258,7 +273,7 @@ export function TvStreamPlayer({
   const handleSelectProvider = (id: string) => {
     claimedRef.current = true;
     selectSource(id, true);
-    const target = STREAM_PROVIDERS.find((p) => p.id === id);
+    const target = available.find((p) => p.id === id);
     if (target) notify(`Switched to ${target.name}`);
   };
 
@@ -270,10 +285,12 @@ export function TvStreamPlayer({
   /* -- 1. A host that does not answer is skipped immediately -------------- */
   useEffect(() => {
     let live = true;
+    loadedRef.current = false;
+
     void isReachable(streamUrl).then((reachable) => {
       if (!live || reachable) return;
 
-      const next = STREAM_PROVIDERS[providerIndex + 1];
+      const next = available[providerIndex + 1];
       if (!next || autoVisitedRef.current.has(next.id)) {
         notify(`${provider.name} is not responding`, 3000);
         return;
@@ -286,9 +303,9 @@ export function TvStreamPlayer({
     return () => {
       live = false;
     };
-  }, [streamUrl, provider.name, providerIndex, selectSource, notify]);
+  }, [streamUrl, provider.name, providerIndex, available, selectSource, notify]);
 
-  /* -- 2. A source that loads but never starts is left after the grace ---- */
+  /* -- 2. A frame that never loads is left after the grace period ---------- */
   useEffect(() => {
     setCountdown(null);
 
@@ -302,9 +319,8 @@ export function TvStreamPlayer({
     } catch {
       // Ignore
     }
-    if (alreadyKnown && provider.autoStarts) return;
+    if (alreadyKnown) return;
 
-    const grace = provider.autoStarts ? GRACE_AUTOSTART_MS : GRACE_MS;
     const claim = () => {
       claimedRef.current = true;
       setCountdown(null);
@@ -314,17 +330,31 @@ export function TvStreamPlayer({
     window.addEventListener('pointerdown', claim, true);
     window.addEventListener('keydown', claim, true);
 
-    setCountdown(Math.round(grace / 1000));
+    setCountdown(Math.round(GRACE_MS / 1000));
     const tick = setInterval(() => {
       setCountdown((left) => (left === null ? null : Math.max(0, left - 1)));
     }, 1000);
 
     const jump = setTimeout(() => {
       if (claimedRef.current) return;
+
+      /*
+       * The frame firing `load` means something answered and rendered. That is
+       * not proof the film is playing — nothing cross-origin can give us that —
+       * but taking a working player away from somebody is a worse bug than
+       * waiting, so the fallback only moves on from a frame that never loaded
+       * at all. A source that renders and then shows nothing is left to the
+       * viewer, who has the Next Source button.
+       */
+      if (loadedRef.current) {
+        setCountdown(null);
+        return;
+      }
+
       autoVisitedRef.current.add(nextProvider.id);
       selectSource(nextProvider.id, false);
-      notify(`${provider.name} did not start — trying ${nextProvider.name}`, 3000);
-    }, grace);
+      notify(`${provider.name} did not load — trying ${nextProvider.name}`, 3000);
+    }, GRACE_MS);
 
     return () => {
       clearInterval(tick);
@@ -336,7 +366,6 @@ export function TvStreamPlayer({
   }, [
     autoFallback,
     provider.id,
-    provider.autoStarts,
     nextProvider,
     reloadKey,
     season,
@@ -407,7 +436,7 @@ export function TvStreamPlayer({
             <button
               type="button"
               onClick={() => {
-                const next = STREAM_PROVIDERS[(providerIndex + 1) % STREAM_PROVIDERS.length]!;
+                const next = available[(providerIndex + 1) % available.length]!;
                 claimedRef.current = true;
                 selectSource(next.id, true);
                 notify(`Switched to ${next.name}`);
@@ -523,6 +552,12 @@ export function TvStreamPlayer({
                 allowFullScreen
                 referrerPolicy="no-referrer"
                 className="h-full w-full border-0"
+                onLoad={() => {
+                  // Something answered and rendered. See the note in the grace
+                  // timer: this is as close to "it works" as a cross-origin
+                  // frame can get, and the fallback never overrides it.
+                  loadedRef.current = true;
+                }}
                 onError={() => {
                   if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
                     autoVisitedRef.current.add(nextProvider.id);
@@ -539,12 +574,12 @@ export function TvStreamPlayer({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                   <MonitorPlay className="size-3.5 text-brand" />
-                  <span>Sources ({STREAM_PROVIDERS.length}):</span>
+                  <span>Sources ({available.length}):</span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {STREAM_PROVIDERS.map((p) => {
-                    const active = selectedProviderId === p.id;
+                  {available.map((p) => {
+                    const active = activeId === p.id;
                     return (
                       <button
                         key={p.id}
