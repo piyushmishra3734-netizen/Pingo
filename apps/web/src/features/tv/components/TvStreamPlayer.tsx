@@ -460,6 +460,10 @@ export function TvStreamPlayer({
   const [countdown, setCountdown] = useState<number | null>(null);
   /** Set when no source would play here, so the viewer is offered the real site. */
   const [showExternal, setShowExternal] = useState<boolean>(false);
+  /** False until the picture is actually moving — the "finding" screen lasts that long. */
+  const [hasStarted, setHasStarted] = useState<boolean>(false);
+  /** By default only sources that answered are listed; this reveals the rest. */
+  const [showAllSources, setShowAllSources] = useState<boolean>(false);
   /**
    * Every source's answer for this title, keyed by provider id — the result of
    * asking all of them at once on mount.
@@ -585,6 +589,8 @@ export function TvStreamPlayer({
     let live = true;
     claimedRef.current = false;
     playingRef.current = false;
+    manualPickRef.current = false;
+    setHasStarted(false);
     autoVisitedRef.current = new Set();
     setProbes({});
     setProbing(true);
@@ -854,6 +860,8 @@ export function TvStreamPlayer({
   // A playlist that answered but will not play is the same as one that did not
   // answer: mark it and go to the next source that is already confirmed.
   const handleStreamFailure = () => {
+    playingRef.current = false;
+    setHasStarted(false);
     setProbes((current) => ({
       ...current,
       [provider.id]: { ...(current[provider.id] ?? { id: provider.id }), status: 'empty', url: undefined },
@@ -886,6 +894,21 @@ export function TvStreamPlayer({
   const activeProbe = probes[provider.id];
   const activeStream =
     provider.kind === 'hls' && activeProbe?.status === 'ready' ? activeProbe.url : null;
+
+  /*
+   * Only sources that answered belong on screen.
+   *
+   * The point of asking everyone at once is that the viewer should see the
+   * shortlist, not the dossier. A source that came back empty is not an option,
+   * so it is hidden behind a count instead — and the active one is always shown
+   * even if it is empty, because hiding the thing that is on screen is worse.
+   */
+  const workingChips = available.filter((p) => {
+    const probe = probes[p.id];
+    return !probe || probe.status === 'ready' || probe.status === 'reachable' || p.id === activeId;
+  });
+  const hiddenCount = available.length - workingChips.length;
+  const visibleChips = showAllSources ? available : workingChips;
 
   return (
     <div className={cn(mini ? 'relative h-full w-full bg-black' : 'fixed inset-0 z-[230] flex bg-black animate-fadeIn')}>
@@ -1149,31 +1172,37 @@ export function TvStreamPlayer({
               )}
 
               {provider.kind === 'hls' ? (
-                activeStream ? (
-                  <TvHlsPlayer
-                    key={`${activeStream}-${reloadKey}`}
-                    src={activeStream}
-                    title={title}
-                    onFail={handleStreamFailure}
-                    onPlaying={() => {
-                      playingRef.current = true;
-                    }}
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center bg-black px-6">
-                    <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-                      <div className="size-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
-                      <p className="text-sm font-semibold text-white/85">
-                        {probing ? 'Checking every source…' : `${provider.name} has no stream`}
-                      </p>
-                      <p className="text-[11px] leading-relaxed text-white/45">
-                        {probing
-                          ? 'Speed depends on your device and your internet connection — each source is asked directly from your browser.'
-                          : 'Pick another source from the list below, or open this one on its own site.'}
-                      </p>
+                <>
+                  {activeStream ? (
+                    <TvHlsPlayer
+                      key={`${activeStream}-${reloadKey}`}
+                      src={activeStream}
+                      title={title}
+                      onFail={handleStreamFailure}
+                      onPlaying={() => {
+                        playingRef.current = true;
+                        setHasStarted(true);
+                      }}
+                    />
+                  ) : null}
+
+                  {/* The finding screen lasts until the film is actually moving. */}
+                  {!hasStarted && (
+                    <div className="absolute inset-0 z-10 grid place-items-center bg-black/90 px-6">
+                      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+                        <div className="size-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
+                        <p className="text-sm font-semibold text-white/85">
+                          Finding the best provider for you…
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-white/45">
+                          {activeStream
+                            ? 'Opening it now. It runs on your device and your connection.'
+                            : `${Object.keys(probes).length} of ${available.length} checked — playback starts the moment a source answers.`}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )
+                  )}
+                </>
               ) : (
                 <iframe
                   key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
@@ -1206,7 +1235,21 @@ export function TvStreamPlayer({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
                   <MonitorPlay className="size-3.5 text-brand" />
-                  <span>{probing ? `Checking ${available.length} sources…` : `Sources (${available.length}):`}</span>
+                  <span>
+                    {probing
+                      ? `Finding sources… ${workingChips.length}/${available.length}`
+                      : `Sources (${visibleChips.length})`}
+                  </span>
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSources((current) => !current)}
+                      className="rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold normal-case tracking-normal text-text-secondary ring-1 ring-white/10 transition-colors hover:text-white"
+                      title="Sources that answered nothing are hidden by default"
+                    >
+                      {showAllSources ? 'Only working' : `+${hiddenCount} not working`}
+                    </button>
+                  )}
                   {/* Always available: some frames load and then show nothing,
                       and nothing cross-origin can detect that. The viewer needs
                       a way out that is not "give up". */}
@@ -1223,7 +1266,7 @@ export function TvStreamPlayer({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {available.map((p) => {
+                        {visibleChips.map((p) => {
                     const active = activeId === p.id;
                     const probe = probes[p.id];
                     /*
