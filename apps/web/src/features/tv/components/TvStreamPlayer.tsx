@@ -604,6 +604,16 @@ export function TvStreamPlayer({
     if (!autoFallback || claimedRef.current) return;
     if (nextProvider && autoVisitedRef.current.has(nextProvider.id)) return;
 
+    /*
+     * An `hls` source is not guessed at. The resolver either handed us a
+     * playlist or it did not, and hls.js reports a fatal error if it dies — so
+     * this timer has nothing to add, and arming it would take a film that is
+     * about to play and hand it to the next source for no reason. That is
+     * exactly what it did on 3 Idiots: the Giant playlist had arrived and the
+     * banner was still counting down to VidFast.
+     */
+    if (provider.kind === 'hls') return;
+
     // A title that already worked here does not get second-guessed.
     let alreadyKnown = false;
     try {
