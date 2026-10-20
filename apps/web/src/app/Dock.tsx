@@ -1,6 +1,6 @@
 import { useChat } from '@pingo/core';
 import { Badge, CameraIcon, ChatIcon, UserIcon, cn } from '@pingo/ui';
-import { Music2, TvMinimalPlay } from 'lucide-react';
+import { TvMinimalPlay } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { useT } from '../features/i18n/useT.js';
@@ -61,7 +61,7 @@ export function Dock() {
           </NavLink>
 
           <button type="button" onPointerDown={preloadMusic} onClick={openMusic} className={tab(false)}>
-            <Music2 size={25} strokeWidth={1.9} aria-hidden />
+            <img src="/music/logo.png" alt="" aria-hidden draggable={false} className="size-[26px] object-contain" />
             <span className={label(false)}>Music</span>
           </button>
 

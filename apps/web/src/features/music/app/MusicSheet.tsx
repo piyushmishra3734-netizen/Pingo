@@ -245,7 +245,7 @@ export default function MusicSheet() {
         <header className="relative shrink-0 touch-none px-[18px] pb-2" onPointerDown={onPullDown} onPointerMove={onPullMove} onPointerUp={onPullEnd} onPointerCancel={onPullEnd}>
           <span aria-hidden className="mx-auto mb-2 mt-2 block h-1 w-9 rounded-full bg-ink/15" />
           <div className="flex h-[34px] items-center gap-2">
-            <img src="/pingo-mark.svg" alt="" className="size-6" draggable={false} />
+            <img src="/music/logo.png" alt="" className="size-7 object-contain" draggable={false} />
             <span className="text-[19px] font-medium tracking-[-0.01em]">
               pingo <span className="font-normal text-text-secondary">music</span>
             </span>

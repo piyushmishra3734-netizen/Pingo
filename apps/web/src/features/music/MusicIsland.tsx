@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { Music2, Pause, Play, RotateCcw, RotateCw, X } from 'lucide-react';
+import { Pause, Play, RotateCcw, RotateCw, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -294,7 +294,7 @@ export function MusicIsland() {
           !playing && size === 'large' && 'island-cover-rest',
         )}
       >
-        <Music2 size={size === 'large' ? 22 : 12} />
+        <img src="/music/logo.png" alt="" draggable={false} className={size === 'large' ? 'size-[26px] object-contain' : 'size-[14px] object-contain'} />
       </span>
     );
 
