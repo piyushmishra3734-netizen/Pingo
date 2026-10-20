@@ -4,8 +4,9 @@ import { cn } from '@pingo/ui';
 import type { TmdbMedia, TmdbMediaDetails } from '../types.js';
 import { fetchDetails, getTmdbPosterUrl } from '../api/tmdb.js';
 import { TvEpisodeBrowser } from './TvEpisodeBrowser.js';
+import { TvWatchChat } from './TvWatchChat.js';
 
-type PanelTab = 'episodes' | 'details' | 'more';
+type PanelTab = 'episodes' | 'details' | 'more' | 'chat';
 
 interface Props {
   media: TmdbMedia;
@@ -14,6 +15,8 @@ interface Props {
   episode: number;
   onPick: (season: number, episode: number) => void;
   onOpenMedia: (media: TmdbMedia) => void;
+  /** The friend being watched along with: the chat tab opens on their conversation. */
+  alongId?: string;
 }
 
 /**
@@ -22,8 +25,9 @@ interface Props {
  * Seasons and episodes are the real ones from TMDB; if they cannot be read the
  * episode list falls back to plain numbers rather than inventing titles.
  */
-export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMedia }: Props) {
-  const [tab, setTab] = useState<PanelTab>(isTv ? 'episodes' : 'details');
+export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMedia, alongId }: Props) {
+  // Watching along: the person is here to talk, so the chat is where it opens.
+  const [tab, setTab] = useState<PanelTab>(alongId ? 'chat' : isTv ? 'episodes' : 'details');
   const [details, setDetails] = useState<TmdbMediaDetails | null>(null);
   const type = isTv ? 'tv' : 'movie';
 
@@ -37,6 +41,7 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
 
   const tabs: Array<{ id: PanelTab; label: string }> = [
     ...(isTv ? [{ id: 'episodes' as const, label: 'Episodes' }] : []),
+    { id: 'chat' as const, label: 'Chat' },
     { id: 'details', label: 'Details' },
     { id: 'more', label: 'More Like This' },
   ];
@@ -58,7 +63,9 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-width:thin]">
+      <div className={cn('min-h-0 flex-1 overscroll-contain [scrollbar-width:thin]', tab === 'chat' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto p-3')}>
+        {tab === 'chat' && <TvWatchChat {...(alongId ? { alongId } : {})} />}
+
         {tab === 'episodes' && isTv && (
           <TvEpisodeBrowser media={media} variant="panel" current={{ season, episode }} onPick={onPick} />
         )}

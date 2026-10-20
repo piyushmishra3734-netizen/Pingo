@@ -401,6 +401,8 @@ interface TvStreamPlayerProps {
   onEpisodeChange?: (season: number, episode: number) => void;
   /** A title picked from "More Like This". */
   onOpenMedia?: (media: TmdbMedia) => void;
+  /** The friend being watched along with, so the chat tab opens on their conversation. */
+  alongId?: string;
   /** Shrinks the film into the floating mini player, at this episode. */
   onMinimize?: (season: number, episode: number) => void;
   /** Open on this server (a friend's, when watching along) and keep it unless it cannot play. */
@@ -424,6 +426,7 @@ export function TvStreamPlayer({
   onOpenTrailer,
   onEpisodeChange,
   onOpenMedia,
+  alongId,
   onMinimize,
   initialSource,
   onSourceChange,
@@ -1451,6 +1454,7 @@ export function TvStreamPlayer({
                 setEpisode(e);
               }}
               onOpenMedia={(m) => onOpenMedia?.(m)}
+              {...(alongId ? { alongId } : {})}
             />
           )}
         </div>

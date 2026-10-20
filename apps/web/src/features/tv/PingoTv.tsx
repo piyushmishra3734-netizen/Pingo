@@ -497,6 +497,7 @@ export function PingoTv() {
             initialSeason={route.season}
             initialEpisode={route.episode}
             onOpenMedia={open}
+            {...(alongId ? { alongId } : {})}
             initialSource={route.src}
             onSourceChange={setSourceNow}
             onMinimize={(s, e) => {
