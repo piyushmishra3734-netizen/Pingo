@@ -11,8 +11,8 @@ interface Props {
   alongId?: string;
   /**
    * `browse` is a sheet over the whole Pingo TV page (a bottom sheet on a
-   * phone, a drawer on a laptop). `overlay` sits on the right of the picture
-   * while it is full screen, so the film stays in view.
+   * phone, a drawer on a laptop). `overlay` is a small card in the corner of the
+   * picture while it is full screen, so the film stays in view.
    */
   variant: 'browse' | 'overlay';
 }
@@ -40,7 +40,7 @@ export function TvChatDrawer({ open, onClose, alongId, variant }: Props) {
         'flex min-h-0 flex-col bg-[#0d0e14] text-white shadow-2xl',
         variant === 'browse'
           ? 'h-[74dvh] w-full rounded-t-2xl border-t border-white/10 md:h-full md:w-[390px] md:rounded-none md:border-l md:border-t-0'
-          : 'absolute bottom-0 right-0 top-0 z-40 w-[min(92%,340px)] border-l border-white/10 bg-[#0d0e14]/85 backdrop-blur-xl animate-fadeIn',
+          : 'absolute bottom-3 right-3 z-40 h-[min(62%,340px)] w-[min(calc(100%-1.5rem),300px)] overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e14]/85 backdrop-blur-xl animate-fadeIn',
       )}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-4 py-3">
@@ -50,7 +50,7 @@ export function TvChatDrawer({ open, onClose, alongId, variant }: Props) {
           <X className="size-5" />
         </button>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 [&>div]:!min-h-0">
         <TvWatchChat {...(alongId ? { alongId } : {})} />
       </div>
     </div>
