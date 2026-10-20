@@ -777,7 +777,7 @@ export function TvStreamPlayer({
 
       autoVisitedRef.current.add(next.id);
       selectSource(next.id, false);
-      notify(`${provider.name} is unreachable — switched to ${next.name}`, 3000);
+      notify(`${provider.name} is unreachable, switched to ${next.name}`, 3000);
     });
     return () => {
       live = false;
@@ -848,7 +848,7 @@ export function TvStreamPlayer({
       if (nextProvider) {
         autoVisitedRef.current.add(nextProvider.id);
         selectSource(nextProvider.id, false);
-        notify(`${provider.name} did not load — trying ${nextProvider.name}`, 3000);
+        notify(`${provider.name} did not load, trying ${nextProvider.name}`, 3000);
         return;
       }
 
@@ -907,7 +907,7 @@ export function TvStreamPlayer({
     const urls = activeProbe?.urls ?? [];
     if (urls.length > entryIndex + 1) {
       setEntryIndex(entryIndex + 1);
-      notify(`${provider.name} — trying its next server`, 2200);
+      notify(`${provider.name}: trying its next server`, 2200);
       return;
     }
 
@@ -932,7 +932,7 @@ export function TvStreamPlayer({
     if (next && !autoVisitedRef.current.has(next.id)) {
       autoVisitedRef.current.add(next.id);
       selectSource(next.id, false);
-      notify(`${provider.name} failed — trying ${next.name}`, 3000);
+      notify(`${provider.name} failed, trying ${next.name}`, 3000);
       return;
     }
     setShowExternal(true);
@@ -1009,20 +1009,15 @@ export function TvStreamPlayer({
     return () => window.clearTimeout(t);
   }, [settled, playing, provider.id, provider.kind]);
   /*
-   * The finding screen must not be a place somebody can be left.
-   *
-   * It goes when `playing` turns true, and every source here can fail to reach
-   * that: a playlist that answers the probe and then does not load, a host that
-   * goes down between the probe and the mount. Without this, the viewer sits on
-   * a spinner with no way out — reported as "it is stuck on finding the best
-   * provider".
-   *
-   * After this long the player opens regardless, with the source picker, so the
-   * person can choose or open a source on its own site.
+   * The finding screen must not be a place somebody can be left: after a
+   * while it says so and points at the Source menu, which stays on top of it.
+   * It does not drop to the raw frame, which on a phone is a black box.
    */
+  const [slow, setSlow] = useState<boolean>(false);
   useEffect(() => {
+    setSlow(false);
     if (settled) return;
-    const t = window.setTimeout(() => setSettled(true), 15000);
+    const t = window.setTimeout(() => setSlow(true), 15000);
     return () => window.clearTimeout(t);
   }, [settled, media.id, season, episode, reloadKey]);
 
@@ -1060,8 +1055,8 @@ export function TvStreamPlayer({
         )}
       >
         {/* Player Header Bar */}
-        <div className={cn('flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#12141c] px-4 py-2.5', mini ? 'hidden' : 'flex')}>
-          <div className="flex items-center gap-2 min-w-0">
+        <div className={cn('flex-wrap items-center gap-x-2 gap-y-2 border-b border-white/10 bg-[#12141c] px-3 py-2.5 sm:px-4', mini ? 'hidden' : 'flex')}>
+          <div className="order-1 flex min-w-0 flex-1 items-center gap-2">
             <TvLogo markOnly className="shrink-0 [&_img]:h-7" />
             <div className="flex items-baseline gap-2 truncate">
               <h3 className="truncate text-sm font-bold text-white sm:text-base">{title}</h3>
@@ -1073,8 +1068,17 @@ export function TvStreamPlayer({
             </div>
           </div>
 
+          <button
+            type="button"
+            aria-label="Close player"
+            onClick={onClose}
+            className="order-2 grid size-8 shrink-0 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95 sm:order-3"
+          >
+            <X className="size-5" />
+          </button>
+
           {/* Right Action Tools */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="order-3 flex w-full items-center justify-between gap-2 sm:order-2 sm:w-auto sm:justify-start">
             {/* Audio preference: decides which source wins the ranking */}
             <div className="flex items-center rounded-lg bg-white/5 p-0.5 ring-1 ring-white/10" role="group" aria-label="Preferred audio">
               {(['hi', 'en', 'any'] as const).map((pref) => (
@@ -1144,7 +1148,7 @@ export function TvStreamPlayer({
               title="Switch to next streaming source"
             >
               <SkipForward className="size-3.5" />
-              <span>Next Source ▸</span>
+              <span><span className="sm:hidden">Next</span><span className="hidden sm:inline">Next Source ▸</span></span>
             </button>
 
             {/* Reload Stream */}
@@ -1162,7 +1166,7 @@ export function TvStreamPlayer({
               href={streamUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="grid size-8 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
+              className="hidden size-8 place-items-center rounded-full sm:grid text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
               title="Open stream in a new tab"
             >
               <ExternalLink className="size-3.5" />
@@ -1195,19 +1199,11 @@ export function TvStreamPlayer({
               type="button"
               aria-label="Toggle Theater Mode"
               onClick={() => setIsTheater((prev) => !prev)}
-              className="grid size-8 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
+              className="hidden size-8 place-items-center sm:grid rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
             >
               <Maximize2 className="size-4" />
             </button>
 
-            <button
-              type="button"
-              aria-label="Close player"
-              onClick={onClose}
-              className="grid size-8 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
-            >
-              <X className="size-5" />
-            </button>
           </div>
         </div>
 
@@ -1217,7 +1213,7 @@ export function TvStreamPlayer({
             <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
               {/* Notification Toast */}
               {notification && !mini && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/85 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
+                <div className="absolute left-3 top-3 z-30 flex max-w-[calc(100%-9.5rem)] items-center gap-2 rounded-xl bg-black/85 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
                   <Zap className="size-3.5 text-brand" />
                   <span>{notification}</span>
                 </div>
@@ -1225,20 +1221,20 @@ export function TvStreamPlayer({
 
               {/* Fallback countdown: honest about what is about to happen */}
               {!mini && countdown !== null && countdown > 0 && nextProvider && autoFallback && (
-                <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-20 flex flex-wrap items-center gap-3 rounded-xl bg-[#12141c]/90 px-4 py-2.5 backdrop-blur-xl border border-white/10 shadow-2xl">
+                <div className="absolute bottom-3 left-3 right-3 sm:left-auto sm:right-4 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-[#12141c]/90 px-3 py-2.5 backdrop-blur-xl border border-white/10 shadow-2xl">
                   <div className="flex items-center gap-2 text-xs text-white">
                     <AlertCircle className="size-4 text-amber-400 shrink-0" />
                     <span>
                       Not starting? Trying <strong>{nextProvider.name}</strong> in {countdown}s
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
                     <button
                       type="button"
                       onClick={keepThisOne}
                       className="rounded-lg bg-brand px-3 py-1 text-xs font-bold text-on-brand shadow-sm transition-transform active:scale-95"
                     >
-                      It&apos;s playing — keep this
+                      It&apos;s playing, keep this
                     </button>
                     <button
                       type="button"
@@ -1272,7 +1268,7 @@ export function TvStreamPlayer({
                     </h4>
                     <p className="mt-1.5 text-xs leading-relaxed text-text-secondary">
                       This server refuses to be embedded, so the film cannot start here. It still
-                      exists on {provider.name} — open it there, in a new tab.
+                      exists on {provider.name}. Open it there, in a new tab.
                     </p>
                     <div className="mt-4 flex flex-col gap-2">
                       <a
@@ -1288,8 +1284,8 @@ export function TvStreamPlayer({
                       {/*
                         The last resort, and a different kind of source.
                         Stremio's addons carry a much larger catalogue than any
-                        of the embeds here — Torrentio alone answers for this
-                        exact title — but their streams are torrents, which an
+                        of the embeds here, Torrentio alone answers for this
+                        exact title, but their streams are torrents, which an
                         iframe cannot play. So the backup is a link out, keyed by
                         the IMDb id the details call now brings back.
                       */}
@@ -1359,7 +1355,7 @@ export function TvStreamPlayer({
                   ) : null}
 
                   {/* The finding screen lasts until the film is actually moving. */}
-                  {!settled && <TvFindingScreen compact={mini} />}
+                  {!settled && <TvFindingScreen compact={mini} slow={slow} />}
                 </>
               ) : (
                 <>
@@ -1382,11 +1378,11 @@ export function TvStreamPlayer({
                     if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
                       autoVisitedRef.current.add(nextProvider.id);
                       selectSource(nextProvider.id, false);
-                      notify(`${provider.name} failed — trying ${nextProvider.name}`, 3000);
+                      notify(`${provider.name} failed, trying ${nextProvider.name}`, 3000);
                     }
                   }}
                 />
-                {!settled && <TvFindingScreen compact={mini} />}
+                {!settled && <TvFindingScreen compact={mini} slow={slow} />}
                 </>
               )}
 

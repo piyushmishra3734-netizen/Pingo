@@ -6,7 +6,7 @@ import { cn } from '@pingo/ui';
  * with a ring spinner and a plain explanation. Pure display, it knows nothing
  * about how sources are probed.
  */
-export function TvFindingScreen({ compact = false }: { compact?: boolean }) {
+export function TvFindingScreen({ compact = false, slow = false }: { compact?: boolean; slow?: boolean }) {
   return (
     <div className="absolute inset-0 z-10 overflow-hidden bg-black" role="status" aria-live="polite">
       <img
@@ -42,6 +42,11 @@ export function TvFindingScreen({ compact = false }: { compact?: boolean }) {
                 <Info className="size-3.5 shrink-0" />
                 It depends on your device and network speed.
               </p>
+              {slow && (
+                <p className="mt-3 text-xs text-white/60">
+                  Taking longer than usual. You can pick a source from the Source menu.
+                </p>
+              )}
             </>
           )}
         </div>
