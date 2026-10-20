@@ -29,6 +29,13 @@ export interface StreamProvider {
    * flag: it decides how long the player waits before looking elsewhere.
    */
   autoStarts?: boolean;
+  /**
+   * Some hosts refuse a request with no `Referer` at all (Videasy answers 403 to
+   * one and 200 to the other). Defaults to `no-referrer`, which is what every
+   * other source here gets: there is no reason to tell a third-party host which
+   * page of Pingo someone is watching.
+   */
+  referrerPolicy?: 'no-referrer' | 'origin';
   buildUrl: (mediaType: MediaType, id: number | string, season: number, episode: number) => string;
 }
 
@@ -104,6 +111,17 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
         ? `https://www.nontongo.win/embed/movie/${id}`
         : `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
   },
+  {
+    id: 'videasy',
+    name: 'Videasy',
+    badge: '10 servers',
+    isHindi: true,
+    referrerPolicy: 'origin',
+    buildUrl: (type, id, s, e) =>
+      type === 'movie'
+        ? `https://player.videasy.to/movie/${id}`
+        : `https://player.videasy.to/tv/${id}/${s}/${e}`,
+  },
 ];
 
 /**
@@ -126,8 +144,8 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
  * because of a framing change.
  */
 const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
-  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock'],
-  tv: ['autoembed', 'nontongo', 'vidfast'],
+  movie: ['vidfast', 'nontongo', 'autoembed', 'vidrock', 'videasy'],
+  tv: ['autoembed', 'nontongo', 'vidfast', 'videasy'],
 };
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
@@ -582,7 +600,7 @@ export function TvStreamPlayer({
                 title={`${title} Live Stream`}
                 allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
                 allowFullScreen
-                referrerPolicy="no-referrer"
+                referrerPolicy={provider.referrerPolicy ?? 'no-referrer'}
                 className="h-full w-full border-0"
                 onLoad={() => {
                   // Something answered and rendered. See the note in the grace
