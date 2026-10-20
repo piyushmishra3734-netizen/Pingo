@@ -57,7 +57,7 @@ export function TvWatchChat({ alongId }: { alongId?: string }) {
                   // Ignore
                 }
               }}
-              className={cn('shrink-0 rounded-full p-0.5 transition', on ? 'ring-2 ring-brand' : 'opacity-60 hover:opacity-100')}
+              className={cn('inline-flex shrink-0 rounded-full p-0.5 transition', on ? 'ring-2 ring-brand' : 'opacity-60 hover:opacity-100')}
             >
               <Avatar name={c.title} id={c.id} src={c.avatarUrl} size="sm" />
             </button>
