@@ -36,6 +36,10 @@ export interface SourceProbe {
    * left the player with nothing when that one host hiccuped.
    */
   urls?: string[];
+  /** The same entries as `urls`, with a name, quality and audio each. */
+  entries?: StreamEntry[];
+  /** Subtitle files the provider offered, one per language. */
+  subtitles?: SubtitleOption[];
   quality?: string;
   /** Audio track labels the playlist carries, e.g. ['English', 'Hindi']. */
   audio?: string[];
@@ -138,7 +142,43 @@ type ApiSource = {
   url?: string;
   quality?: string;
   audioTracks?: { label?: string; language?: string }[];
+  /** The server's own name, e.g. "Bowler XVIII (Citadel)". */
+  server?: string;
 };
+
+type ApiSubtitle = { url?: string; label?: string; language?: string; lang?: string; format?: string };
+
+/** One subtitle file the viewer can switch on. */
+export interface SubtitleOption {
+  url: string;
+  label: string;
+}
+
+/** One playable stream a provider offered, with what the viewer would want to know about it. */
+export interface StreamEntry {
+  url: string;
+  label: string;
+  quality?: string;
+  audio: string[];
+}
+
+/**
+ * The provider's subtitle files, one per language.
+ *
+ * Giant alone returned 238 of them for one film, 35 of them English. One per
+ * language, English and Hindi first, is a list a person can read.
+ */
+export function pickSubtitles(raw: ApiSubtitle[] | undefined): SubtitleOption[] {
+  const seen = new Map<string, SubtitleOption>();
+  for (const sub of raw ?? []) {
+    if (!sub.url || (sub.format && sub.format !== 'vtt')) continue;
+    const name = (sub.language || sub.label || sub.lang || '').replace(/^Subtitles\s*[•·-]\s*/i, '').replace(/\s*\(\d+\)$/, '').trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.set(name.toLowerCase(), { url: sub.url, label: name });
+  }
+  const rank = (label: string) => (/^english/i.test(label) ? 0 : /^hindi/i.test(label) ? 1 : 2);
+  return [...seen.values()].sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label)).slice(0, 30);
+}
 
 /**
  * Ask one resolver provider for this exact episode, and prove the answer.
@@ -169,7 +209,7 @@ export async function probeResolver(
       signal,
     });
     if (!response.ok) return null;
-    return (await response.json()) as { success?: boolean; sources?: ApiSource[] };
+    return (await response.json()) as { success?: boolean; sources?: ApiSource[]; subtitles?: ApiSubtitle[] };
   }, PROBE_TIMEOUT_MS);
 
   const candidates = (result?.sources ?? []).filter((source): source is ApiSource & { url: string } =>
@@ -188,6 +228,7 @@ export async function probeResolver(
    * deeper instead of letting the player start.
    */
   const playableUrls: string[] = [];
+  const entries: StreamEntry[] = [];
   let firstQuality: string | undefined;
   let firstAudio: string[] = [];
 
@@ -254,6 +295,12 @@ export async function probeResolver(
         .filter(Boolean);
     }
     playableUrls.push(playlistUrl);
+    entries.push({
+      url: playlistUrl,
+      label: candidate.server ?? `Stream ${entries.length + 1}`,
+      ...(candidate.quality ? { quality: candidate.quality } : {}),
+      audio: (candidate.audioTracks ?? []).map((track) => track.label || track.language || '').filter(Boolean),
+    });
   }
 
   if (!playableUrls.length) {
@@ -265,6 +312,8 @@ export async function probeResolver(
     status: 'ready',
     url: playableUrls[0],
     urls: playableUrls,
+    entries,
+    subtitles: pickSubtitles(result.subtitles),
     quality: firstQuality,
     audio: firstAudio,
     ms: Date.now() - started,

@@ -12,7 +12,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { bytesArePicture, playlistSeconds, probeResolver } from '../src/features/tv/sourceProbe.js';
+import { bytesArePicture, pickSubtitles, playlistSeconds, probeResolver } from '../src/features/tv/sourceProbe.js';
 
 const TS = new Uint8Array([0x47, 0x40, 0x11, 0x10, 0, 0x42, 0xf0, 0x25]);
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46]);
@@ -90,5 +90,15 @@ assert.equal((await probe()).status, 'empty', 'a 50 second movie is rejected');
 // 9. A full length movie passes.
 fake(ok(), { body: FILM('ts') }, { status: 206, body: TS });
 assert.equal((await probe()).status, 'ready', 'a 100 minute movie is ready');
+
+// 10. Subtitles: one per language, English then Hindi first, vtt only.
+const picked = pickSubtitles([
+  { url: 'a', language: 'French', format: 'vtt' },
+  { url: 'b', language: 'English', format: 'vtt' },
+  { url: 'c', language: 'English', format: 'vtt' },
+  { url: 'd', language: 'Hindi', format: 'vtt' },
+  { url: 'e', language: 'German', format: 'srt' },
+]);
+assert.deepEqual(picked.map((sub) => sub.label), ['English', 'Hindi', 'French'], 'one per language, English and Hindi first, no srt');
 
 console.log('✓ tv probe: pictures and video told apart by their bytes');

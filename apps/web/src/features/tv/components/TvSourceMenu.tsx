@@ -73,7 +73,7 @@ export function TvSourceMenu({
   const activeIndex = items.findIndex((i) => i.id === activeId);
 
   return (
-    <div ref={rootRef} className="absolute right-3 top-3 z-30 text-sm">
+    <div ref={rootRef} className="relative text-sm">
       <button
         type="button"
         aria-haspopup="menu"

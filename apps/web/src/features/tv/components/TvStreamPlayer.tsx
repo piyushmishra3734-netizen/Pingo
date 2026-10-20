@@ -485,6 +485,8 @@ export function TvStreamPlayer({
 
   const [isTheater, setIsTheater] = useState<boolean>(false);
   const [chatOpen, setChatOpen] = useState<boolean>(false);
+  /** Where the own player's audio, subtitle and quality button is drawn. */
+  const [trackSlot, setTrackSlot] = useState<HTMLElement | null>(null);
   const [autoFallback, setAutoFallback] = useState<boolean>(true);
   const [countdown, setCountdown] = useState<number | null>(null);
   /** Set when no source would play here, so the viewer is offered the real site. */
@@ -1382,6 +1384,12 @@ export function TvStreamPlayer({
                       key={`${activeStream}-${reloadKey}`}
                       src={activeStream}
                       title={title}
+                      subtitles={activeProbe?.subtitles ?? []}
+                      entries={activeProbe?.entries ?? []}
+                      entryIndex={entryIndex}
+                      onEntryChange={setEntryIndex}
+                      preferAudio={audioPref}
+                      slot={mini ? null : trackSlot}
                       onFail={handleStreamFailure}
                       onPlaying={() => {
                         playingRef.current = true;
@@ -1427,20 +1435,25 @@ export function TvStreamPlayer({
               {/* Full screen has no side panel, so the chat comes over the picture. */}
               {isTheater && !mini && (
                 <>
-                  <button
-                    type="button"
-                    aria-label="Chat"
-                    title="Chat"
-                    onClick={() => setChatOpen((open) => !open)}
-                    className="absolute right-[8.5rem] top-3 z-30 grid size-8 place-items-center rounded-lg bg-black/60 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition hover:bg-black/75 active:scale-95"
-                  >
-                    <MessageCircle className="size-4" />
-                  </button>
                   <TvChatDrawer variant="overlay" open={chatOpen} onClose={() => setChatOpen(false)} {...(alongId ? { alongId } : {})} />
                 </>
               )}
 
+              {/* The corner of the picture: chat (full screen only), audio and subtitles (own player only), then the source. */}
               {!mini && (
+                <div className="absolute right-3 top-3 z-30 flex items-start gap-2">
+                  {isTheater && (
+                    <button
+                      type="button"
+                      aria-label="Chat"
+                      title="Chat"
+                      onClick={() => setChatOpen((open) => !open)}
+                      className="grid size-8 place-items-center rounded-lg bg-black/60 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition hover:bg-black/75 active:scale-95"
+                    >
+                      <MessageCircle className="size-4" />
+                    </button>
+                  )}
+                  <div ref={setTrackSlot} className="contents" />
                 <TvSourceMenu
                   items={visibleChips.map((p) => ({
                     id: p.id,
@@ -1458,6 +1471,7 @@ export function TvStreamPlayer({
                   openUrl={streamUrl}
                   openName={provider.name}
                 />
+                </div>
               )}
             </div>
           </div>
