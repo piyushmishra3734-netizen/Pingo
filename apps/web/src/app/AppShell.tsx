@@ -9,6 +9,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 
 import { Dock } from './Dock.js';
 import { ScrollArrows } from './ScrollArrows.js';
+import { TvMiniPlayer } from '../features/tv/TvMiniPlayer.js';
 import { MusicIsland } from '../features/music/MusicIsland.js';
 import { restoreListenAlong } from '../features/music/listen-along.js';
 import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
@@ -297,6 +298,7 @@ export function AppShell() {
       {!fullscreen && <Dock />}
       <StoryMentionRelay />
       <ScrollArrows />
+      <TvMiniPlayer />
     </div>
   );
 }

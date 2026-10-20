@@ -1,9 +1,9 @@
 import { X } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import '../auth/paper.css';
-import { useWatching, watchingLine, watchingPath } from './watching.js';
+import { openMini } from './mini-player.js';
+import { useWatching, watchingLine } from './watching.js';
 
 /**
  * A note under a chat's header while the other person watches something on
@@ -16,7 +16,6 @@ import { useWatching, watchingLine, watchingPath } from './watching.js';
  */
 export function WatchAlongBar({ userId, name, myId, top }: { userId: string; name: string; myId: string | undefined; top: number }) {
   const tv = useWatching(userId);
-  const navigate = useNavigate();
   // Put away for this episode; the next one asks again.
   const [hidden, setHidden] = useState<string>();
   const first = name.split(' ')[0] || name;
@@ -43,7 +42,23 @@ export function WatchAlongBar({ userId, name, myId, top }: { userId: string; nam
 
         <button
           type="button"
-          onClick={() => navigate(watchingPath(tv, userId), { state: { along: name } })}
+          onClick={() =>
+            openMini({
+              media: {
+                id: tv.id,
+                ...(tv.y === 'movie' ? { title: tv.n } : { name: tv.n }),
+                overview: '',
+                poster_path: null,
+                backdrop_path: null,
+                vote_average: 0,
+                media_type: tv.y,
+              },
+              season: tv.s ?? 1,
+              episode: tv.e ?? 1,
+              ...(tv.i ? { poster: tv.i } : {}),
+              along: { id: userId, name },
+            })
+          }
           className="shrink-0 px-1.5 py-2 text-[14.5px] font-bold text-ink active:opacity-60"
         >
           <span className="paper-marker">watch along</span>

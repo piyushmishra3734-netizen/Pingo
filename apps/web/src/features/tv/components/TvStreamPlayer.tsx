@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Film,
   Maximize2,
+  PictureInPicture2,
   MonitorPlay,
   Play,
   RefreshCw,
@@ -388,6 +389,15 @@ interface TvStreamPlayerProps {
   onEpisodeChange?: (season: number, episode: number) => void;
   /** A title picked from "More Like This". */
   onOpenMedia?: (media: TmdbMedia) => void;
+  /** Shrinks the film into the floating mini player, at this episode. */
+  onMinimize?: (season: number, episode: number) => void;
+  /**
+   * Just the picture, in a box the caller sizes: no header, source list or
+   * episode panel. Everything that decides what plays (the probe, the ranking,
+   * the fall-back) is the same, so the mini player finds a working source
+   * by itself.
+   */
+  mini?: boolean;
 }
 
 export function TvStreamPlayer({
@@ -398,6 +408,8 @@ export function TvStreamPlayer({
   onOpenTrailer,
   onEpisodeChange,
   onOpenMedia,
+  onMinimize,
+  mini = false,
 }: TvStreamPlayerProps) {
   const title = media.title || media.name || 'Untitled';
   const mediaType: MediaType = media.media_type || (media.title ? 'movie' : 'tv');
@@ -876,7 +888,7 @@ export function TvStreamPlayer({
     provider.kind === 'hls' && activeProbe?.status === 'ready' ? activeProbe.url : null;
 
   return (
-    <div className="fixed inset-0 z-[230] flex bg-black animate-fadeIn">
+    <div className={cn(mini ? 'relative h-full w-full bg-black' : 'fixed inset-0 z-[230] flex bg-black animate-fadeIn')}>
       {/* Main Player Box */}
       <div
         className={cn(
@@ -884,7 +896,7 @@ export function TvStreamPlayer({
         )}
       >
         {/* Player Header Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#12141c] px-4 py-2.5">
+        <div className={cn('flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#12141c] px-4 py-2.5', mini ? 'hidden' : 'flex')}>
           <div className="flex items-center gap-2 min-w-0">
             <TvLogo markOnly className="shrink-0 [&_img]:h-7" />
             <div className="flex items-baseline gap-2 truncate">
@@ -1003,6 +1015,18 @@ export function TvStreamPlayer({
               </button>
             )}
 
+            {onMinimize && (
+              <button
+                type="button"
+                aria-label="Mini player"
+                title="Keep watching in a small window"
+                onClick={() => onMinimize(season, episode)}
+                className="grid size-8 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
+              >
+                <PictureInPicture2 className="size-4" />
+              </button>
+            )}
+
             <button
               type="button"
               aria-label="Toggle Theater Mode"
@@ -1028,7 +1052,7 @@ export function TvStreamPlayer({
             {/* Video Frame */}
             <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
               {/* Notification Toast */}
-              {notification && (
+              {notification && !mini && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-full bg-black/85 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
                   <Zap className="size-3.5 text-brand" />
                   <span>{notification}</span>
@@ -1036,7 +1060,7 @@ export function TvStreamPlayer({
               )}
 
               {/* Fallback countdown: honest about what is about to happen */}
-              {countdown !== null && countdown > 0 && nextProvider && autoFallback && (
+              {!mini && countdown !== null && countdown > 0 && nextProvider && autoFallback && (
                 <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-20 flex flex-wrap items-center gap-3 rounded-xl bg-[#12141c]/90 px-4 py-2.5 backdrop-blur-xl border border-white/10 shadow-2xl">
                   <div className="flex items-center gap-2 text-xs text-white">
                     <AlertCircle className="size-4 text-amber-400 shrink-0" />
@@ -1068,7 +1092,14 @@ export function TvStreamPlayer({
               )}
 
               {/* No source would play here: hand over the provider's own page */}
-              {showExternal && (
+              {mini && showExternal && (
+                <div className="absolute inset-0 z-40 grid place-items-center bg-[#090a0f]/95 px-3 text-center">
+                  <p className="text-[11.5px] leading-snug text-white/80">
+                    This one will not start in the small window. Open it full screen to pick another server.
+                  </p>
+                </div>
+              )}
+              {!mini && showExternal && (
                 <div className="absolute inset-0 z-40 grid place-items-center bg-[#090a0f]/95 px-6">
                   <div className="max-w-md rounded-2xl border border-white/10 bg-[#12141c] p-6 text-center shadow-2xl">
                     <AlertCircle className="mx-auto size-6 text-amber-400" />
@@ -1170,7 +1201,7 @@ export function TvStreamPlayer({
             </div>
 
             {/* Player Bottom Control Strip */}
-            <div className="flex flex-col gap-2.5 border-t border-white/10 bg-[#12141c] px-4 py-2.5">
+            <div className={cn('flex-col gap-2.5 border-t border-white/10 bg-[#12141c] px-4 py-2.5', mini ? 'hidden' : 'flex')}>
               {/* Source Selector Bar */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
@@ -1246,7 +1277,7 @@ export function TvStreamPlayer({
             </div>
           </div>
 
-          {!isTheater && (
+          {!isTheater && !mini && (
             <TvEpisodePanel
               media={media}
               isTv={isTv}

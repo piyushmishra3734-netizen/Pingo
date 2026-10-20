@@ -15,6 +15,7 @@ import {
   fetchTrending,
 } from './api/tmdb.js';
 import { useWatchlist } from './hooks/useWatchlist.js';
+import { closeMini, currentMini, openMini } from './mini-player.js';
 import { clearWatched, recordWatched, removeWatched, useWatchHistory, watchedAsMedia, type WatchedItem } from './hooks/useWatchHistory.js';
 import { TvLandscapeCard } from './components/TvLandscapeCard.js';
 import { setMyWatching, setShareWatching, smallPoster, useShareWatching, useWatching, watchingPath } from './watching.js';
@@ -55,7 +56,8 @@ export function PingoTv() {
   useEffect(() => setEpisodeNow(null), [watchKey]);
   useEffect(() => {
     if (route.kind !== 'watch' || !overlayMedia) {
-      setMyWatching(undefined);
+      // The mini player may be the one saying it.
+      if (!currentMini()) setMyWatching(undefined);
       return;
     }
     const title = overlayMedia.title || overlayMedia.name || '';
@@ -70,7 +72,16 @@ export function PingoTv() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchKey, overlayMedia?.id, episodeNow?.s, episodeNow?.e, alongId]);
-  useEffect(() => () => setMyWatching(undefined), []);
+  useEffect(
+    () => () => {
+      if (!currentMini()) setMyWatching(undefined);
+    },
+    [],
+  );
+  // The full page takes over from the mini player.
+  useEffect(() => {
+    if (route.kind === 'watch') closeMini();
+  }, [route.kind]);
 
   // Watching along: when the friend moves to another title or episode, this follows.
   const along = useWatching(alongId);
@@ -472,6 +483,10 @@ export function PingoTv() {
             initialSeason={route.season}
             initialEpisode={route.episode}
             onOpenMedia={open}
+            onMinimize={(s, e) => {
+              openMini({ media: overlayMedia, season: s, episode: e, ...(smallPoster(overlayMedia.poster_path) ? { poster: smallPoster(overlayMedia.poster_path) as string } : {}), ...(alongId ? { along: { id: alongId, name: alongName ?? 'a friend' } } : {}) });
+              goBack();
+            }}
             onEpisodeChange={(s, e) => setEpisodeNow((was) => (was && was.s === s && was.e === e ? was : { s, e }))}
             onClose={goBack}
             onOpenTrailer={(m) => navigate(trailerPath(m), { replace: true, ...state(m) })}

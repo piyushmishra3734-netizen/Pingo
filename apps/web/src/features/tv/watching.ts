@@ -168,3 +168,7 @@ export const watchingLine = (w: Watching) => (w.y === 'tv' && w.s && w.e ? `${w.
 /** The route that opens exactly what they are watching. */
 export const watchingPath = (w: Watching, along?: string) =>
   `/tv/watch/${w.y}/${w.id}?s=${w.s ?? 1}&e=${w.e ?? 1}${along ? `&along=${encodeURIComponent(along)}` : ''}`;
+
+/** The full-page player for a title, optionally following a friend. */
+export const watchPathFor = (type: 'movie' | 'tv', id: number, season = 1, episode = 1, along?: string) =>
+  `/tv/watch/${type}/${id}?s=${season}&e=${episode}${along ? `&along=${encodeURIComponent(along)}` : ''}`;
