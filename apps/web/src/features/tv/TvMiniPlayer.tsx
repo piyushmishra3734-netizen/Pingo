@@ -37,11 +37,16 @@ export function TvMiniPlayer() {
 
   // Following a friend: when they move to another title or episode, so does this.
   const friend = useWatching(target?.along?.id);
+  const seenSource = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!target?.along || !friend) return;
     const sameTitle = friend.id === target.media.id && friend.y === (target.media.media_type ?? 'movie');
     const sameEpisode = friend.y === 'movie' || ((friend.s ?? 1) === target.season && (friend.e ?? 1) === target.episode);
-    const sameSource = !friend.p || friend.p === target.source || friend.p === sourceNow;
+    // Follow the friend to another server only when *they* changed it. If this
+    // person picked a server by hand it stays, however often the friend updates.
+    const friendMoved = friend.p !== seenSource.current;
+    seenSource.current = friend.p;
+    const sameSource = !friend.p || !friendMoved || friend.p === target.source || friend.p === sourceNow;
     if (sameTitle && sameEpisode && sameSource) return;
     updateMini({
       media: {

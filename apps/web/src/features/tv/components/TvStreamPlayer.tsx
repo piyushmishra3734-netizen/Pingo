@@ -496,7 +496,7 @@ export function TvStreamPlayer({
   /** By default only sources that answered are listed; this reveals the rest. */
   const [showAllSources, setShowAllSources] = useState<boolean>(false);
   /** UI only: true while the viewer has not picked a source by hand. */
-  const [autoMode, setAutoMode] = useState<boolean>(!initialSource);
+  const [autoMode, setAutoMode] = useState<boolean>(() => !requestedSource.current);
   /** UI only: an embedded frame has rendered something, so the finding screen can go. */
   const [frameLoaded, setFrameLoaded] = useState<boolean>(false);
   /**
@@ -681,6 +681,15 @@ export function TvStreamPlayer({
       arrived += 1;
 
       setProbes((current) => ({ ...current, [probe.id]: probe }));
+
+      // The server a friend is on does not work for this person: stay with the
+      // friend's title but let the best working server take over.
+      if (requestedSource.current && probe.id === requestedSource.current && probe.status !== 'ready' && probe.status !== 'reachable') {
+        requestedSource.current = null;
+        manualPickRef.current = false;
+        setAutoMode(true);
+        notify('That server is not available here, using the best one', 3000);
+      }
 
       const answers = Object.values(collected);
       const ranked = rankProbes(answers, SOURCE_ORDER[mediaType] ?? [], audioPrefValue.current);
@@ -978,10 +987,6 @@ export function TvStreamPlayer({
 
   // A playlist is only playable if this exact source answered with one during
   // the batch probe; everything else about it is a guess.
-  useEffect(() => {
-    onSourceChange?.(provider.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider.id]);
 
   const activeProbe = probes[provider.id];
 
@@ -1058,6 +1063,16 @@ export function TvStreamPlayer({
     const t = window.setTimeout(() => setSlow(true), 15000);
     return () => window.clearTimeout(t);
   }, [settled, media.id, season, episode, reloadKey]);
+
+  /*
+   * Friends are told which server this is only once it has settled. Auto mode
+   * tries several in its first seconds, and each of those, said aloud, made a
+   * friend who is watching along jump to it and back: the sync flicker.
+   */
+  useEffect(() => {
+    if (settled) onSourceChange?.(provider.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider.id, settled]);
 
   /*
    * And when the answers are already in and none of them is playable, there is
@@ -1437,6 +1452,30 @@ export function TvStreamPlayer({
                 <>
                   <TvChatDrawer variant="overlay" open={chatOpen} onClose={() => setChatOpen(false)} {...(alongId ? { alongId } : {})} />
                 </>
+              )}
+
+              {/* The small window gets just the switch: icon only, a short list. */}
+              {mini && (
+                <div className="absolute bottom-1.5 right-1.5 z-30">
+                  <TvSourceMenu
+                    compact
+                    items={visibleChips.map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      status: probes[p.id]?.status,
+                      badge: p.badge,
+                    }))}
+                    activeId={activeId}
+                    autoMode={autoMode}
+                    onAuto={handleAutoSource}
+                    onPick={handleSelectProvider}
+                    hiddenCount={0}
+                    showAll={false}
+                    onToggleAll={() => undefined}
+                    openUrl={streamUrl}
+                    openName={provider.name}
+                  />
+                </div>
               )}
 
               {/* The corner of the picture: chat (full screen only), audio and subtitles (own player only), then the source. */}

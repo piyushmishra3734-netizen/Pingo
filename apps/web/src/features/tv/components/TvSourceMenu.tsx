@@ -33,6 +33,8 @@ interface TvSourceMenuProps {
   onToggleAll: () => void;
   openUrl: string;
   openName: string;
+  /** The small window: the button is an icon and the list is short. */
+  compact?: boolean;
 }
 
 /** The source switcher, sitting on the video's top-right corner. */
@@ -47,6 +49,7 @@ export function TvSourceMenu({
   onToggleAll,
   openUrl,
   openName,
+  compact = false,
 }: TvSourceMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -79,17 +82,21 @@ export function TvSourceMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition hover:bg-black/75 active:scale-95"
+        aria-label="Source"
+        className={cn('flex items-center gap-1.5 rounded-lg bg-black/60 text-xs font-semibold text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition hover:bg-black/75 active:scale-95', compact ? 'p-1.5' : 'px-3 py-1.5')}
       >
         {autoMode ? <Sparkles className="size-3.5" /> : <Server className="size-3.5" />}
-        <span>Source</span>
-        <ChevronDown className={cn('size-3.5 transition-transform', open && 'rotate-180')} />
+        {!compact && <span>Source</span>}
+        {!compact && <ChevronDown className={cn('size-3.5 transition-transform', open && 'rotate-180')} />}
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-60 max-w-[80vw] overflow-hidden rounded-xl bg-[#14161d]/95 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl animate-fadeIn"
+          className={cn(
+            'absolute right-0 overflow-hidden rounded-xl bg-[#14161d]/95 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl animate-fadeIn',
+            compact ? 'bottom-0 right-full mr-1.5 w-32 p-1' : 'mt-2 w-60 max-w-[80vw]',
+          )}
         >
           <button
             type="button"
@@ -99,12 +106,12 @@ export function TvSourceMenu({
               onAuto();
               setOpen(false);
             }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-white transition hover:bg-white/10"
+            className={cn('flex w-full items-center rounded-lg text-left text-white transition hover:bg-white/10', compact ? 'gap-2 px-2 py-1' : 'gap-3 px-3 py-2.5')}
           >
             <Sparkles className="size-4 shrink-0 text-white/80" />
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-semibold">Auto (Best)</span>
-              {autoMode && activeIndex >= 0 && (
+              <span className={cn('block font-semibold', compact ? 'text-[11px]' : 'text-[13px]')}>Auto (Best)</span>
+              {!compact && autoMode && activeIndex >= 0 && (
                 <span className="block text-[11px] text-white/50">Playing Source {activeIndex + 1}</span>
               )}
             </span>
@@ -113,7 +120,7 @@ export function TvSourceMenu({
 
           <div className="my-1 h-px bg-white/10" />
 
-          <div className="max-h-56 overflow-y-auto [scrollbar-width:thin]">
+          <div className={cn('overflow-y-auto [scrollbar-width:thin]', compact ? 'max-h-[5.25rem]' : 'max-h-56')}>
             {items.map((item, index) => {
               const Icon = ICONS[index % ICONS.length]!;
               const active = !autoMode && item.id === activeId;
@@ -135,11 +142,11 @@ export function TvSourceMenu({
                     onPick(item.id);
                     setOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-white transition hover:bg-white/10"
+                  className={cn('flex w-full items-center rounded-lg text-left text-white transition hover:bg-white/10', compact ? 'gap-2 px-2 py-1' : 'gap-3 px-3 py-2.5')}
                 >
                   <Icon className="size-4 shrink-0 text-white/80" />
-                  <span className="flex-1 text-[13px] font-medium">Source {index + 1}</span>
-                  {item.badge && (
+                  <span className={cn('flex-1 font-medium', compact ? 'text-[11px]' : 'text-[13px]')}>Source {index + 1}</span>
+                  {!compact && item.badge && (
                     <span className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white/70">
                       {item.badge}
                     </span>
@@ -151,8 +158,8 @@ export function TvSourceMenu({
             })}
           </div>
 
-          <div className="my-1 h-px bg-white/10" />
-          {hiddenCount > 0 && (
+          {!compact && <div className="my-1 h-px bg-white/10" />}
+          {!compact && hiddenCount > 0 && (
             <button
               type="button"
               onClick={onToggleAll}
@@ -163,6 +170,7 @@ export function TvSourceMenu({
           )}
           {/* Some frames load and show nothing, and nothing cross-origin can
               detect that: the viewer needs a way out that is not "give up". */}
+          {!compact && (
           <a
             href={openUrl}
             target="_blank"
@@ -172,6 +180,7 @@ export function TvSourceMenu({
             <ExternalLink className="size-3.5" />
             Open on {openName}
           </a>
+          )}
         </div>
       )}
     </div>
