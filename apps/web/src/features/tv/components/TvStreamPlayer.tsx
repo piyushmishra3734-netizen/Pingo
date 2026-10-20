@@ -493,6 +493,18 @@ export function TvStreamPlayer({
   const claimedRef = useRef<boolean>(false);
   /** True once the frame fired `load` — something answered and rendered. */
   const loadedRef = useRef<boolean>(false);
+  /** Read inside the batch probe, so changing the preference does not re-run it. */
+  const audioPrefValue = useRef<AudioPreference>(audioPref);
+  /** The source currently on screen, read from inside the same callback. */
+  const selectedIdRef = useRef<string>(selectedProviderId);
+
+  useEffect(() => {
+    audioPrefValue.current = audioPref;
+  }, [audioPref]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedProviderId;
+  }, [selectedProviderId]);
 
   const notify = useCallback((message: string, holdMs = 2500) => {
     setNotification(message);
@@ -563,45 +575,65 @@ export function TvStreamPlayer({
     const resolverSources = available.filter((p) => p.kind === 'hls' && p.apiProvider);
     const iframeSources = available.filter((p) => p.kind !== 'hls');
 
-    // Every source is asked in the same tick: the answers arrive together and
-    // are ranked once, instead of one source holding up the queue.
-    void Promise.all([
-      // The resolver answers with its own provider name ('giant'), so the result
-      // is re-keyed to the app's id ('fx-giant') — everything downstream looks
-      // the answer up by the id the lineup uses, not by the API's.
-      ...resolverSources.map(async (p) =>
-        Object.assign(await probeResolver(p.apiProvider!, mediaType, media.id, season, episode), {
-          id: p.id,
-        }),
-      ),
-      ...iframeSources.map(async (p): Promise<SourceProbe> => {
-        const started = Date.now();
-        const status = await probeIframe(p.buildUrl(mediaType, media.id, season, episode));
-        return { id: p.id, status, ms: Date.now() - started };
-      }),
-    ]).then((results) => {
-      if (!live) return;
+    // Every source is asked in the same tick, and the answers are applied as
+    // they arrive rather than all at once — a batch that waits for the slowest
+    // provider is a batch that sits on "checking" for ten seconds while a
+    // perfectly good playlist was already in hand.
+    const collected: Record<string, SourceProbe> = {};
+    let arrived = 0;
+    const total = available.length;
+    /** Set once a ready playlist has been opened, so later ones only upgrade. */
+    let openedReady = false;
 
-      const byId: Record<string, SourceProbe> = {};
-      for (const result of results) byId[result.id] = result;
-      setProbes(byId);
-      setProbing(false);
+    const settle = (probe: SourceProbe) => {
+      if (!live) return;
+      collected[probe.id] = probe;
+      arrived += 1;
+
+      setProbes((current) => ({ ...current, [probe.id]: probe }));
+
+      const answers = Object.values(collected);
+      const ranked = rankProbes(answers, SOURCE_ORDER[mediaType] ?? [], audioPrefValue.current);
+      const best = ranked[0];
 
       // The viewer may have picked a source while the answers were arriving.
-      if (claimedRef.current) return;
-
-      const ranked = rankProbes(results, SOURCE_ORDER[mediaType] ?? [], audioPref);
-      const best = ranked[0];
-      if (!best) {
-        setShowExternal(true);
-        return;
+      if (best && !claimedRef.current) {
+        if (!openedReady && best.status === 'ready') {
+          openedReady = true;
+          setProbing(false);
+          setSelectedProviderId(best.id);
+          notify(`${best.id.replace(/^fx-/, '')} · ${best.quality ?? 'ready'}`, 2200);
+        } else if (openedReady && best.status === 'ready' && best.id !== selectedIdRef.current) {
+          // A better ready source turned up after the first one opened.
+          setSelectedProviderId(best.id);
+        } else if (!openedReady) {
+          setSelectedProviderId(best.id);
+        }
       }
 
-      setSelectedProviderId(best.id);
-      if (best.status === 'ready') {
-        notify(`Best source: ${best.id.replace(/^fx-/, '')}${best.quality ? ` · ${best.quality}` : ''}`, 2500);
+      if (arrived === total) {
+        setProbing(false);
+        if (!openedReady && !claimedRef.current) {
+          const top = ranked[0];
+          if (top) setSelectedProviderId(top.id);
+          else setShowExternal(true);
+        }
       }
-    });
+    };
+
+    for (const p of resolverSources) {
+      void probeResolver(p.apiProvider!, mediaType, media.id, season, episode).then((result) =>
+        // Re-keyed to the app's id ('fx-giant'); everything downstream looks the
+        // answer up by the id the lineup uses, not by the resolver's name.
+        settle({ ...result, id: p.id }),
+      );
+    }
+    for (const p of iframeSources) {
+      const started = Date.now();
+      void probeIframe(p.buildUrl(mediaType, media.id, season, episode)).then((status) =>
+        settle({ id: p.id, status, ms: Date.now() - started }),
+      );
+    }
 
     return () => {
       live = false;
