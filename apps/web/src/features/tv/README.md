@@ -93,6 +93,17 @@ The resolver answers under its own name (`giant`); the lineup is keyed
 Also: the "last source" is remembered **per media type** (`pingo:lastSource:tv`),
 because a source good for a film can have no episodes at all.
 
+### 10. A provider is not one stream
+
+`sources[0]` is not the provider. Measured on 3 Idiots and Inception: `bowler`
+offered **4 and 7** playable entries, `hog_rider` 2, and the rest one each.
+Taking only the first threw away most of the working capacity.
+
+So the probe keeps up to three playable playlists per provider (`urls`), the
+player shows one and advances to the next entry of the same provider when a host
+dies, and only then treats the provider as dead. A whole source was being marked
+empty because one of its seven servers failed.
+
 ---
 
 ## Adding a source

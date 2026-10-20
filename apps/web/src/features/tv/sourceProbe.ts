@@ -28,6 +28,14 @@ export interface SourceProbe {
   status: ProbeStatus;
   /** Playlist, for resolver sources that answered. */
   url?: string;
+  /**
+   * Every playable playlist this provider offered, best first.
+   *
+   * A provider is not one stream. Bowler returned seven playable entries for a
+   * single film; taking only `sources[0]` threw six working streams away and
+   * left the player with nothing when that one host hiccuped.
+   */
+  urls?: string[];
   quality?: string;
   /** Audio track labels the playlist carries, e.g. ['English', 'Hindi']. */
   audio?: string[];
@@ -151,7 +159,19 @@ export async function probeResolver(
     return { id: apiProvider, status: 'empty', ms: Date.now() - started };
   }
 
+  /*
+   * Walk the entries and keep the playable ones.
+   *
+   * Capped at three: each entry costs a playlist fetch plus a segment check, and
+   * a provider with seven of them would spend the whole probe budget going
+   * deeper instead of letting the player start.
+   */
+  const playableUrls: string[] = [];
+  let firstQuality: string | undefined;
+  let firstAudio: string[] = [];
+
   for (const candidate of candidates) {
+    if (playableUrls.length >= 3) break;
     const playlistUrl = candidate.url;
 
     const text = await withTimeout(async (signal) => {
@@ -186,19 +206,28 @@ export async function probeResolver(
       if (verdict === false) continue;
     }
 
-    return {
-      id: apiProvider,
-      status: 'ready',
-      url: playlistUrl,
-      quality: candidate.quality,
-      audio: (candidate.audioTracks ?? [])
+    if (!playableUrls.length) {
+      firstQuality = candidate.quality;
+      firstAudio = (candidate.audioTracks ?? [])
         .map((track) => track.label || track.language || '')
-        .filter(Boolean),
-      ms: Date.now() - started,
-    };
+        .filter(Boolean);
+    }
+    playableUrls.push(playlistUrl);
   }
 
-  return { id: apiProvider, status: 'empty', quality: candidates[0]?.quality, ms: Date.now() - started };
+  if (!playableUrls.length) {
+    return { id: apiProvider, status: 'empty', quality: candidates[0]?.quality, ms: Date.now() - started };
+  }
+
+  return {
+    id: apiProvider,
+    status: 'ready',
+    url: playableUrls[0],
+    urls: playableUrls,
+    quality: firstQuality,
+    audio: firstAudio,
+    ms: Date.now() - started,
+  };
 }
 
 /**

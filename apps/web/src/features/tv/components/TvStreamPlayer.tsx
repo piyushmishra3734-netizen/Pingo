@@ -895,6 +895,22 @@ export function TvStreamPlayer({
   const handleStreamFailure = () => {
     playingRef.current = false;
     setHasStarted(false);
+
+    /*
+     * First, try the next stream this same provider offered.
+     *
+     * A provider is not one host: Bowler answered with seven playable entries
+     * for a single film. Marking the whole provider dead because entry one
+     * failed threw away six working streams, so the entry is advanced before
+     * anything else is decided.
+     */
+    const urls = activeProbe?.urls ?? [];
+    if (urls.length > entryIndex + 1) {
+      setEntryIndex(entryIndex + 1);
+      notify(`${provider.name} — trying its next server`, 2200);
+      return;
+    }
+
     setProbes((current) => ({
       ...current,
       [provider.id]: { ...(current[provider.id] ?? { id: provider.id }), status: 'empty', url: undefined },
@@ -930,8 +946,23 @@ export function TvStreamPlayer({
   }, [provider.id]);
 
   const activeProbe = probes[provider.id];
+
+  /*
+   * Which of that provider's playable entries is on screen.
+   *
+   * One provider can hold several working streams — Bowler answered with seven
+   * for a single film — so a host that dies is not the end of the provider, it
+   * is the next entry.
+   */
+  const [entryIndex, setEntryIndex] = useState<number>(0);
+  useEffect(() => {
+    setEntryIndex(0);
+  }, [provider.id, media.id, season, episode]);
+
   const activeStream =
-    provider.kind === 'hls' && activeProbe?.status === 'ready' ? activeProbe.url : null;
+    provider.kind === 'hls' && activeProbe?.status === 'ready'
+      ? (activeProbe.urls?.[entryIndex] ?? activeProbe.url)
+      : null;
 
   /*
    * Only sources that answered belong on screen.
