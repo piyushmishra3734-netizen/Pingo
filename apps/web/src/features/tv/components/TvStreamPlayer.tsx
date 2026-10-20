@@ -218,6 +218,46 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
     apiProvider: 'titan',
     buildUrl: () => FRAMEXTV_SITE,
   },
+  {
+    id: 'fx-miner',
+    name: 'Miner',
+    badge: '4K multi-city',
+    kind: 'hls',
+    apiProvider: 'miner',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-headhunter',
+    name: 'Headhunter',
+    badge: 'VidLink',
+    kind: 'hls',
+    apiProvider: 'headhunter',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-valkyrie',
+    name: 'Valkyrie',
+    badge: '4K multi',
+    kind: 'hls',
+    apiProvider: 'valkyrie',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-hogrider',
+    name: 'Hog Rider',
+    badge: '4K',
+    kind: 'hls',
+    apiProvider: 'hog_rider',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-lavahound',
+    name: 'Lava Hound',
+    badge: '4K fast',
+    kind: 'hls',
+    apiProvider: 'lavahound',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
 ];
 
 /**
@@ -263,6 +303,11 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'fx-super',
     'fx-bowler',
     'fx-titan',
+    'fx-miner',
+    'fx-headhunter',
+    'fx-valkyrie',
+    'fx-hogrider',
+    'fx-lavahound',
   ],
   tv: [
     'fx-giant',
@@ -273,6 +318,11 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'fx-super',
     'fx-bowler',
     'fx-titan',
+    'fx-miner',
+    'fx-headhunter',
+    'fx-valkyrie',
+    'fx-hogrider',
+    'fx-lavahound',
   ],
 };
 
