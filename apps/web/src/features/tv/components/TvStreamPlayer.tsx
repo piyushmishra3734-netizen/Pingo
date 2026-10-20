@@ -344,6 +344,17 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
 
+/**
+ * The last source used, tracked separately for films and for shows.
+ *
+ * One shared key was a real bug: choosing Giant for a film — the Hindi one —
+ * became the starting source for the next episode, and Giant has no episodes at
+ * all, so the player opened on a source that could not work and had to walk the
+ * whole lineup to say so. What is good for a film is not what is good for an
+ * episode, so the memory is kept apart.
+ */
+const lastSourceKey = (type: MediaType) => `${LAST_SOURCE_KEY}:${type}`;
+
 /** Which source last worked for this exact title, so a return visit opens on it. */
 const titleSourceKey = (type: MediaType, id: number | string) => `pingo:tvSource:${type}:${id}`;
 
@@ -444,7 +455,7 @@ export function TvStreamPlayer({
     try {
       const forTitle = localStorage.getItem(rememberedKey);
       if (forTitle && available.some((p) => p.id === forTitle)) return forTitle;
-      const saved = localStorage.getItem(LAST_SOURCE_KEY);
+      const saved = localStorage.getItem(lastSourceKey(mediaType));
       if (saved && available.some((p) => p.id === saved)) return saved;
     } catch {
       // Ignore localStorage errors
@@ -525,13 +536,13 @@ export function TvStreamPlayer({
   const rememberChoice = useCallback(
     (id: string) => {
       try {
-        localStorage.setItem(LAST_SOURCE_KEY, id);
+        localStorage.setItem(lastSourceKey(mediaType), id);
         localStorage.setItem(rememberedKey, id);
       } catch {
         // Ignore
       }
     },
-    [rememberedKey],
+    [mediaType, rememberedKey],
   );
 
   const selectSource = useCallback(
