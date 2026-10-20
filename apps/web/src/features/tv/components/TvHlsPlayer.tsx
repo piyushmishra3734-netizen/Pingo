@@ -37,65 +37,72 @@ export function TvHlsPlayer({ src, title, poster, onFail }: TvHlsPlayerProps) {
 
     setError(null);
 
+    /*
+     * hls.js first, and this order matters more than it looks.
+     *
+     * `canPlayType('application/vnd.apple.mpegurl')` answers "maybe" in Chrome
+     * on Windows — a famously useless answer — so the previous order handed the
+     * playlist to the native player, which has no HLS support on this platform.
+     * The element then reported MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) and every
+     * resolver source looked broken while the API was answering perfectly.
+     *
+     * Native playback is now only for browsers without MediaSource — Safari —
+     * which is who it was ever meant for.
+     */
+    if (Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+
+      /*
+       * Some of these servers publish the same film twice: a 4K variant in HEVC
+       * and lower ones in H.264. Chrome on Windows has no HEVC decoder, and
+       * hls.js's adaptive picker will happily choose the HEVC variant on
+       * bandwidth, so the level is pinned to the best H.264 variant instead.
+       */
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        const levels = hls.levels ?? [];
+        if (!levels.length) return;
+
+        const isH264 = (level: (typeof levels)[number]) =>
+          /avc1/i.test(level.codecSet ?? level.videoCodec ?? '');
+
+        const playable = levels
+          .map((level, index) => ({ level, index }))
+          .filter(({ level }) => isH264(level))
+          .sort((a, b) => b.level.bitrate - a.level.bitrate);
+
+        if (!playable.length) {
+          setError('This source streams a format this browser cannot decode.');
+          failRef.current?.();
+          return;
+        }
+
+        hls.currentLevel = playable[0]!.index;
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data.fatal) return;
+        const message =
+          data.type === Hls.ErrorTypes.NETWORK_ERROR
+            ? 'This source did not load.'
+            : 'This source stopped playing.';
+        setError(message);
+        failRef.current?.();
+      });
+
+      hls.loadSource(src);
+      hls.attachMedia(video);
+
+      return () => {
+        hls.destroy();
+      };
+    }
+
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
       return;
     }
 
-    if (!Hls.isSupported()) {
-      setError('This browser cannot play HLS streams.');
-      return;
-    }
-
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-
-    /*
-     * Some of these servers publish the same film twice: a 4K variant in HEVC
-     * and lower ones in H.264. Chrome on Windows has no HEVC decoder, and
-     * hls.js's adaptive picker will happily choose the HEVC variant on
-     * bandwidth — the element then reports MEDIA_ERR_SRC_NOT_SUPPORTED (code 4)
-     * and the viewer sees a black rectangle from a source that "worked".
-     *
-     * So the level is pinned to the best H.264 variant instead of left to ABR.
-     */
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      const levels = hls.levels ?? [];
-      if (!levels.length) return;
-
-      const isH264 = (level: (typeof levels)[number]) =>
-        /avc1/i.test(level.codecSet ?? level.videoCodec ?? '');
-
-      const playable = levels
-        .map((level, index) => ({ level, index }))
-        .filter(({ level }) => isH264(level))
-        .sort((a, b) => b.level.bitrate - a.level.bitrate);
-
-      if (!playable.length) {
-        setError('This source streams a format this browser cannot decode.');
-        failRef.current?.();
-        return;
-      }
-
-      hls.currentLevel = playable[0]!.index;
-    });
-
-    hls.on(Hls.Events.ERROR, (_event, data) => {
-      if (!data.fatal) return;
-      // A fatal network error on a live playlist is not worth a retry loop.
-      const message =
-        data.type === Hls.ErrorTypes.NETWORK_ERROR
-          ? 'This source did not load.'
-          : 'This source stopped playing.';
-      setError(message);
-      failRef.current?.();
-    });
-
-    hls.loadSource(src);
-    hls.attachMedia(video);
-
-    return () => {
-      hls.destroy();
-    };
+    setError('This browser cannot play HLS streams.');
   }, [src]);
 
   return (
