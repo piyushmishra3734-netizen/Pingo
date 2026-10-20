@@ -576,6 +576,22 @@ export function TvStreamPlayer({
   const nextProvider = available[providerIndex + 1] ?? null;
   const streamUrl = provider.buildUrl(mediaType, media.id, season, episode);
 
+  /*
+   * While auto mode is still choosing, no embedded page is opened behind the
+   * finding screen. Each of those is somebody's whole player: it starts its own
+   * video (with sound), then gets swapped for the next candidate, which is the
+   * stutter people saw. After 12s without a proven playlist the best answered
+   * page is opened anyway, so a title that only has embeds still plays.
+   */
+  const [holdExpired, setHoldExpired] = useState<boolean>(false);
+  useEffect(() => {
+    setHoldExpired(false);
+    const t = window.setTimeout(() => setHoldExpired(true), 12000);
+    return () => window.clearTimeout(t);
+  }, [media.id, season, episode, reloadKey]);
+  const holdFrame = autoMode && probing && !holdExpired && provider.kind !== 'hls';
+
+
   const rememberChoice = useCallback(
     (id: string) => {
       try {
@@ -676,7 +692,9 @@ export function TvStreamPlayer({
           !playingRef.current
         ) {
           setSelectedProviderId(best.id);
-        } else if (!openedReady) {
+        } else if (!openedReady && !loadedRef.current) {
+          // Still looking, and nothing on screen has answered yet. A frame that
+          // has loaded is left alone: swapping it is a second video starting.
           setSelectedProviderId(best.id);
         }
       }
@@ -765,6 +783,8 @@ export function TvStreamPlayer({
 
     // An `hls` source has no page to probe; the resolver already answered.
     if (provider.kind === 'hls') return;
+    // Nothing is mounted yet while auto mode is still choosing.
+    if (holdFrame) return;
 
     void isReachable(streamUrl).then((reachable) => {
       if (!live || reachable) return;
@@ -782,13 +802,13 @@ export function TvStreamPlayer({
     return () => {
       live = false;
     };
-  }, [streamUrl, provider.name, providerIndex, available, selectSource, notify]);
+  }, [streamUrl, provider.name, providerIndex, available, selectSource, notify, holdFrame]);
 
   /* -- 2. A frame that never loads is left after the grace period ---------- */
   useEffect(() => {
     setCountdown(null);
 
-    if (!autoFallback || claimedRef.current) return;
+    if (!autoFallback || claimedRef.current || holdFrame) return;
     if (nextProvider && autoVisitedRef.current.has(nextProvider.id)) return;
 
     /*
@@ -878,6 +898,7 @@ export function TvStreamPlayer({
     selectSource,
     notify,
     rememberedKey,
+    holdFrame,
   ]);
 
   // Reaching the end of the lineup means the fallback did its job; the next
@@ -1357,6 +1378,8 @@ export function TvStreamPlayer({
                   {/* The finding screen lasts until the film is actually moving. */}
                   {!settled && <TvFindingScreen compact={mini} slow={slow} />}
                 </>
+              ) : holdFrame ? (
+                <TvFindingScreen compact={mini} slow={slow} />
               ) : (
                 <>
                 <iframe
