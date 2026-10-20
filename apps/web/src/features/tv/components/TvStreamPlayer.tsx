@@ -17,6 +17,7 @@ import {
 import { cn } from '@pingo/ui';
 import type { MediaType, TmdbMedia } from '../types.js';
 import { TvEpisodePanel } from './TvEpisodePanel.js';
+import { TvHlsPlayer } from './TvHlsPlayer.js';
 import { TvLogo } from './TvLogo.js';
 
 export interface StreamProvider {
@@ -36,7 +37,61 @@ export interface StreamProvider {
    * page of Pingo someone is watching.
    */
   referrerPolicy?: 'no-referrer' | 'origin';
+  /**
+   * `iframe` (the default) hands a third party's page the whole rectangle.
+   * `hls` asks a resolver for a playlist and plays it in our own `<video>`, so
+   * the page behind it — pop-unders, redirects, scripts — is never loaded.
+   */
+  kind?: 'iframe' | 'hls';
+  /** For `hls` sources: the resolver's provider id. */
+  apiProvider?: string;
   buildUrl: (mediaType: MediaType, id: number | string, season: number, episode: number) => string;
+}
+
+/**
+ * FrameXTV's stream API. It answers with a direct `.m3u8` per provider, plus the
+ * audio tracks that stream actually carries — which is the only place in this
+ * whole component where Hindi can be *seen* rather than guessed at.
+ *
+ * CORS is `*`, so the browser calls it directly; there is no proxy in the way.
+ */
+const FRAMEXTV_API = 'https://api.framextv.tech';
+const FRAMEXTV_SITE = 'https://framextv.xyz';
+
+interface ResolvedStream {
+  url: string;
+  quality?: string;
+  audioTracks: { label?: string; language?: string; id?: string }[];
+}
+
+async function resolveFrameXtv(
+  apiProvider: string,
+  type: MediaType,
+  id: number | string,
+  season: number,
+  episode: number,
+): Promise<ResolvedStream | null> {
+  const query = new URLSearchParams({ type, id: String(id), provider: apiProvider });
+  if (type === 'tv') {
+    query.set('season', String(season));
+    query.set('episode', String(episode));
+  }
+
+  try {
+    const response = await fetch(`${FRAMEXTV_API}/api/stream?${query}`, {
+      headers: { accept: 'application/json' },
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      success?: boolean;
+      sources?: { url?: string; quality?: string; audioTracks?: { label?: string; language?: string; id?: string }[] }[];
+    };
+    const first = body.sources?.[0];
+    if (!body.success || !first?.url) return null;
+    return { url: first.url, quality: first.quality, audioTracks: first.audioTracks ?? [] };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -120,6 +175,49 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
         ? `https://embedmaster.link/movie/${id}`
         : `https://embedmaster.link/tv/${id}/${s}/${e}`,
   },
+
+  /*
+   * FrameXTV providers. These are not pages: the resolver returns a playlist,
+   * and the player above plays it. `giant` is listed first in the order because
+   * it is the one that carried an actual Hindi track (Inception came back as
+   * audio=[English, Hindi]); `bowler` advertises multi-language and returned
+   * seven mirrors for the same title.
+   */
+  {
+    id: 'fx-giant',
+    name: 'Giant',
+    badge: 'Hindi audio',
+    isHindi: true,
+    autoStarts: true,
+    kind: 'hls',
+    apiProvider: 'giant',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-super',
+    name: 'Barbarian',
+    badge: '4K',
+    autoStarts: true,
+    kind: 'hls',
+    apiProvider: 'super_barbarian',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-bowler',
+    name: 'Bowler',
+    badge: 'Multi-lang',
+    kind: 'hls',
+    apiProvider: 'bowler',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
+  {
+    id: 'fx-titan',
+    name: 'Titan',
+    badge: 'MP4 1080p',
+    kind: 'hls',
+    apiProvider: 'titan',
+    buildUrl: () => FRAMEXTV_SITE,
+  },
 ];
 
 /**
@@ -155,8 +253,27 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
  * did. A chip that opens a black rectangle is worse than five chips that work.
  */
 const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
-  movie: ['vidfast', 'nontongo', 'embedmaster', 'autoembed', 'vidrock'],
-  tv: ['autoembed', 'nontongo', 'embedmaster', 'vidfast'],
+  movie: [
+    'fx-giant',
+    'vidfast',
+    'nontongo',
+    'embedmaster',
+    'autoembed',
+    'vidrock',
+    'fx-super',
+    'fx-bowler',
+    'fx-titan',
+  ],
+  tv: [
+    'fx-giant',
+    'autoembed',
+    'nontongo',
+    'embedmaster',
+    'vidfast',
+    'fx-super',
+    'fx-bowler',
+    'fx-titan',
+  ],
 };
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
@@ -281,6 +398,9 @@ export function TvStreamPlayer({
   const [countdown, setCountdown] = useState<number | null>(null);
   /** Set when no source would play here, so the viewer is offered the real site. */
   const [showExternal, setShowExternal] = useState<boolean>(false);
+  /** The playlist a resolver returned for an `hls` source, once it has one. */
+  const [hlsStream, setHlsStream] = useState<ResolvedStream | null>(null);
+  const [hlsLoading, setHlsLoading] = useState<boolean>(false);
   const [reloadKey, setReloadKey] = useState<number>(0);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -349,11 +469,65 @@ export function TvStreamPlayer({
     notify('Reloading stream...', 2000);
   };
 
+  /* -- 0. An `hls` source is a playlist, not a page ------------------------ */
+  useEffect(() => {
+    setHlsStream(null);
+    setHlsLoading(false);
+
+    if (provider.kind !== 'hls' || !provider.apiProvider) return;
+
+    let live = true;
+    loadedRef.current = false;
+    setHlsLoading(true);
+
+    void resolveFrameXtv(provider.apiProvider, mediaType, media.id, season, episode).then((stream) => {
+      if (!live) return;
+      setHlsLoading(false);
+
+      if (!stream) {
+        // Nothing to play: the resolver is the one failure this component can
+        // see outright, so it moves on immediately instead of waiting out a
+        // grace period on a black rectangle.
+        const next = available[providerIndex + 1];
+        if (next && !autoVisitedRef.current.has(next.id)) {
+          autoVisitedRef.current.add(next.id);
+          selectSource(next.id, false);
+          notify(`${provider.name} has nothing for this title — trying ${next.name}`, 3000);
+        } else {
+          setShowExternal(true);
+        }
+        return;
+      }
+
+      loadedRef.current = true;
+      setHlsStream(stream);
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [
+    provider.id,
+    provider.kind,
+    provider.apiProvider,
+    mediaType,
+    media.id,
+    season,
+    episode,
+    available,
+    providerIndex,
+    selectSource,
+    notify,
+  ]);
+
   /* -- 1. A host that does not answer is skipped immediately -------------- */
   useEffect(() => {
     let live = true;
     loadedRef.current = false;
     setShowExternal(false);
+
+    // An `hls` source has no page to probe; the resolver already answered.
+    if (provider.kind === 'hls') return;
 
     void isReachable(streamUrl).then((reachable) => {
       if (!live || reachable) return;
@@ -460,6 +634,19 @@ export function TvStreamPlayer({
     setCountdown(null);
     rememberChoice(provider.id);
     notify(`Keeping ${provider.name}`, 1800);
+  };
+
+  // A resolved playlist that dies is the same situation as a resolver that
+  // returned nothing: walk on, or hand the viewer the site.
+  const handleStreamFailure = () => {
+    const next = available[providerIndex + 1];
+    if (next && !autoVisitedRef.current.has(next.id)) {
+      autoVisitedRef.current.add(next.id);
+      selectSource(next.id, false);
+      notify(`${provider.name} failed — trying ${next.name}`, 3000);
+      return;
+    }
+    setShowExternal(true);
   };
 
   return (
@@ -672,28 +859,48 @@ export function TvStreamPlayer({
                 </div>
               )}
 
-              <iframe
-                key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
-                src={streamUrl}
-                title={`${title} Live Stream`}
-                allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-                allowFullScreen
-                referrerPolicy={provider.referrerPolicy ?? 'no-referrer'}
-                className="h-full w-full border-0"
-                onLoad={() => {
-                  // Something answered and rendered. See the note in the grace
-                  // timer: this is as close to "it works" as a cross-origin
-                  // frame can get, and the fallback never overrides it.
-                  loadedRef.current = true;
-                }}
-                onError={() => {
-                  if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
-                    autoVisitedRef.current.add(nextProvider.id);
-                    selectSource(nextProvider.id, false);
-                    notify(`${provider.name} failed — trying ${nextProvider.name}`, 3000);
-                  }
-                }}
-              />
+              {provider.kind === 'hls' ? (
+                hlsStream ? (
+                  <TvHlsPlayer
+                    key={`${hlsStream.url}-${reloadKey}`}
+                    src={hlsStream.url}
+                    title={title}
+                    onFail={handleStreamFailure}
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center bg-black">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="size-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
+                      <p className="text-xs text-white/60">
+                        {hlsLoading ? `Resolving ${provider.name}…` : `${provider.name} has no stream`}
+                      </p>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <iframe
+                  key={`${provider.id}-${mediaType}-${media.id}-${season}-${episode}-${reloadKey}`}
+                  src={streamUrl}
+                  title={`${title} Live Stream`}
+                  allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
+                  allowFullScreen
+                  referrerPolicy={provider.referrerPolicy ?? 'no-referrer'}
+                  className="h-full w-full border-0"
+                  onLoad={() => {
+                    // Something answered and rendered. See the note in the grace
+                    // timer: this is as close to "it works" as a cross-origin
+                    // frame can get, and the fallback never overrides it.
+                    loadedRef.current = true;
+                  }}
+                  onError={() => {
+                    if (autoFallback && nextProvider && !autoVisitedRef.current.has(nextProvider.id)) {
+                      autoVisitedRef.current.add(nextProvider.id);
+                      selectSource(nextProvider.id, false);
+                      notify(`${provider.name} failed — trying ${nextProvider.name}`, 3000);
+                    }
+                  }}
+                />
+              )}
             </div>
 
             {/* Player Bottom Control Strip */}
