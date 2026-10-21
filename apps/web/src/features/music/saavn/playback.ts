@@ -79,7 +79,10 @@ async function playCurrent() {
   const full = await withStream(cur);
   const url = api.streamUrl(full, quality());
   if (!url) {
-    // Not streamable (rights): skip it rather than stop the music.
+    // Not streamable (rights, or YouTube would not hand it over): skip it rather than stop the music.
+    // Said out loud: a song that vanishes from the queue with no word looks like the app jumping
+    // ahead on its own, which is how "Jeene Laga Hoon" turned into "Tum Se Hi".
+    ytmNotice(Q.atEnd(queue) ? `Could not play "${cur.name}"` : `Could not play "${cur.name}", skipping`);
     if (!Q.atEnd(queue)) {
       setQueue(Q.next(queue));
       void playCurrent();

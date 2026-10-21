@@ -162,6 +162,8 @@ function fromRow(row: Json): Song | undefined {
   let secs = 0;
   for (const run of runs) {
     const text = String(run.text ?? '').trim();
+    // A podcast episode has a video id and sits among the songs in the results, but it is not one.
+    if (/^(episode|podcast)$/i.test(text)) return undefined;
     if (!text || text === '•' || /^(song|video)$/i.test(text)) continue;
     const browse: string = run.navigationEndpoint?.browseEndpoint?.browseId ?? '';
     if (/^\d+:\d{2}(:\d{2})?$/.test(text)) secs = seconds(text);
@@ -243,13 +245,22 @@ export async function searchSongs(query: string): Promise<Song[]> {
     }
   };
   // The "Top result" card first: it is what YouTube Music itself puts on top, and it is not a list row.
+  // Its own side panel ("More from YouTube": slowed, lo-fi and fan uploads) is made of list rows too,
+  // but the app shows it beside the card and not in the list, so those rows wait until the end here.
+  const aside: Json[] = [];
   if (mixed.status === 'fulfilled') {
-    for (const card of collect(mixed.value, 'musicCardShelfRenderer')) add(fromCard(card));
+    for (const card of collect(mixed.value, 'musicCardShelfRenderer')) {
+      add(fromCard(card));
+      aside.push(...collect(card.contents, 'musicResponsiveListItemRenderer'));
+    }
   }
   for (const res of [mixed, songs]) {
     if (res.status !== 'fulfilled') continue;
-    for (const row of collect(res.value, 'musicResponsiveListItemRenderer')) add(fromRow(row));
+    for (const row of collect(res.value, 'musicResponsiveListItemRenderer')) {
+      if (!aside.includes(row)) add(fromRow(row));
+    }
   }
+  for (const row of aside) add(fromRow(row));
   if (!out.length) {
     const failed = [mixed, songs].find((r): r is PromiseRejectedResult => r.status === 'rejected');
     throw failed?.reason instanceof Error ? failed.reason : new YtmError('Nothing found');
@@ -325,6 +336,7 @@ export async function resolveStream(videoId: string): Promise<Stream> {
   if (status && status !== 'OK') throw new YtmError(res.playabilityStatus?.reason ?? `Not playable (${status})`);
 
   const formats = (res.streamingData?.adaptiveFormats as Json[] | undefined) ?? [];
+
   const url = (itag: number) => formats.find((f) => f.itag === itag && typeof f.url === 'string')?.url as string | undefined;
   const stream: Stream = {};
   const low = url(139);
