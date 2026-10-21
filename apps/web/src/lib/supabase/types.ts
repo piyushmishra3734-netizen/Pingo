@@ -1213,6 +1213,8 @@ export type Database = {
           success_rate_percent: number | null;
         }[];
       };
+      /** One to one chats only: every message becomes a deleted note for both, and the chat leaves the caller's list. */
+      delete_chat_for_everyone: { Args: { p_conversation_id: string }; Returns: undefined };
       /** Operator only. Messages somebody reported: who sent them and how many reports, never the text. */
       operator_reported_messages: {
         Args: Record<string, never>;

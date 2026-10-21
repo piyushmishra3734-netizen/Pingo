@@ -31,6 +31,8 @@ export interface ConversationActions {
   archive: (ids: string[], archived: boolean) => Promise<void>;
   markUnread: (ids: string[], unread: boolean) => Promise<void>;
   remove: (ids: string[]) => Promise<void>;
+  /** One to one chats only: gone from both people, the other side keeps the chat with every message deleted. */
+  removeForEveryone: (ids: string[]) => Promise<void>;
   clear: (ids: string[]) => Promise<void>;
 }
 
@@ -120,6 +122,10 @@ export function useConversationActions(): ConversationActions {
     ),
     remove: useCallback(
       (ids) => run('Deleting', () => service.deleteConversations(ids)),
+      [run, service],
+    ),
+    removeForEveryone: useCallback(
+      (ids) => run('Deleting', () => service.deleteChatsForEveryone(ids)),
       [run, service],
     ),
     clear: useCallback(

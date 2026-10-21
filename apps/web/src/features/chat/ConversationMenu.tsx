@@ -344,6 +344,14 @@ export function ConversationMenu({
             // would leave the reader looking at something they just removed.
             void actions.remove(id).then(() => navigate('/chats'));
           }}
+          {...(conversation.kind === 'direct'
+            ? {
+                onConfirmEveryone: () => {
+                  setDeleting(false);
+                  void actions.removeForEveryone(id).then(() => navigate('/chats'));
+                },
+              }
+            : {})}
         />
       )}
     </div>

@@ -2903,6 +2903,15 @@ export class SupabaseChatService implements ChatService {
     }
   }
 
+  async deleteChatsForEveryone(conversationIds: ConversationId[]): Promise<void> {
+    for (const id of conversationIds) {
+      const { error } = await this.#client.rpc('delete_chat_for_everyone', { p_conversation_id: id });
+      if (error) throw new Error(error.message);
+      // The server hid it from this person's list as well; the screen follows.
+      this.#emit({ type: 'conversation:removed', conversationId: id });
+    }
+  }
+
   async clearConversations(conversationIds: ConversationId[]): Promise<void> {
     if (conversationIds.length === 0) return;
     const me = await this.#userId();

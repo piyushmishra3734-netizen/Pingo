@@ -13,12 +13,14 @@ import { Overlay } from '../../components/Overlay.js';
  * finger already is. On a wide screen it centres, since a sheet pinned to the
  * bottom of a desktop window is a long way from anything.
  *
- * ## Why "Delete for everyone" is absent rather than disabled
+ * ## "Delete for everyone", and when it is offered
  *
- * There is no such thing for a whole conversation, in this product or any other
- * - you can unsend a message, not un-have a conversation. docs/13 § 3: hide what
- * was never yours. A greyed-out row here would invent a capability and then
- * refuse it, which is worse than never mentioning it.
+ * Only for one to one chats, and only when the caller passes it. It is Telegram's
+ * rule: every message in the chat becomes a deleted note for both people, the
+ * other person keeps the chat in their list with those notes inside it, and it
+ * leaves this person's list. Groups and PINGO AI never offer it: a group is not
+ * one person's to wipe. It is absent there rather than greyed out, because a
+ * greyed-out row would invent a capability and then refuse it.
  *
  * ## What deleting actually does
  *
@@ -33,9 +35,11 @@ export interface DeleteChatSheetProps {
   count: number;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Present only when every chat is one to one. */
+  onConfirmEveryone?: () => void;
 }
 
-export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetProps) {
+export function DeleteChatSheet({ count, onCancel, onConfirm, onConfirmEveryone }: DeleteChatSheetProps) {
   useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -99,6 +103,25 @@ export function DeleteChatSheet({ count, onCancel, onConfirm }: DeleteChatSheetP
             >
               Delete for me
             </button>
+
+            {onConfirmEveryone && (
+              <>
+                <p className="px-1 text-caption text-text-secondary">
+                  Delete for everyone removes every message for both of you. They keep the chat in their list, and every message in it shows as deleted.
+                </p>
+                <button
+                  type="button"
+                  onClick={onConfirmEveryone}
+                  className={cn(
+                    'focus-ring w-full rounded-full border border-danger px-5 py-3',
+                    'text-body font-medium text-danger',
+                    'transition-transform duration-instant active:scale-[0.98]',
+                  )}
+                >
+                  Delete for everyone
+                </button>
+              </>
+            )}
 
             <button
               type="button"

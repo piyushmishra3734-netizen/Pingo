@@ -556,6 +556,12 @@ export interface ChatService {
    * second one.
    */
   deleteConversations(conversationIds: ConversationId[]): Promise<void>;
+  /**
+   * One to one chats only: every message in each becomes a deleted note for both
+   * people, and the chat leaves this person's list. The other person keeps the
+   * chat, with every message reading as deleted. The server refuses anything but a direct chat.
+   */
+  deleteChatsForEveryone(conversationIds: ConversationId[]): Promise<void>;
 
   /** Empties the history but keeps the chat in the list. */
   clearConversations(conversationIds: ConversationId[]): Promise<void>;

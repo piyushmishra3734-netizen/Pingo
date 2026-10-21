@@ -50,7 +50,9 @@ export function MessageMenu({
   children,
   render,
 }: MessageMenuProps) {
-  const { service, currentUser } = useChat();
+  const { service, currentUser, conversations } = useChat();
+  // In a one to one chat either person can delete any message for both; elsewhere only their own.
+  const canDeleteForEveryone = mine || conversations.find((c) => c.id === message.conversationId)?.kind === 'direct';
 
   const [level, setLevel] = useState<'actions' | 'more'>('actions');
   const [busy, setBusy] = useState(false);
@@ -177,6 +179,7 @@ export function MessageMenu({
               <MoreSheet
                 message={message}
                 mine={mine}
+                canDeleteForEveryone={canDeleteForEveryone}
                 onBack={() => setLevel('actions')}
                 onDone={close}
                 actions={level2}

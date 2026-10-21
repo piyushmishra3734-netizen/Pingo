@@ -813,6 +813,17 @@ export class MockChatService implements ChatService {
     }
   }
 
+  async deleteChatsForEveryone(conversationIds: ConversationId[]): Promise<void> {
+    for (const id of conversationIds) {
+      for (const message of this.#messages[id] ?? []) {
+        message.body = '';
+        message.deleted = true;
+        message.deletedAt = Date.now();
+      }
+    }
+    await this.deleteConversations(conversationIds);
+  }
+
   async clearConversations(conversationIds: ConversationId[]): Promise<void> {
     for (const id of conversationIds) {
       this.#messages[id] = [];

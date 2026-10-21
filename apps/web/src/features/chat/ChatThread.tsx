@@ -1542,6 +1542,7 @@ export function ChatThread({
         <MessageSelectionBar
           selected={messages.filter((message) => selection.has(message.id))}
           mine={(message) => message.authorId === currentUser?.id}
+          everyone={conversation.kind === 'direct'}
           onCancel={() => setSelection(undefined)}
           onCopy={() => {
             const text = messages

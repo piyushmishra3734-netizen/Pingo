@@ -43,6 +43,8 @@ export interface MoreSheetProps {
   message: Message;
   /** Whether the viewer wrote it - decides what was ever theirs to do. */
   mine: boolean;
+  /** Delete for everyone is on offer: the viewer wrote it, or this is a one to one chat. */
+  canDeleteForEveryone: boolean;
   onBack: () => void;
   onDone: () => void;
   actions: {
@@ -63,7 +65,7 @@ export interface MoreSheetProps {
   };
 }
 
-export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetProps) {
+export function MoreSheet({ message, mine, canDeleteForEveryone, onBack, onDone, actions }: MoreSheetProps) {
   const categories = useMemo<Category[]>(() => {
     const hasMedia = Boolean(message.ping ?? message.sticker);
 
@@ -83,7 +85,7 @@ export function MoreSheet({ message, mine, onBack, onDone, actions }: MoreSheetP
       edit.push({ label: 'Edit', onSelect: run(actions.edit) });
     }
     edit.push({ label: 'Delete for me', onSelect: run(actions.deleteForMe) });
-    if (mine) {
+    if (canDeleteForEveryone) {
       edit.push({ label: 'Delete for everyone', onSelect: run(actions.deleteForEveryone) });
     }
 

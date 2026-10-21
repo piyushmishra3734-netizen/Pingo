@@ -875,6 +875,15 @@ export function ConversationList({
             setPendingDelete(undefined);
             andClose(actions.remove(ids));
           }}
+          {...(pendingDelete.every((c) => c.kind === 'direct')
+            ? {
+                onConfirmEveryone: () => {
+                  const ids = pendingDelete.map((c) => c.id);
+                  setPendingDelete(undefined);
+                  andClose(actions.removeForEveryone(ids));
+                },
+              }
+            : {})}
         />
       )}
 

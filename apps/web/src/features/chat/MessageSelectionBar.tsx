@@ -36,6 +36,8 @@ import { useT } from '../i18n/useT.js';
 export interface MessageSelectionBarProps {
   selected: Message[];
   mine: (message: Message) => boolean;
+  /** A one to one chat: delete for everyone applies to any message, not only mine. */
+  everyone?: boolean;
   onCancel: () => void;
   onCopy: () => void;
   onDelete: (forEveryone: boolean) => void;
@@ -44,6 +46,7 @@ export interface MessageSelectionBarProps {
 export function MessageSelectionBar({
   selected,
   mine,
+  everyone = false,
   onCancel,
   onCopy,
   onDelete,
@@ -82,7 +85,7 @@ export function MessageSelectionBar({
         </button>
       )}
 
-      {allMine && (
+      {(allMine || (everyone && count > 0)) && (
         <button
           type="button"
           onClick={() => onDelete(true)}
