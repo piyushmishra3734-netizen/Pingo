@@ -1001,6 +1001,16 @@ export function SettingsView() {
         </>
       )}
 
+      <Heading>Autoplay</Heading>
+      <Choice
+        options={[
+          { v: 'on' as const, label: 'On', note: 'When the queue ends, keep playing similar songs' },
+          { v: 'off' as const, label: 'Off', note: 'Stop when the queue ends' },
+        ]}
+        value={settings.autoplay ? 'on' : 'off'}
+        onPick={(v) => setMusicSettings({ autoplay: v === 'on' })}
+      />
+
       <Heading>Streaming quality</Heading>
       <Choice options={STREAM} value={settings.stream} onPick={(v) => setMusicSettings({ stream: v })} />
 

@@ -181,6 +181,9 @@ const DEFAULT_SETTINGS: UserSettings = {
  * Anything rendering a full profile reads it separately and by id, which is
  * one row rather than a hundred.
  */
+/** A direct chat that could not be named: its people were not read, so it fell back to a placeholder. */
+const hasUnnamed = (list: Conversation[]): boolean => list.some((c) => c.kind === 'direct' && c.title === 'Conversation');
+
 const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
 
 /**
@@ -1812,14 +1815,46 @@ export class SupabaseChatService implements ChatService {
       });
   }
 
+  async #fetchProfileRows(ids: UserId[]): Promise<Array<Parameters<typeof toUser>[0]> | null> {
+    const { data, error } = await this.#client.from('profiles').select(USER_COLUMNS).in('id', ids);
+    if (error) {
+      console.warn('[pingo] profiles read failed:', error.message);
+      return null;
+    }
+    return data;
+  }
+
+  /**
+   * The title and face each conversation last had a real answer for.
+   *
+   * Used only when the people behind a direct chat could not be read this time,
+   * so an outage on one request leaves the names that were already on screen
+   * instead of "Conversation" everywhere. Seeded from the startup snapshot.
+   */
+  #titleMemo = new Map<string, { title: string; avatarUrl?: string }>();
+
   async #loadPeople(ids: UserId[]): Promise<void> {
     const missing = ids.filter((id) => !this.#people.has(id));
     if (missing.length === 0) return;
 
-    const [{ data }, lastSeen] = await Promise.all([
-      this.#client.from('profiles').select(USER_COLUMNS).in('id', missing),
-      this.#lastSeenFor(missing),
-    ]);
+    /*
+     * A failed read is retried, not shrugged off.
+     *
+     * This used to read `{ data }` and ignore `error`, so one hiccup on the
+     * profiles request meant nobody's name or photo loaded: every direct chat
+     * was titled "Conversation" with a letter for a face, and that list was then
+     * written to disk as the startup snapshot. A request that fails twice in a
+     * row is a real outage, and the titles already known (`#titleMemo`) cover
+     * it; one that fails once is just a phone on a bad connection.
+     */
+    const lastSeenPromise = this.#lastSeenFor(missing);
+    let data: Array<Parameters<typeof toUser>[0]> | null = null;
+    for (const wait of [0, 700, 2000]) {
+      if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+      data = await this.#fetchProfileRows(missing);
+      if (data) break;
+    }
+    const lastSeen = await lastSeenPromise;
     for (const row of data ?? []) {
       const user = toUser(row, lastSeen.get(row.id), this.#statusById.get(row.id), this.#customSeenById.get(row.id));
       /*
@@ -1991,7 +2026,7 @@ export class SupabaseChatService implements ChatService {
      * cached one: the time was the queue of round trips, not the queries. So
      * the filing joins this batch, and the three after it run side by side.
      */
-    const [{ data: members }, { data: previews }, { data: streaks }, { data: listRows }] = await Promise.all([
+    const [{ data: members, error: membersError }, { data: previews }, { data: streaks }, { data: listRows }] = await Promise.all([
       this.#client.from('conversation_members').select('*').in('conversation_id', ids),
       /*
        * One preview and one unread count per conversation, from the database.
@@ -2057,6 +2092,13 @@ export class SupabaseChatService implements ChatService {
      * whole answer because a Map lookup costs nothing; what is scoped here is
      * the fetch.
      */
+    /*
+     * Without the roster no direct chat can be named, and a list built anyway
+     * titled every one of them "Conversation". Throwing sends the caller to the
+     * copy it already holds, which has the real names.
+     */
+    if (membersError) throw new Error(`conversation_members read failed: ${membersError.message}`);
+
     const wantedConversations = new Set(ids);
     const lastMessageIds = (previews ?? [])
       .filter((row) => wantedConversations.has(row.conversation_id))
@@ -2223,6 +2265,15 @@ export class SupabaseChatService implements ChatService {
         const aiAvatar =
           aiProfile?.avatar_url || aiPublic?.avatar_url || undefined;
 
+        // A real answer, kept for the day the next one fails.
+        if (row.kind !== 'ai') {
+          const realTitle = row.title ?? otherUser?.name;
+          if (realTitle) {
+            const face = row.avatar_url ?? otherUser?.avatarUrl;
+            this.#titleMemo.set(row.id, { title: realTitle, ...(face ? { avatarUrl: face } : {}) });
+          }
+        }
+
         return {
           id: row.id,
           kind: row.kind,
@@ -2236,7 +2287,7 @@ export class SupabaseChatService implements ChatService {
             : {}),
           // A direct chat is titled by whoever else is in it, per viewer.
           // AI is a person-shaped row: name from prefs, not a "bot" label.
-          title: row.kind === 'ai' ? aiTitle : (row.title ?? otherUser?.name ?? 'Conversation'),
+          title: row.kind === 'ai' ? aiTitle : (row.title ?? otherUser?.name ?? this.#titleMemo.get(row.id)?.title ?? 'Conversation'),
           /*
            * A group's own picture, or the other person's.
            *
@@ -2251,7 +2302,9 @@ export class SupabaseChatService implements ChatService {
               ? { avatarUrl: row.avatar_url }
               : otherUser?.avatarUrl
                 ? { avatarUrl: otherUser.avatarUrl }
-                : {}),
+                : this.#titleMemo.get(row.id)?.avatarUrl
+                  ? { avatarUrl: this.#titleMemo.get(row.id)!.avatarUrl! }
+                  : {}),
           ...((row.kind === 'group' || row.kind === 'community') && row.description
             ? { description: row.description }
             : {}),
@@ -2568,7 +2621,9 @@ export class SupabaseChatService implements ChatService {
       const fingerprint = await this.#listFingerprint();
       if (fingerprint) {
         const cached = await this.#cachedList(key);
-        if (cached && cached.fingerprint === fingerprint) {
+        // A cached list with nobody in it, or with chats that lost their names, is not an answer
+        // worth reusing: read it again.
+        if (cached && cached.fingerprint === fingerprint && cached.list.length > 0 && !hasUnnamed(cached.list)) {
           /*
            * Remembered, or nothing else works.
            *
@@ -2587,9 +2642,13 @@ export class SupabaseChatService implements ChatService {
       const live = await this.#listConversationsFromNetwork();
       // Sealed too. The list carries message previews, which is to say it
       // carries the first line of every conversation you have.
-      void sealRecord({ fingerprint, list: live }).then((sealed) =>
-        localSet(STORE.conversations, key, sealed),
-      );
+      // Kept only when it is whole: an empty list, or one with unnamed chats, is what a bad read
+      // looks like, and writing it down made a bad moment permanent.
+      if (live.length > 0 && !hasUnnamed(live)) {
+        void sealRecord({ fingerprint, list: live }).then((sealed) =>
+          localSet(STORE.conversations, key, sealed),
+        );
+      }
       return live;
     } catch (cause) {
       const cached = await this.#cachedList(key);
@@ -2677,10 +2736,23 @@ export class SupabaseChatService implements ChatService {
      * on. The membership list is kept, and still filters, so a policy that is
      * ever widened cannot put somebody else's conversation in this list.
      */
-    const [{ data: memberships }, { data: rows }] = await Promise.all([
+    const [{ data: memberships, error: membershipsError }, { data: rows, error: rowsError }] = await Promise.all([
       this.#client.from('conversation_members').select('conversation_id').eq('user_id', me),
       this.#client.from('conversations').select('*'),
     ]);
+
+    /*
+     * A failed read is not an empty account.
+     *
+     * Both errors used to be dropped, so a request that failed - a timeout, a
+     * 5xx, a rate limit - looked like "no memberships", the next line returned
+     * an empty list, and that list was then written to disk beside the
+     * fingerprint. Everyone's chats vanished and stayed gone until something
+     * changed the fingerprint. Throwing falls back to the cached list instead.
+     */
+    if (membershipsError || rowsError) {
+      throw new Error(`conversation list read failed: ${(membershipsError ?? rowsError)!.message}`);
+    }
 
     const ids = new Set((memberships ?? []).map((m) => m.conversation_id));
     if (ids.size === 0) return [];
@@ -3336,10 +3408,18 @@ export class SupabaseChatService implements ChatService {
      * back fast.
      */
     const me = await this.#userId();
-    return snapshot.currentUser.id === me ? snapshot : undefined;
+    if (snapshot.currentUser.id !== me) return undefined;
+    for (const c of snapshot.conversations) {
+      if (c.kind !== 'ai' && c.title && c.title !== 'Conversation' && !this.#titleMemo.has(c.id)) {
+        this.#titleMemo.set(c.id, { title: c.title, ...(c.avatarUrl ? { avatarUrl: c.avatarUrl } : {}) });
+      }
+    }
+    return snapshot;
   }
 
   async cacheStartup(snapshot: StartupSnapshot): Promise<void> {
+    // An empty list or one with unnamed chats is what a failed read looks like. It must not replace a good snapshot.
+    if (snapshot.conversations.length === 0 || hasUnnamed(snapshot.conversations)) return;
     await localSet(STORE.meta, 'startup', await sealRecord(snapshot));
   }
 

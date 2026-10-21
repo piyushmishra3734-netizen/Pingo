@@ -97,12 +97,29 @@ async function playCurrent() {
 /** The next song's address, looked up ahead so it starts the moment this one ends. */
 function prefetchNext() {
   const next = Q.upcoming(queue, 1)[0];
-  if (next && !downloads.isDownloaded(next.id) && !api.streamUrl(next, quality())) api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
+  if (!next || downloads.isDownloaded(next.id) || api.streamUrl(next, quality())) return;
+  // A YouTube Music song's address is asked for on the phone; looking it up now is what lets the
+  // next one start the instant this ends, even with the screen off and nobody touching anything.
+  if (yt.isYtId(next.id)) void api.song(next.id).catch(() => undefined);
+  else api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
 }
 
-/** Tops a radio queue up from its JioSaavn station before it runs out. */
+/**
+ * Whether the queue should be topped up now.
+ *
+ * Autoplay is on unless the person turned it off, and it covers every kind of
+ * queue: an album or a playlist used to just stop at its last song, and a phone
+ * with the screen off then fell silent. Off, a radio does not top itself up
+ * either: autoplay off means the music ends where the queue does.
+ */
+function needsMore(): boolean {
+  if (!musicSettings().autoplay) return false;
+  return queue.repeat === 'off' && queue.order.length > 0 && queue.order.length - 1 - queue.at < Q.REFILL_AT;
+}
+
+/** Tops the queue up from a station before it runs out. */
 async function refill() {
-  if (refilling || !Q.wantsMore(queue)) return;
+  if (refilling || !needsMore()) return;
   refilling = true;
   try {
     let more: Song[] = [];
@@ -132,6 +149,12 @@ const controls = {
       return;
     }
     if (Q.atEnd(queue)) {
+      // Autoplay: the queue ran out, so ask for more before giving up. This is
+      // also what keeps music going on a phone left alone with the screen off.
+      if (auto && musicSettings().autoplay) {
+        void continueFromEnd();
+        return;
+      }
       if (auto) musicPlayer.pause();
       return;
     }
@@ -168,6 +191,17 @@ if (typeof window !== 'undefined') {
       setQueue(Q.empty());
     }
   });
+}
+
+/** The queue ended by itself with autoplay on: more songs, and on with the next one. */
+async function continueFromEnd() {
+  await refill();
+  if (!Q.atEnd(queue)) {
+    setQueue(Q.next(queue, true));
+    void playCurrent();
+  } else {
+    musicPlayer.pause();
+  }
 }
 
 /*

@@ -20,6 +20,8 @@ export interface MusicSettings {
   download: DownloadQuality;
   /** Languages home is in. Empty: worked out from what somebody plays. */
   languages: string[];
+  /** Keep playing similar songs when the queue runs out. On until the person turns it off. */
+  autoplay: boolean;
 }
 
 /** The languages JioSaavn has a home for, in the order people in India look for them. */
@@ -43,7 +45,7 @@ export const LANGUAGES = [
 ] as const;
 
 const KEY = 'pingo:music-settings:v1';
-const defaults = (): MusicSettings => ({ stream: 'auto', download: 'high', languages: [] });
+const defaults = (): MusicSettings => ({ stream: 'auto', download: 'high', languages: [], autoplay: true });
 
 function load(): MusicSettings {
   try {
