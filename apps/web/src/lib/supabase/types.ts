@@ -1213,6 +1213,21 @@ export type Database = {
           success_rate_percent: number | null;
         }[];
       };
+      /** Operator only. Messages somebody reported: who sent them and how many reports, never the text. */
+      operator_reported_messages: {
+        Args: Record<string, never>;
+        Returns: {
+          message_id: string;
+          conversation_id: string;
+          sender_id: string;
+          sender_name: string | null;
+          reports: number;
+          first_reported_at: string;
+          sent_at: string;
+        }[];
+      };
+      /** Operator only. Removes a reported message for everyone; raises if nobody reported it. */
+      operator_remove_reported_message: { Args: { p_message_id: string }; Returns: undefined };
       /** Sets opened_at and read_at together - see the migration. */
       notification_opened: { Args: { target: string }; Returns: undefined };
       /** Hides a notification from history without destroying the row. */

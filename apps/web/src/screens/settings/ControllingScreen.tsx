@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../../components/ScreenHeader.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { ReportedMessages } from '../../features/moderation/ReportedMessages.js';
 import { MissionControl } from '../../features/referrals/MissionControl.js';
 import {
   listOnboardingSlideRows,
@@ -436,6 +437,7 @@ export function ControllingScreen() {
         </section>
 
         <MissionControl />
+        <ReportedMessages />
 
         {/* Premium */}
         <section className="mb-4 rounded-lg bg-surface p-3 shadow-sm">
