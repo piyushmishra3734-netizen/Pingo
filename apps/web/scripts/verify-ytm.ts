@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import * as api from '../src/features/music/saavn/api.js';
 import { parseSongShare, songBody } from '../src/features/music/song-share.js';
 import { isYtPage, playableFor } from '../src/features/music/ytm/page.js';
+import { diagnose } from '../src/features/music/ytm/diagnose.js';
 import * as yt from '../src/features/music/ytm/innertube.js';
 import { setMusicSource, ytmActive, noteYtmFailure, ytmResting } from '../src/features/music/ytm/source.js';
 
@@ -167,5 +168,42 @@ yt.setTransport(async () => {
 assert.equal(await playableFor(shared!), 'https://saavn/s1.mp4', 'a failed lookup plays the JioSaavn version');
 yt.setNativeForTests(false);
 assert.equal(await playableFor(shared!), 'https://saavn/s1.mp4', 'a browser plays the JioSaavn version');
+
+/* ---------- the on-phone check names the step that fails ---------- */
+
+class FakeAudio {
+  static outcome: 'canplay' | 'error' = 'canplay';
+  error = { code: 4 };
+  muted = false;
+  preload = '';
+  private handlers: Record<string, () => void> = {};
+  addEventListener(name: string, fn: () => void) {
+    this.handlers[name] = fn;
+  }
+  load() {
+    setTimeout(() => this.handlers[FakeAudio.outcome]?.(), 5);
+  }
+  set src(_: string) {}
+  canPlayType() {
+    return 'maybe';
+  }
+}
+(globalThis as unknown as { Audio: typeof FakeAudio }).Audio = FakeAudio;
+(globalThis as unknown as { window: unknown }).window = globalThis;
+
+yt.setNativeForTests(true);
+yt.setTransport(async (url) => (url.includes('/search') ? searchAnswer : url.includes('/next') ? nextAnswer : player('OK', [audio(140, 'https://a/d140')])));
+yt.forget('abc12345678');
+const good = await diagnose(() => undefined);
+assert.deepEqual(good.map((x) => [x.name, x.ok]), [['Search', true], ['Audio address', true], ['Playback', true], ['Radio', true]], 'all four steps pass when YouTube answers');
+
+FakeAudio.outcome = 'error';
+yt.forget('abc12345678');
+const refused = await diagnose(() => undefined);
+assert.equal(refused.find((x) => x.name === 'Playback')?.ok, false, 'a stream the player refuses is reported as the playback step');
+
+yt.setTransport(async () => ({ contents: {} }));
+const none = await diagnose(() => undefined);
+assert.deepEqual(none.map((x) => [x.name, x.ok]), [['Search', false]], 'a dead search stops at the first step and says so');
 
 console.log('✓ ytm: reads YouTube Music, and falls back to JioSaavn when it cannot');
