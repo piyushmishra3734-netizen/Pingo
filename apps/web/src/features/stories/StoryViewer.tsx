@@ -1,7 +1,7 @@
 import { MusicMark } from '../music/MusicMark.js';
 import { STORY_PHOTO_MS, useChat, type Story, type StoryGroup, type StoryViewer as Watcher } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Repeat2, Send, Star, Trash2, X } from 'lucide-react';
+import { BellOff, CirclePlus, Download, Link as LinkIcon, MoreHorizontal, MoreVertical, Repeat2, Send, Star, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,6 +20,7 @@ import { StoryPrivacySheet } from './StoryPrivacySheet.js';
 import { StoryStickerLayer } from './stickers/StoryStickerLayer.js';
 import { StoryProgress } from './StoryProgress.js';
 import { StorySound, soundLength } from './StorySound.js';
+import { clearStoryBlocked, markStoryBlocked, toggleStorySound, useStorySilent } from './story-volume.js';
 import { MAX_STORY_SECONDS } from './story-audio.js';
 import { useStoryPlayer } from './useStoryPlayer.js';
 import { useBoomerang } from './Boomerang.js';
@@ -69,6 +70,13 @@ export function StoryViewer({
   const navigate = useNavigate();
 
   const player = useStoryPlayer({ groups, startGroupIndex, onClose });
+  const storySilent = useStorySilent();
+  // A touch is what a browser waits for before it plays sound: give it back the moment there is one.
+  useEffect(() => {
+    const touched = () => clearStoryBlocked();
+    window.addEventListener('pointerdown', touched);
+    return () => window.removeEventListener('pointerdown', touched);
+  }, []);
   const { group, storyIndex, progressRef } = player;
   const story = group.stories[storyIndex];
 
@@ -394,6 +402,18 @@ export function StoryViewer({
                 )}
               </div>
               <span className="flex-1" />
+              {(story.kind === 'video' || (story.audio?.length ?? 0) > 0) && (
+                <button
+                  type="button"
+                  aria-label={storySilent ? 'Turn sound on' : 'Turn sound off'}
+                  aria-pressed={!storySilent}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={toggleStorySound}
+                  className="grid size-9 shrink-0 place-items-center [&>svg]:size-[22px]"
+                >
+                  {storySilent ? <VolumeX /> : <Volume2 />}
+                </button>
+              )}
               <button type="button" aria-label="More" onClick={() => setSheet('more')} className="grid size-9 shrink-0 place-items-center [&>svg]:size-[22px]"><MoreHorizontal /></button>
               <button type="button" aria-label="Close" onClick={requestClose} className="grid size-9 shrink-0 place-items-center [&>svg]:size-[22px]"><X /></button>
             </div>
@@ -592,18 +612,22 @@ function StoryVideo({
    * own switch in the editor.
    */
   const quiet = story.videoEdit?.muted === true;
+  const hushed = useStorySilent();
+  // The speaker button and the author's own mute both silence the clip.
+  useEffect(() => {
+    const element = ref.current;
+    if (element) element.muted = quiet || hushed;
+  }, [quiet, hushed, story.id]);
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
     if (paused) { element.pause(); return; }
     element.play().catch(() => {
-      // The browser refused sound: play without it, and give the sound back at the first tap
-      // anywhere, instead of leaving the story silent for good.
+      // The browser refused sound (Chrome, before the page has been touched): play without it,
+      // and let the speaker button say so. One tap gives the sound back.
       element.muted = true;
       void element.play().catch(() => undefined);
-      if (quiet) return;
-      const unmute = () => { element.muted = false; };
-      window.addEventListener('pointerdown', unmute, { once: true });
+      if (!quiet) markStoryBlocked();
     });
   }, [paused, story.id, quiet]);
 
@@ -635,7 +659,7 @@ function StoryVideo({
       src={story.mediaUrl}
       autoPlay
       playsInline
-      muted={quiet}
+      muted={quiet || hushed}
       onLoadedMetadata={(event) => {
         const m = event.currentTarget;
         if (m.videoWidth > 0 && m.videoHeight > 0) setRatio(m.videoWidth / m.videoHeight);

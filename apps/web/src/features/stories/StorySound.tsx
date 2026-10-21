@@ -1,6 +1,7 @@
 import type { StoryAudioTrack } from '@pingo/core';
 import { useEffect, useRef } from 'react';
 import { claimAudio } from '../../lib/audio-focus.js';
+import { markStoryBlocked, useStorySilent } from './story-volume.js';
 
 /**
  * Playing the sound somebody laid on a story.
@@ -40,6 +41,7 @@ export function StorySound({
   paused: boolean;
 }) {
   const elements = useRef<HTMLAudioElement[]>([]);
+  const hushed = useStorySilent();
   const elapsed = useRef(0);
   /*
    * The pieces, reachable without being a dependency.
@@ -76,6 +78,11 @@ export function StorySound({
     };
   }, [storyId, sources]);
 
+  // The speaker button silences the song along with the clip.
+  useEffect(() => {
+    for (const audio of elements.current) audio.muted = hushed;
+  }, [hushed, sources, storyId]);
+
   useEffect(() => {
     if (paused) {
       for (const audio of elements.current) audio.pause();
@@ -110,7 +117,7 @@ export function StorySound({
           // means starting at the right place inside it, not at its beginning.
           if (Math.abs(audio.currentTime - into) > 0.25) audio.currentTime = into;
           claimAudio(audio);
-          void audio.play().catch(() => undefined);
+          void audio.play().catch(() => markStoryBlocked());
         }
       });
     }, TICK_MS);
