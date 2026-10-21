@@ -355,6 +355,8 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
     drawNow.current(g, 720, 1280);
     const out = c.captureStream(30);
     let mic: MediaStream | undefined;
+    /** Carries the microphone into the recording through a node that outlives any one microphone stream. */
+    let micCtx: AudioContext | undefined;
     if (song) {
       const a = (player.current ??= new Audio()); a.crossOrigin = 'anonymous';
       if (!actx.current) {
@@ -367,7 +369,39 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       if (!a.src.endsWith(song.url)) a.src = song.url;
       a.currentTime = song.start; claimAudio(a); void a.play().catch(() => undefined);
     } else {
-      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { say('No microphone, so this clip has no sound', 2800); }
+      try {
+        const ask = () => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        mic = await ask();
+        /*
+         * Through a node, not straight onto the recording.
+         *
+         * A microphone stream can end in the middle of a clip - a call, an alarm,
+         * another app taking the microphone - and a recorder holding that track
+         * records silence from that moment on, which is what people reported as
+         * the voice disappearing partway through. The recorder gets the node's
+         * track instead, which never ends; when the microphone does, a new one is
+         * opened and plugged into the same node, and the clip carries on with sound.
+         */
+        const ctx = new AudioContext();
+        micCtx = ctx;
+        const dest = ctx.createMediaStreamDestination();
+        let source = ctx.createMediaStreamSource(mic);
+        source.connect(dest);
+        out.addTrack(dest.stream.getAudioTracks()[0]!);
+        ctx.addEventListener('statechange', () => { if (ctx.state === 'suspended') void ctx.resume(); });
+        void ctx.resume();
+        const watch = (m: MediaStream) => m.getAudioTracks()[0]?.addEventListener('ended', () => {
+          void ask().then((again) => {
+            source.disconnect();
+            mic?.getTracks().forEach((t) => t.stop());
+            mic = again;
+            source = ctx.createMediaStreamSource(again);
+            source.connect(dest);
+            watch(again);
+          }, () => undefined);
+        });
+        watch(mic);
+      } catch { say('No microphone, so this clip has no sound', 2800); }
     }
     const type = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
     const chunks: Blob[] = [];
@@ -375,7 +409,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
     try {
       r = new MediaRecorder(out, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 6_000_000 });
     } catch {
-      out.getTracks().forEach((t) => t.stop()); mic?.getTracks().forEach((t) => t.stop());
+      out.getTracks().forEach((t) => t.stop()); mic?.getTracks().forEach((t) => t.stop()); void micCtx?.close();
       rec.current = undefined; setRecording(false); say("This phone can't record video here");
       return;
     }
@@ -389,6 +423,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       r.onstop = () => {
         out.getTracks().forEach((t) => t.stop());
         mic?.getTracks().forEach((t) => t.stop());
+        void micCtx?.close();
         player.current?.pause();
         const blob = new Blob(chunks, { type: r.mimeType || type || 'video/webm' });
         if (!blob.size) { say('That clip did not record. Try again'); return; }

@@ -12,6 +12,7 @@ import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.otaliastudios.transcoder.Transcoder;
 import com.otaliastudios.transcoder.TranscoderListener;
+import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy;
 import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy;
 
 import java.io.File;
@@ -140,6 +141,19 @@ public class VideoTranscodePlugin extends Plugin {
             Transcoder.into(output.getAbsolutePath())
                 .addDataSource(getContext(), input)
                 .setVideoTrackStrategy(DefaultVideoStrategy.atMost(SHORT_EDGE).build())
+                /*
+                 * The sound keeps the channels and sample rate it came with.
+                 *
+                 * Left to its defaults the library converts every clip's audio to
+                 * its own fixed rate and layout, and that conversion is where a
+                 * phone's 48 kHz clip could lose its voice partway through. Asking
+                 * for "as input" means nothing is resampled or remixed: the audio
+                 * is re-encoded as it is.
+                 */
+                .setAudioTrackStrategy(DefaultAudioStrategy.builder()
+                    .channels(DefaultAudioStrategy.CHANNELS_AS_INPUT)
+                    .sampleRate(DefaultAudioStrategy.SAMPLE_RATE_AS_INPUT)
+                    .build())
                 .setListener(new TranscoderListener() {
                     @Override
                     public void onTranscodeProgress(double progress) {
