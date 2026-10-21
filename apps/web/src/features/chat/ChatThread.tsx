@@ -61,6 +61,7 @@ import { ReactionPills } from './context-menu/ReactionPills.js';
 import { Composer, type MentionOption } from './Composer.js';
 import { connectionTitle, useConnectionStatus } from '../connection/useConnectionStatus.js';
 import { ConversationMenu } from './ConversationMenu.js';
+import { DeleteMessagesSheet } from './DeleteMessagesSheet.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
@@ -462,6 +463,8 @@ export function ChatThread({
    * unticked would take the header away mid-decision.
    */
   const [selection, setSelection] = useState<Set<string> | undefined>();
+  /** Telegram's delete question for the selected messages, in a one to one chat. */
+  const [askDelete, setAskDelete] = useState(false);
 
   /** Whether the header is currently a search over this thread. */
   const [searching, setSearching] = useState(false);
@@ -1479,6 +1482,23 @@ export function ChatThread({
       data-wallpaper-dark={wallpaper.dark ? '' : undefined}
       data-wallpaper-photo={wallpaper.photo ? '' : undefined}
     >
+      {askDelete && selection && (
+        <DeleteMessagesSheet
+          count={selection.size}
+          name={conversation.title}
+          canEveryone
+          onCancel={() => setAskDelete(false)}
+          onConfirm={(forEveryone) => {
+            const ids = [...selection];
+            setAskDelete(false);
+            void (async () => {
+              // One at a time, so one failing does not leave the rest undeleted.
+              for (const id of ids) await service.deleteMessage(id, forEveryone).catch(() => undefined);
+              setSelection(undefined);
+            })();
+          }}
+        />
+      )}
       {wallpaper.photo && !wallpaper.live ? (
         <img
           src={wallpaper.photo}
@@ -1542,7 +1562,7 @@ export function ChatThread({
         <MessageSelectionBar
           selected={messages.filter((message) => selection.has(message.id))}
           mine={(message) => message.authorId === currentUser?.id}
-          everyone={conversation.kind === 'direct'}
+          {...(conversation.kind === 'direct' ? { onAskDelete: () => setAskDelete(true) } : {})}
           onCancel={() => setSelection(undefined)}
           onCopy={() => {
             const text = messages

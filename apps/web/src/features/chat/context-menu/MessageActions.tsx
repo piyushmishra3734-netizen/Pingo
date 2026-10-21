@@ -35,6 +35,8 @@ export interface MessageActionsProps {
     translate: () => void;
     deleteForMe: () => void;
     deleteForEveryone: () => void;
+    /** One to one chat: Delete asks, with a box for the other person. */
+    askDelete?: () => void;
     report: () => void;
   };
 }
@@ -116,7 +118,7 @@ export function MessageActions({
         label="Delete"
         icon={<Trash2 size={19} />}
         danger
-        onClick={run(mine ? quick.deleteForEveryone : quick.deleteForMe)}
+        onClick={run(quick.askDelete ?? (mine ? quick.deleteForEveryone : quick.deleteForMe))}
       />
     </div>
   );

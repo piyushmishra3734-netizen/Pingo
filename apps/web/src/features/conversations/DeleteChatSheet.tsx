@@ -1,5 +1,6 @@
 import { cn } from '@pingo/ui';
-import { useEffect, useRef } from 'react';
+import { Check } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useReturnFocus } from './focus-restore.js';
 
@@ -33,15 +34,18 @@ import { Overlay } from '../../components/Overlay.js';
 export interface DeleteChatSheetProps {
   /** How many chats are going. Drives the wording; there is no "1 chats". */
   count: number;
+  /** The other person's name when it is one one to one chat: "Also delete for ...". */
+  name?: string;
   onCancel: () => void;
   onConfirm: () => void;
-  /** Present only when every chat is one to one. */
+  /** Present only when every chat is one to one. Ticking the box and deleting calls this instead. */
   onConfirmEveryone?: () => void;
 }
 
-export function DeleteChatSheet({ count, onCancel, onConfirm, onConfirmEveryone }: DeleteChatSheetProps) {
+export function DeleteChatSheet({ count, name, onCancel, onConfirm, onConfirmEveryone }: DeleteChatSheetProps) {
   useReturnFocus();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [both, setBoth] = useState(false);
   useEffect(() => {
     /*
      * The panel takes focus, never the Delete button - a destructive action
@@ -58,7 +62,8 @@ export function DeleteChatSheet({ count, onCancel, onConfirm, onConfirmEveryone 
     };
   }, [onCancel]);
 
-  const subject = count === 1 ? 'this chat' : `these ${count} chats`;
+  const first = (name ?? '').split(' ')[0] || 'them';
+  const subject = count === 1 ? (name ? `chat with ${first}` : 'this chat') : `these ${count} chats`;
 
   return (
     <Overlay onDismiss={onCancel}>
@@ -87,51 +92,46 @@ export function DeleteChatSheet({ count, onCancel, onConfirm, onConfirmEveryone 
             Delete {subject}?
           </h2>
           <p id="delete-chat-body" className="mt-1.5 text-caption text-text-secondary">
-            The messages will be removed from your device. Everyone else keeps
-            their copy, and the chat comes back if someone writes again.
+            {both
+              ? `Every message goes for both of you. ${first} keeps the chat in their list, and every message in it shows as deleted.`
+              : 'The messages will be removed from your device. Everyone else keeps their copy, and the chat comes back if someone writes again.'}
           </p>
 
-          <div className="mt-4 flex flex-col gap-2">
+          {onConfirmEveryone && (
             <button
               type="button"
-              onClick={onConfirm}
-              className={cn(
-                'focus-ring w-full rounded-full bg-danger px-5 py-3',
-                'text-body font-medium text-white',
-                'transition-transform duration-instant active:scale-[0.98]',
-              )}
+              role="checkbox"
+              aria-checked={both}
+              onClick={() => setBoth((v) => !v)}
+              className="focus-ring mt-3 flex w-full items-center gap-3 rounded-lg py-2 text-left text-body text-ink"
             >
-              Delete for me
+              <span
+                aria-hidden
+                className={cn(
+                  'grid size-5 shrink-0 place-items-center rounded-[5px] border transition-colors',
+                  both ? 'border-danger bg-danger text-white' : 'border-text-tertiary',
+                )}
+              >
+                {both && <Check size={14} strokeWidth={3} />}
+              </span>
+              <span>{count === 1 ? `Also delete for ${first}` : 'Also delete for everyone'}</span>
             </button>
+          )}
 
-            {onConfirmEveryone && (
-              <>
-                <p className="px-1 text-caption text-text-secondary">
-                  Delete for everyone removes every message for both of you. They keep the chat in their list, and every message in it shows as deleted.
-                </p>
-                <button
-                  type="button"
-                  onClick={onConfirmEveryone}
-                  className={cn(
-                    'focus-ring w-full rounded-full border border-danger px-5 py-3',
-                    'text-body font-medium text-danger',
-                    'transition-transform duration-instant active:scale-[0.98]',
-                  )}
-                >
-                  Delete for everyone
-                </button>
-              </>
-            )}
-
+          <div className="mt-3 flex items-center justify-end gap-1">
             <button
               type="button"
               onClick={onCancel}
-              className={cn(
-                'focus-ring w-full rounded-full px-5 py-3 text-body',
-                'text-text-secondary hover:bg-hover',
-              )}
+              className="focus-ring rounded-full px-4 py-2 text-body font-medium text-brand hover:bg-hover"
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => (both && onConfirmEveryone ? onConfirmEveryone() : onConfirm())}
+              className="focus-ring rounded-full px-4 py-2 text-body font-medium text-danger hover:bg-danger-soft"
+            >
+              Delete
             </button>
           </div>
         </div>

@@ -337,6 +337,7 @@ export function ConversationMenu({
       {deleting && (
         <DeleteChatSheet
           count={1}
+          name={conversation.title}
           onCancel={() => setDeleting(false)}
           onConfirm={() => {
             setDeleting(false);

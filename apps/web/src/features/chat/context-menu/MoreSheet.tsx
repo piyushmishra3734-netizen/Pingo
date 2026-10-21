@@ -54,6 +54,8 @@ export interface MoreSheetProps {
     edit: () => void;
     deleteForMe: () => void;
     deleteForEveryone: () => void;
+    /** One to one chat: the single Delete on the actions list covers both, so these two rows are not repeated. */
+    askDelete?: () => void;
     forward: () => void;
     share: () => void;
     save: () => void;
@@ -84,8 +86,12 @@ export function MoreSheet({ message, mine, canDeleteForEveryone, onBack, onDone,
        */
       edit.push({ label: 'Edit', onSelect: run(actions.edit) });
     }
-    edit.push({ label: 'Delete for me', onSelect: run(actions.deleteForMe) });
-    if (canDeleteForEveryone) {
+    if (actions.askDelete) {
+      edit.push({ label: 'Delete', onSelect: run(actions.askDelete) });
+    } else {
+      edit.push({ label: 'Delete for me', onSelect: run(actions.deleteForMe) });
+    }
+    if (canDeleteForEveryone && !actions.askDelete) {
       edit.push({ label: 'Delete for everyone', onSelect: run(actions.deleteForEveryone) });
     }
 

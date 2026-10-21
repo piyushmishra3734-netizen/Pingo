@@ -36,8 +36,8 @@ import { useT } from '../i18n/useT.js';
 export interface MessageSelectionBarProps {
   selected: Message[];
   mine: (message: Message) => boolean;
-  /** A one to one chat: delete for everyone applies to any message, not only mine. */
-  everyone?: boolean;
+  /** A one to one chat: Delete opens Telegram's question (with its box for the other person) instead of acting at once. */
+  onAskDelete?: () => void;
   onCancel: () => void;
   onCopy: () => void;
   onDelete: (forEveryone: boolean) => void;
@@ -46,7 +46,7 @@ export interface MessageSelectionBarProps {
 export function MessageSelectionBar({
   selected,
   mine,
-  everyone = false,
+  onAskDelete,
   onCancel,
   onCopy,
   onDelete,
@@ -85,7 +85,7 @@ export function MessageSelectionBar({
         </button>
       )}
 
-      {(allMine || (everyone && count > 0)) && (
+      {allMine && !onAskDelete && (
         <button
           type="button"
           onClick={() => onDelete(true)}
@@ -99,7 +99,7 @@ export function MessageSelectionBar({
       )}
 
       {/* Last, and an icon, because it is the destructive one you reach for. */}
-      <IconButton label={t('select.deleteMe')} onClick={() => onDelete(false)}>
+      <IconButton label={t('select.deleteMe')} onClick={() => (onAskDelete ? onAskDelete() : onDelete(false))}>
         <TrashIcon size={19} />
       </IconButton>
     </div>

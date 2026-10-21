@@ -5,6 +5,7 @@ import { EditMessageSheet } from './EditMessageSheet.js';
 import { MessageActions } from './MessageActions.js';
 import { MessageInfoSheet } from './MessageInfoSheet.js';
 import { MessageContextMenu } from './MessageContextMenu.js';
+import { DeleteMessagesSheet } from '../DeleteMessagesSheet.js';
 import { MoreSheet } from './MoreSheet.js';
 import { ReactionBar, noteReaction } from './ReactionBar.js';
 import { ReactionPicker } from './ReactionPicker.js';
@@ -52,9 +53,13 @@ export function MessageMenu({
 }: MessageMenuProps) {
   const { service, currentUser, conversations } = useChat();
   // In a one to one chat either person can delete any message for both; elsewhere only their own.
-  const canDeleteForEveryone = mine || conversations.find((c) => c.id === message.conversationId)?.kind === 'direct';
+  const thread = conversations.find((c) => c.id === message.conversationId);
+  const direct = thread?.kind === 'direct';
+  const canDeleteForEveryone = mine || direct;
 
   const [level, setLevel] = useState<'actions' | 'more'>('actions');
+  /** Telegram's delete question, for one to one chats. */
+  const [askingDelete, setAskingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   /** The in-app editor, which replaced `window.prompt`. */
@@ -119,6 +124,7 @@ export function MessageMenu({
     // which row was pressed. Info is the same shape, for the same reason.
     () => setEditing(true),
     () => setInfo(true),
+    direct ? () => setAskingDelete(true) : undefined,
   );
 
   const close = useCallback(() => {
@@ -222,6 +228,19 @@ export function MessageMenu({
       )}
 
       {info && <MessageInfoSheet message={message} onClose={() => setInfo(false)} />}
+
+      {askingDelete && (
+        <DeleteMessagesSheet
+          count={1}
+          {...(thread ? { name: thread.title } : {})}
+          canEveryone
+          onCancel={() => setAskingDelete(false)}
+          onConfirm={(forEveryone) => {
+            setAskingDelete(false);
+            void service.deleteMessage(message.id, forEveryone).catch(() => setError('Delete failed'));
+          }}
+        />
+      )}
     </>
   );
 }
@@ -242,6 +261,8 @@ function useLevel2(
   onFail: (why: string) => void,
   onEdit: () => void,
   onInfo: () => void,
+  /** Present in a one to one chat: the single Delete opens the question instead of deleting. */
+  onAskDelete?: () => void,
 ) {
   const confirm = useConfirm();
 
@@ -284,6 +305,7 @@ function useLevel2(
 
     deleteForMe: confirmDelete(false),
     deleteForEveryone: confirmDelete(true),
+    ...(onAskDelete ? { askDelete: onAskDelete } : {}),
 
     /*
      * Share and Save hand off to the platform. Both fall back to the clipboard

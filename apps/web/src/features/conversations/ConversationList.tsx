@@ -869,6 +869,7 @@ export function ConversationList({
       {pendingDelete && (
         <DeleteChatSheet
           count={pendingDelete.length}
+          {...(pendingDelete.length === 1 && pendingDelete[0] ? { name: pendingDelete[0].title } : {})}
           onCancel={() => setPendingDelete(undefined)}
           onConfirm={() => {
             const ids = pendingDelete.map((c) => c.id);
