@@ -976,6 +976,15 @@ export function SettingsView() {
     <div className="pb-32">
       <h2 className="mx-[18px] mt-1 text-[24px] font-semibold tracking-[-0.01em]">Music settings</h2>
 
+      {!ytmAvailable() && (
+        <>
+          <Heading>Music source</Heading>
+          <p className="mx-[18px] -mt-1.5 text-[13.5px] leading-snug text-text-secondary">
+            JioSaavn. YouTube Music can be chosen in the PINGO Android app. A browser is not allowed to ask YouTube for songs, so it is not offered here.
+          </p>
+        </>
+      )}
+
       {ytmAvailable() && (
         <>
           <Heading>Music source</Heading>
