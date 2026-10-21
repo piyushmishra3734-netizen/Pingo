@@ -106,3 +106,6 @@ revoke execute on function public.operator_reported_messages() from public, anon
 revoke execute on function public.operator_remove_reported_message(uuid) from public, anon;
 grant execute on function public.operator_reported_messages() to authenticated;
 grant execute on function public.operator_remove_reported_message(uuid) to authenticated;
+
+-- Tell the API about the new functions without waiting for its schema cache to expire.
+notify pgrst, 'reload schema';
