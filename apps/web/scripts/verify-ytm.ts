@@ -11,6 +11,8 @@
 import assert from 'node:assert/strict';
 
 import * as api from '../src/features/music/saavn/api.js';
+import { parseSongShare, songBody } from '../src/features/music/song-share.js';
+import { isYtPage, playableFor } from '../src/features/music/ytm/page.js';
 import * as yt from '../src/features/music/ytm/innertube.js';
 import { setMusicSource, ytmActive, noteYtmFailure, ytmResting } from '../src/features/music/ytm/source.js';
 
@@ -144,5 +146,26 @@ assert.equal(ytmResting(), true);
 yt.setNativeForTests(false);
 setMusicSource('ytm');
 assert.equal(ytmActive(), false, 'a browser stays on JioSaavn');
+
+/* ---------- sharing in a chat ---------- */
+
+yt.setNativeForTests(true);
+setMusicSource('ytm');
+const body = songBody({ name: 'Kesariya', artist: 'Arijit Singh', img: 'https://i.ytimg.com/x.jpg', url: 'https://rr1.googlevideo.com/videoplayback?expire=1&ip=9', secs: 268, start: 30, id: 'yt:abc12345678' });
+const shared = parseSongShare(body);
+assert.ok(shared, 'a shared YouTube Music song reads back as a card');
+assert.equal(shared!.url, 'https://music.youtube.com/watch?v=abc12345678', 'it travels as a page address, never as a one-phone audio address');
+assert.ok(isYtPage(shared!.url));
+
+// The friend's phone: in the app it asks YouTube; otherwise (or if YouTube fails) JioSaavn's version plays.
+yt.setTransport(async () => player('OK', [audio(140, 'https://a/friend140')]));
+assert.equal(await playableFor(shared!), 'https://a/friend140');
+yt.forget('abc12345678');
+yt.setTransport(async () => {
+  throw new Error('offline');
+});
+assert.equal(await playableFor(shared!), 'https://saavn/s1.mp4', 'a failed lookup plays the JioSaavn version');
+yt.setNativeForTests(false);
+assert.equal(await playableFor(shared!), 'https://saavn/s1.mp4', 'a browser plays the JioSaavn version');
 
 console.log('✓ ytm: reads YouTube Music, and falls back to JioSaavn when it cannot');

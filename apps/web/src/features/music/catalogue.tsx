@@ -2,6 +2,7 @@ import { cn } from '@pingo/ui';
 import { ListMusic, Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
+import { pageUrl } from './ytm/page.js';
 import * as api from './saavn/api.js';
 import type { Song as SaavnSong } from './saavn/types.js';
 import type { Song } from './sheets.js';
@@ -57,7 +58,8 @@ const LIMIT = 20;
  */
 const small = (img: string) => img.replace(/(\d{2,3})x\1(?=\.\w+$)/, '150x150');
 export function fromSaavn(s: SaavnSong): Song | undefined {
-  const url = api.streamUrl(s, 'normal');
+  // A YouTube Music song has no audio address until a phone asks for one; it is sent as its page address.
+  const url = s.id.startsWith('yt:') ? pageUrl(s.id) : api.streamUrl(s, 'normal');
   if (!url) return undefined;
   return { name: s.name, artist: s.artists.map((a) => a.name).filter(Boolean).slice(0, 2).join(', '), img: small(s.image), url, secs: s.secs || 180, start: 30, id: s.id };
 }

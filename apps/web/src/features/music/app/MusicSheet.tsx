@@ -145,7 +145,8 @@ export default function MusicSheet() {
   const sendToChat = useCallback(
     async (s: Song) => {
       setActions(undefined);
-      const full = api.streamUrl(s, 'normal') ? s : await api.song(s.id).catch(() => undefined);
+      // A YouTube Music song is sent as its page address, so there is nothing to look up first.
+      const full = s.id.startsWith('yt:') || api.streamUrl(s, 'normal') ? s : await api.song(s.id).catch(() => undefined);
       const shared = full && fromSaavn(full);
       if (!shared) {
         toast("This song can't be sent");
