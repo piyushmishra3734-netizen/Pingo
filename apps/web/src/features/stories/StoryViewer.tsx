@@ -540,7 +540,7 @@ function StoryImage({ story, alt, hold }: { story: Story; alt: string; hold: () 
  * A video story, filling the frame and playing with its sound - opening a
  * story is a tap, which is what a browser asks before it plays sound. Where it
  * still refuses, the clip plays muted rather than not at all. A song laid over
- * it plays instead of the clip's own sound, as the sample's does.
+ * it plays with the clip's own sound, unless the author muted the clip.
  */
 function StoryVideo({
   story,
@@ -582,7 +582,16 @@ function StoryVideo({
     release.current = undefined;
   }, []);
 
-  const quiet = story.videoEdit?.muted === true || (story.audio?.length ?? 0) > 0;
+  /*
+   * Silent only when the author turned the clip's own sound off.
+   *
+   * A song laid over a clip used to silence it as well, so anybody who posted a
+   * video with a song heard the music and not the voice in their video - the
+   * editor's preview played both, and the story that went out played one. The
+   * clip keeps its sound and the song plays with it; muting the original is its
+   * own switch in the editor.
+   */
+  const quiet = story.videoEdit?.muted === true;
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
