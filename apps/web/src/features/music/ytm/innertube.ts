@@ -1,5 +1,6 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
+import { poToken } from './pot.js';
 import type { Artist, Module, Song, Stream } from '../saavn/types.js';
 
 /**
@@ -48,6 +49,9 @@ const VR_CLIENT = {
   hl: 'en',
   gl: 'IN',
 };
+
+/** The client the PO token is minted for: the web player, which is what answers a challenge. */
+const POT_CLIENT = { clientName: 'WEB', clientVersion: '1.20250101.00.00', hl: 'en', gl: 'IN' };
 
 /** Only the native app can ask: a browser's request is refused by CORS. */
 let forcedNative: boolean | undefined;
@@ -374,6 +378,7 @@ export async function resolveStream(videoId: string): Promise<Stream> {
   if (hit && Date.now() - hit.at < STREAM_TTL) return hit.stream;
 
   const failures: string[] = [];
+  let challenged = false;
 
   for (const client of PLAYER_CLIENTS) {
     try {
@@ -398,15 +403,12 @@ export async function resolveStream(videoId: string): Promise<Stream> {
          * Measured: the same video is refused by ANDROID_VR and by TVHTML5 with
          * the same wording, while another video plays fine as ANDROID_VR. It is
          * the requesting address being challenged, so walking the rest of the
-         * list only spends seconds to collect identical refusals.
-         *
-         * The real answer to it is BotGuard attestation — a PO token minted from
-         * the challenged address, which is what Flow and PipePipe ship (and why
-         * they list "BotGuard/PoToken attestation" in their credits). A PO token
-         * cannot be minted in this component: it needs the BotGuard script and a
-         * stable address, so it belongs in a service, not a browser tab.
+         * list only spends seconds collecting identical refusals.
          */
-        if (isBotCheck(reason)) break;
+        if (isBotCheck(reason)) {
+          challenged = true;
+          break;
+        }
         continue;
       }
 
@@ -420,6 +422,42 @@ export async function resolveStream(videoId: string): Promise<Stream> {
       return stream;
     } catch (e) {
       failures.push(`${client.label}: ${e instanceof Error ? e.message : 'unreachable'}`);
+    }
+  }
+
+  /*
+   * The challenge is answered with a PO token, not with another client.
+   *
+   * `pot.ts` runs BotGuard on this device and returns proof that it passed; the
+   * player then accepts the same video it had just refused. When no token can be
+   * had — a browser, or a BotGuard change — this is skipped and the song falls
+   * back as it always did.
+   */
+  if (challenged) {
+    const token = await poToken();
+    if (token) {
+      try {
+        const res = await post(
+          `${PLAYER_API}&pot=${encodeURIComponent(token.poToken)}`,
+          { 'user-agent': PLAYER_CLIENTS[0]!.userAgent },
+          {
+            context: { client: { ...POT_CLIENT, visitorData: token.visitorData } },
+            videoId,
+            contentCheckOk: true,
+            racyCheckOk: true,
+            serviceIntegrityDimensions: { poToken: token.poToken },
+          },
+        );
+
+        const stream = formatsToStream(res);
+        if (stream) {
+          streams.set(videoId, { at: Date.now(), stream });
+          return stream;
+        }
+        failures.push(`web+pot: ${res.playabilityStatus?.reason ?? 'no audio address'}`);
+      } catch (e) {
+        failures.push(`web+pot: ${e instanceof Error ? e.message : 'unreachable'}`);
+      }
     }
   }
 
