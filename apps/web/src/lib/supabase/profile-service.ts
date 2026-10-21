@@ -120,6 +120,45 @@ function rethrow(error: unknown): never {
   );
 }
 
+/** How long a kept profile waits for the network before it is used instead. */
+const KEPT_PROFILE_WAIT_MS = 4000;
+const KEPT_PROFILE_KEY = 'pingo.profile.mine.v1';
+const KEPT = Symbol('kept');
+
+function keptAfter(ms: number): Promise<typeof KEPT> {
+  return new Promise((resolve) => setTimeout(() => resolve(KEPT), ms));
+}
+
+/** The signed-in account's id, read from the session on disk without the network. */
+function storedUserId(): string | undefined {
+  try {
+    const raw = localStorage.getItem('pingo.auth.session');
+    return raw ? ((JSON.parse(raw) as { user?: { id?: string } }).user?.id ?? undefined) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readKeptProfile(): Profile | undefined {
+  try {
+    const raw = localStorage.getItem(KEPT_PROFILE_KEY);
+    if (!raw) return undefined;
+    const kept = JSON.parse(raw) as Profile;
+    return kept.id && kept.id === storedUserId() ? kept : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function keepProfile(profile: Profile | null): void {
+  try {
+    if (profile) localStorage.setItem(KEPT_PROFILE_KEY, JSON.stringify(profile));
+    else localStorage.removeItem(KEPT_PROFILE_KEY);
+  } catch {
+    /* storage full or blocked: the next online launch just reads it again */
+  }
+}
+
 export class SupabaseProfileService implements ProfileService {
   private readonly client: PingoSupabaseClient;
 
@@ -134,7 +173,32 @@ export class SupabaseProfileService implements ProfileService {
     return id;
   }
 
+  /**
+   * This person's profile, or the copy this phone kept of it.
+   *
+   * Opened with no signal, the read below cannot answer, and `RequireProfile`
+   * waits for it, so the app sat on its skeleton and never reached the chats it
+   * already had on disk. The last profile read is kept in `localStorage` and
+   * handed back when the network will not answer. It is only ever this
+   * account's own copy (checked against the stored session), and the next
+   * online read replaces it.
+   */
   async getMine(): Promise<Profile | null> {
+    const kept = readKeptProfile();
+    try {
+      const mine = kept
+        ? await Promise.race([this.fetchMine(), keptAfter(KEPT_PROFILE_WAIT_MS)])
+        : await this.fetchMine();
+      if (mine === KEPT) return kept ?? null;
+      keepProfile(mine);
+      return mine;
+    } catch (cause) {
+      if (kept) return kept;
+      throw cause;
+    }
+  }
+
+  private async fetchMine(): Promise<Profile | null> {
     const userId = await this.requireUserId();
 
     const { data, error } = await this.client

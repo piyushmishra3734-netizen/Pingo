@@ -173,6 +173,27 @@ function fromRow(row: Json): Song | undefined {
   return song(videoId, title, artists, album, secs, lastThumb(row.thumbnail?.musicThumbnailRenderer?.thumbnail));
 }
 
+/** The "Top result" card of a search: a song or a video, or undefined when it is an artist, an album or a playlist. */
+function fromCard(card: Json): Song | undefined {
+  const runs = (card.subtitle?.runs as Json[] | undefined) ?? [];
+  if (!/^(song|video)$/i.test(String(runs[0]?.text ?? '').trim())) return undefined;
+  const videoId: string | undefined = collect(card.title, 'watchEndpoint')[0]?.videoId ?? collect(card.onTap, 'watchEndpoint')[0]?.videoId;
+  const title = runsText(card.title);
+  if (!videoId || !title) return undefined;
+  const artists: Artist[] = [];
+  let album = '';
+  let secs = 0;
+  for (const run of runs.slice(1)) {
+    const text = String(run.text ?? '').trim();
+    if (!text || text === '•') continue;
+    const browse: string = run.navigationEndpoint?.browseEndpoint?.browseId ?? '';
+    if (/^\d+:\d{2}(:\d{2})?$/.test(text)) secs = seconds(text);
+    else if (browse.startsWith('MPRE')) album = text;
+    else if (browse.startsWith('UC') || (!browse && !artists.length && !album)) artists.push(artistOf(text, browse));
+  }
+  return song(videoId, title, artists, album, secs, lastThumb(card.thumbnail?.musicThumbnailRenderer?.thumbnail));
+}
+
 /** An "up next" entry. */
 function fromPanel(p: Json): Song | undefined {
   const id: string | undefined = p.videoId;
@@ -195,18 +216,44 @@ function fromPanel(p: Json): Song | undefined {
 
 const SONGS_ONLY = 'EgWKAQIIAWoKEAMQBBAJEAoQBQ==';
 
+/**
+ * What YouTube Music's own search box shows, then its songs list after it.
+ *
+ * The songs-only filter used to be the whole answer, and it hides everything
+ * YouTube Music files as a video or an upload: bass-boosted and instrumental
+ * versions, live takes, fan edits. Typing "jeene laga hoon" in YouTube Music
+ * lists those near the top; here they never appeared. The unfiltered search is
+ * what the app itself shows, so it goes first and keeps its order exactly (the
+ * "Top result" card, then its own lists): nothing here reorders it, so the same
+ * words give the same first song as YouTube Music. The songs filter follows to
+ * add whatever the first page left out. One of the two failing is not a failed
+ * search.
+ */
 export async function searchSongs(query: string): Promise<Song[]> {
-  const res = await music('search', { query, params: SONGS_ONLY });
+  const [mixed, songs] = await Promise.allSettled([
+    music('search', { query }),
+    music('search', { query, params: SONGS_ONLY }),
+  ]);
   const out: Song[] = [];
   const seen = new Set<string>();
-  for (const row of collect(res, 'musicResponsiveListItemRenderer')) {
-    const s = fromRow(row);
+  const add = (s: Song | undefined) => {
     if (s && !seen.has(s.id)) {
       seen.add(s.id);
       out.push(s);
     }
+  };
+  // The "Top result" card first: it is what YouTube Music itself puts on top, and it is not a list row.
+  if (mixed.status === 'fulfilled') {
+    for (const card of collect(mixed.value, 'musicCardShelfRenderer')) add(fromCard(card));
   }
-  if (!out.length) throw new YtmError('Nothing found');
+  for (const res of [mixed, songs]) {
+    if (res.status !== 'fulfilled') continue;
+    for (const row of collect(res.value, 'musicResponsiveListItemRenderer')) add(fromRow(row));
+  }
+  if (!out.length) {
+    const failed = [mixed, songs].find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    throw failed?.reason instanceof Error ? failed.reason : new YtmError('Nothing found');
+  }
   return out;
 }
 

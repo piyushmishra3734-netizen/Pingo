@@ -97,7 +97,21 @@ async function playCurrent() {
 /** The next song's address, looked up ahead so it starts the moment this one ends. */
 function prefetchNext() {
   const next = Q.upcoming(queue, 1)[0];
-  if (next && !downloads.isDownloaded(next.id) && !api.streamUrl(next, quality())) api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
+  if (!next || downloads.isDownloaded(next.id)) return;
+  const known = api.streamUrl(next, quality());
+  if (known) {
+    // Its address is in hand: have the first of it waiting too.
+    musicPlayer.preload(known);
+    return;
+  }
+  if (yt.isYtId(next.id)) {
+    // YouTube Music: look the address up now (it is kept for an hour), then read ahead.
+    void api.warmStream(next.id, quality()).then((url) => {
+      if (url && Q.upcoming(queue, 1)[0]?.id === next.id) musicPlayer.preload(url);
+    });
+    return;
+  }
+  api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
 }
 
 /** Tops a radio queue up from its JioSaavn station before it runs out. */

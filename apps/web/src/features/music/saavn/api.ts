@@ -225,6 +225,23 @@ export async function songs(ids: string[]): Promise<Song[]> {
   return ids.map((i) => out.get(i)).filter((s): s is Song => Boolean(s));
 }
 export const song = async (id: string) => (await songs([id]))[0];
+
+/**
+ * A YouTube Music song's address, looked up ahead of its turn.
+ *
+ * `resolveStream` keeps what it finds for an hour, so when the queue reaches
+ * the song the answer is already there and "next" does not wait on a round
+ * trip. Undefined for anything else, or when YouTube cannot answer: the song is
+ * then resolved at its turn as before.
+ */
+export async function warmStream(id: string, prefer: 'auto' | 'high' | 'normal' | 'saver' = 'auto'): Promise<string | undefined> {
+  if (!yt.isYtId(id) || !ytmActive()) return undefined;
+  try {
+    return streamUrl({ stream: await yt.resolveStream(yt.videoIdOf(id)) }, prefer);
+  } catch {
+    return undefined;
+  }
+}
 export const lyrics = (id: string) => get<Lyrics>(`/songs/${enc(id)}/lyrics`);
 export const album = (id: string) => get<Album>(`/albums/${enc(id)}`);
 export const playlist = (id: string, page = 1, n = 50) => get<Playlist & { page: number; more: boolean }>(`/playlists/${enc(id)}${qs({ page, n })}`);

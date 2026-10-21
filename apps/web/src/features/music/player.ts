@@ -50,6 +50,8 @@ export function setQueueControls(controls: QueueControls | undefined) {
 }
 const listeners = new Set<() => void>();
 let audio: HTMLAudioElement | undefined;
+/** The next song's start, read ahead. See `musicPlayer.preload`. */
+let warm: HTMLAudioElement | undefined;
 
 function set(changes: Partial<PlayerState>) {
   state = { ...state, ...changes };
@@ -222,8 +224,27 @@ export const musicPlayer = {
     if (audio) audio.playbackRate = speed;
     set({ speed });
   },
+  /**
+   * Gets the start of the next song ready, without playing it.
+   *
+   * A second element that only reads the header and the first moments, so
+   * "next" has bytes waiting instead of starting a fresh request. It is not the
+   * playing element, never makes a sound, and holds one song at a time: asking
+   * for another drops the one before, so a long queue never piles up downloads.
+   */
+  preload(url: string) {
+    if (typeof Audio === 'undefined' || state.song?.url === url) return;
+    if (!warm) {
+      warm = new Audio();
+      warm.preload = 'metadata';
+      warm.muted = true;
+    }
+    if (warm.src === url) return;
+    warm.src = url;
+  },
   /** Stops and forgets the song - the bar at the top goes with it. */
   close() {
+    if (warm) { warm.removeAttribute('src'); warm.load(); }
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
     set({ song: undefined, playing: false, loading: false, failed: false, at: 0, length: 0 });
     if (typeof navigator !== 'undefined' && navigator.mediaSession) {

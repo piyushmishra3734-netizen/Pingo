@@ -2472,7 +2472,11 @@ export class SupabaseChatService implements ChatService {
 
   async getCurrentUser(): Promise<CurrentUser> {
     const id = await this.#userId();
-    const { data } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
+
+    // A read that failed is not a missing profile: offline it would hand back a
+    // nameless user, which the startup snapshot then stores over the real one.
+    if (error) throw error;
 
     if (!data) {
       // Signed in without a profile - the setup flow's job, not this one's.
@@ -2677,10 +2681,21 @@ export class SupabaseChatService implements ChatService {
      * on. The membership list is kept, and still filters, so a policy that is
      * ever widened cannot put somebody else's conversation in this list.
      */
-    const [{ data: memberships }, { data: rows }] = await Promise.all([
+    const [{ data: memberships, error: membershipError }, { data: rows, error: rowsError }] = await Promise.all([
       this.#client.from('conversation_members').select('conversation_id').eq('user_id', me),
       this.#client.from('conversations').select('*'),
     ]);
+
+    /*
+     * A failed read is not an empty account.
+     *
+     * The client reports a network failure as `{ data: null, error }` and does
+     * not throw, so without this an offline launch read "no memberships" and
+     * returned an empty list - which the caller then painted over the cached
+     * one ("No chats yet"), and sealed over it on disk. Throwing is what sends
+     * `#listConversationsOnce` to the cached list instead.
+     */
+    if (membershipError || rowsError) throw membershipError ?? rowsError;
 
     const ids = new Set((memberships ?? []).map((m) => m.conversation_id));
     if (ids.size === 0) return [];
@@ -6564,12 +6579,15 @@ export class SupabaseChatService implements ChatService {
 
   async #listContactsOnce(): Promise<User[]> {
     const me = await this.#userId();
-    const { data } = await this.#client
+    const { data, error } = await this.#client
       .from('profiles')
       .select(USER_COLUMNS)
       .neq('id', me)
       .order('created_at', { ascending: false })
       .limit(100);
+
+    // Not an empty roster: see `getCurrentUser`. The failure is not cached either (above).
+    if (error) throw error;
 
     /*
      * Called with an explicit row, never passed straight to `.map`.
