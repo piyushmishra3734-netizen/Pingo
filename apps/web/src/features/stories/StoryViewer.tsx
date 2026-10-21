@@ -587,8 +587,16 @@ function StoryVideo({
     const element = ref.current;
     if (!element) return;
     if (paused) { element.pause(); return; }
-    element.play().catch(() => { element.muted = true; void element.play().catch(() => undefined); });
-  }, [paused, story.id]);
+    element.play().catch(() => {
+      // The browser refused sound: play without it, and give the sound back at the first tap
+      // anywhere, instead of leaving the story silent for good.
+      element.muted = true;
+      void element.play().catch(() => undefined);
+      if (quiet) return;
+      const unmute = () => { element.muted = false; };
+      window.addEventListener('pointerdown', unmute, { once: true });
+    });
+  }, [paused, story.id, quiet]);
 
   // Older clips were turned, cropped or drawn on as marks; those keep their frame.
   const edit = story.videoEdit;

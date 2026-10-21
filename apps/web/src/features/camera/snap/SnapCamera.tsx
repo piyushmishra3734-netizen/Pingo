@@ -122,7 +122,9 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
   const look = [lens.css, night ? NIGHT : ''].filter(Boolean).join(' ') || 'none';
 
 
-  const say = (text: string) => { setTip(text); window.setTimeout(() => setTip((t) => (t === text ? undefined : t)), 1200); };
+  const say = (text: string, ms = 1200) => { setTip(text); window.setTimeout(() => setTip((t) => (t === text ? undefined : t)), ms); };
+  /** Whether the microphone could be opened: asked once when the camera opens, so recording never waits on a prompt. */
+  const micChecked = useRef(false);
 
   // ---- the camera --------------------------------------------------------------
   const openStream = useCallback(async (f: 'user' | 'environment') => {
@@ -134,6 +136,22 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
      * their 1080p mode for this, in whichever orientation they are held.
      */
     stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: f, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } }, audio: false });
+    /*
+     * The microphone is asked for now, once, and let go again.
+     *
+     * It used to be asked for at the moment a clip started, inside a try that
+     * swallowed any failure ("a silent clip"): a phone that had not yet allowed
+     * the microphone, or had refused it, made every story and ping video
+     * without sound and said nothing. Asking here puts the prompt where the
+     * person expects one, and a refusal is known before the first recording.
+     */
+    if (!micChecked.current) {
+      micChecked.current = true;
+      void navigator.mediaDevices.getUserMedia({ audio: true }).then(
+        (m) => m.getTracks().forEach((t) => t.stop()),
+        () => say('Microphone is off, so videos will have no sound. Allow it in Settings', 3500),
+      );
+    }
     return stream.current;
   }, []);
 
@@ -349,7 +367,7 @@ export function SnapCamera({ onShot, onGallery, onClose, preferred = 'user', son
       if (!a.src.endsWith(song.url)) a.src = song.url;
       a.currentTime = song.start; claimAudio(a); void a.play().catch(() => undefined);
     } else {
-      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { /* a silent clip */ }
+      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); out.addTrack(mic.getAudioTracks()[0]!); } catch { say('No microphone, so this clip has no sound', 2800); }
     }
     const type = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
     const chunks: Blob[] = [];
