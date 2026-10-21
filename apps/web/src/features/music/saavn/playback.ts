@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 
 import { musicPlayer, playerState, setQueueControls, watchPlayer } from '../player.js';
 import type { SharedSong } from '../song-share.js';
+import { ytmNotice } from '../ytm/source.js';
+import * as yt from '../ytm/innertube.js';
 import * as api from './api.js';
 import * as downloads from './downloads.js';
 import { currentTaste, recordPlay, type Kept } from './library.js';
@@ -29,6 +31,7 @@ const listeners = new Set<() => void>();
 let refilling = false;
 /** The song the player was last given by the queue, to tell its songs from a chat card's. */
 let playingUrl: string | undefined;
+const forgetYt = (id: string) => yt.forget(yt.videoIdOf(id));
 
 function setQueue(next: Q.QueueState) {
   queue = next;
@@ -164,6 +167,52 @@ if (typeof window !== 'undefined') {
       setQueueControls(undefined);
       setQueue(Q.empty());
     }
+  });
+}
+
+/*
+ * YouTube Music stopped on its own: an address that ran out or was refused.
+ *
+ * The first answer is a fresh address for the same song. If that fails too the
+ * song is played from JioSaavn instead, so a YouTube hiccup is a different
+ * source for one song, not silence. Once per song, so it cannot loop.
+ */
+const recovered = new Set<string>();
+async function recoverYt(cur: Song) {
+  const again = recovered.has(cur.id);
+  recovered.add(cur.id);
+  if (recovered.size > 200) recovered.delete(recovered.values().next().value!);
+  let url: string | undefined;
+  let shown: Song = cur;
+  if (!again) {
+    forgetYt(cur.id);
+    const fresh = await api.song(cur.id).catch(() => undefined);
+    url = fresh && api.streamUrl(fresh, quality());
+    if (fresh) shown = { ...cur, stream: fresh.stream };
+  }
+  if (!url) {
+    const twin = await api.equivalent(cur.name, api.artistNames(cur));
+    url = twin && api.streamUrl(twin, quality());
+    if (url) ytmNotice('Playing this one from JioSaavn');
+  }
+  // The song moved on while this was looked up.
+  if (Q.current(queue) !== cur) return;
+  if (!url) {
+    if (!Q.atEnd(queue)) {
+      setQueue(Q.next(queue));
+      void playCurrent();
+    }
+    return;
+  }
+  playingUrl = url;
+  void musicPlayer.play(toShared(shown, url));
+}
+
+if (typeof window !== 'undefined') {
+  watchPlayer(() => {
+    const p = playerState();
+    const cur = Q.current(queue);
+    if (p.failed && cur && yt.isYtId(cur.id) && playingUrl && p.song?.url === playingUrl) void recoverYt(cur);
   });
 }
 

@@ -14,7 +14,9 @@ import { useMusicPlayer } from '../player.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
 import type { Song } from '../saavn/types.js';
+import { onYtmNotice, needsChoice, useMusicSource } from '../ytm/source.js';
 import { MiniPlayer } from './MiniPlayer.js';
+import { SourceChooser } from './SourceChooser.js';
 import { NowPlaying } from './NowPlaying.js';
 import { Cover, clean, names, useCoverTone } from './parts.js';
 import { closeMusic, takeMusicTarget, useMusicOpen, useMusicTargetSignal } from './sheet-store.js';
@@ -81,6 +83,9 @@ export default function MusicSheet() {
   }, [toastText]);
 
   const toast = useCallback((text: string) => setToastText((t) => ({ text, n: (t?.n ?? 0) + 1 })), []);
+  // YouTube Music handing a song to JioSaavn is said once, here.
+  useEffect(() => onYtmNotice(toast), [toast]);
+  const sourceChosen = useMusicSource();
 
   const push = useCallback((kind: Route['kind'], id: string) => {
     setStack((s) => [...s, { kind, id, key: ++keyRef.current }]);
@@ -329,6 +334,8 @@ export default function MusicSheet() {
         )}
 
         {now && <MiniPlayer song={now} onOpen={() => setNp(true)} toast={toast} />}
+
+        {sourceChosen === undefined && needsChoice() && <SourceChooser />}
 
         <NowPlaying
           open={np}

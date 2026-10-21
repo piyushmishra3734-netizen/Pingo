@@ -36,6 +36,8 @@ try {
     target: 'node20',
     // `.js` in source means `.ts` on disk throughout this repo.
     resolveExtensions: ['.ts', '.tsx', '.mjs', '.js', '.json'],
+    // Vite fills `import.meta.env`; under Node it is empty, so modules that read an optional setting from it still load.
+    define: { 'import.meta.env': '{}' },
     logLevel: 'warning',
   });
 

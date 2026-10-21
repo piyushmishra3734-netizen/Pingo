@@ -3,6 +3,7 @@ import { claimAudio } from '../../lib/audio-focus.js';
 import { clearNowPlaying, showNowPlaying, type ControlAction } from '../native/media-controls.js';
 
 import type { SharedSong } from './song-share.js';
+import { isYtPage, playableFor } from './ytm/page.js';
 
 /**
  * The one music player, for the whole app - Telegram's way.
@@ -25,6 +26,9 @@ export interface PlayerState {
   length: number;
   speed: number;
 }
+
+/** Which load is current, so a slow lookup for a song already left behind cannot start it. */
+let loadToken = 0;
 
 let state: PlayerState = { playing: false, loading: false, failed: false, at: 0, length: 0, speed: 1 };
 
@@ -165,6 +169,23 @@ export const musicPlayer = {
   play(song: SharedSong) {
     const a = element();
     if (state.song?.url !== song.url) {
+      const token = ++loadToken;
+      if (isYtPage(song.url)) {
+        // A YouTube Music song from a chat: found for this phone first, then played.
+        a.pause();
+        set({ song, at: 0, length: song.secs, failed: false, playing: false, loading: true });
+        mediaSession(song);
+        return playableFor(song).then((src) => {
+          if (token !== loadToken || state.song?.url !== song.url) return;
+          if (!src) {
+            set({ loading: false, failed: true });
+            return;
+          }
+          a.src = src;
+          a.currentTime = 0;
+          return musicPlayer.resume();
+        });
+      }
       a.src = song.url;
       a.currentTime = 0;
       set({ song, at: 0, length: song.secs, failed: false });

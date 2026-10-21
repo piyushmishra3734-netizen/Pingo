@@ -1,3 +1,5 @@
+import * as yt from '../ytm/innertube.js';
+import { noteYtmFailure, noteYtmOk, ytmActive } from '../ytm/source.js';
 import type { ArtistPage, ChannelPage, Item, Lyrics, Module, Paged, Playlist, SearchAll, Song, Album, Artist, StationStart, Stream } from './types.js';
 
 /**
@@ -104,7 +106,21 @@ const enc = encodeURIComponent;
 
 /* ---------- discover ---------- */
 
-export const home = (lang?: string[], signal?: AbortSignal) => get<{ modules: Module[] }>(`/home${qs({ lang: langs(lang) })}`, signal);
+const saavnHome = (lang?: string[], signal?: AbortSignal) => get<{ modules: Module[] }>(`/home${qs({ lang: langs(lang) })}`, signal);
+
+export async function home(lang?: string[], signal?: AbortSignal): Promise<{ modules: Module[] }> {
+  if (ytmActive()) {
+    try {
+      const modules = await yt.home();
+      noteYtmOk();
+      for (const m of modules) for (const s of m.items) if (s.type === 'song') remember(s);
+      return { modules };
+    } catch {
+      noteYtmFailure();
+    }
+  }
+  return saavnHome(lang, signal);
+}
 export const charts = (lang?: string[]) => get<Item[]>(`/charts${qs({ lang: langs(lang) })}`);
 export const trending = (lang = 'hindi', type: 'song' | 'album' | 'playlist' = 'song') => get<Item[]>(`/trending${qs({ lang, type })}`);
 export const newReleases = (page = 1, lang?: string[]) => get<Paged<Item>>(`/new${qs({ page, lang: langs(lang) })}`);
@@ -114,15 +130,100 @@ export const channel = (id: string) => get<ChannelPage>(`/channels/${enc(id)}`);
 
 /* ---------- search ---------- */
 
-export const searchAll = (q: string, signal?: AbortSignal) => get<SearchAll>(`/search${qs({ q: q.trim() })}`, signal);
-export const searchSongs = (q: string, page = 1, signal?: AbortSignal) => get<Paged<Song>>(`/search/songs${qs({ q: q.trim(), page })}`, signal);
+const saavnSearchAll = (q: string, signal?: AbortSignal) => get<SearchAll>(`/search${qs({ q: q.trim() })}`, signal);
+const saavnSearchSongs = (q: string, page = 1, signal?: AbortSignal) => get<Paged<Song>>(`/search/songs${qs({ q: q.trim(), page })}`, signal);
+
+/** YouTube Music's songs for a query, or undefined when it cannot answer (the caller uses JioSaavn's). */
+async function ytSearch(q: string): Promise<Song[] | undefined> {
+  if (!ytmActive()) return undefined;
+  try {
+    const found = await yt.searchSongs(q.trim());
+    noteYtmOk();
+    found.forEach(remember);
+    return found;
+  } catch {
+    noteYtmFailure();
+    return undefined;
+  }
+}
+
+/** Songs from YouTube Music when it is the choice; albums, artists and playlists stay JioSaavn's. */
+export async function searchAll(q: string, signal?: AbortSignal): Promise<SearchAll> {
+  const [fromYt, fromSaavn] = await Promise.all([ytSearch(q), saavnSearchAll(q, signal).catch((e) => (ytmActive() ? undefined : Promise.reject(e)))]);
+  if (!fromYt) {
+    if (!fromSaavn) throw new MusicError('Nothing found');
+    return fromSaavn;
+  }
+  const base: SearchAll = fromSaavn ?? { top: [], songs: [], albums: [], artists: [], playlists: [] };
+  return { ...base, top: fromYt.slice(0, 1), songs: fromYt };
+}
+
+export async function searchSongs(q: string, page = 1, signal?: AbortSignal): Promise<Paged<Song>> {
+  if (page === 1) {
+    const fromYt = await ytSearch(q);
+    if (fromYt) return { items: fromYt, page: 1, more: false };
+  }
+  return saavnSearchSongs(q, page, signal);
+}
 export const searchAlbums = (q: string, page = 1) => get<Paged<Album>>(`/search/albums${qs({ q: q.trim(), page })}`);
 export const searchArtists = (q: string, page = 1) => get<Paged<Artist>>(`/search/artists${qs({ q: q.trim(), page })}`);
 export const searchPlaylists = (q: string, page = 1) => get<Paged<Playlist>>(`/search/playlists${qs({ q: q.trim(), page })}`);
 
 /* ---------- things ---------- */
 
-export const songs = (ids: string[]) => get<Song[]>(`/songs/${ids.map(enc).join(',')}`);
+const saavnSongs = (ids: string[]) => get<Song[]>(`/songs/${ids.map(enc).join(',')}`);
+
+/** What YouTube Music songs seen so far looked like, so an id alone can be played with its name and cover. */
+const seen = new Map<string, Song>();
+function remember(s: Song) {
+  seen.set(s.id, s);
+  if (seen.size > 500) seen.delete(seen.keys().next().value!);
+}
+
+const norm = (t: string) => t.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/**
+ * The same song on JioSaavn, for when YouTube Music cannot play it.
+ *
+ * Searched by name and artist; a result is taken only if its title agrees, so
+ * a failure never turns into the wrong song. Carries the original's id's
+ * absence on purpose: it is a different catalogue entry.
+ */
+export async function equivalent(name: string, artist: string): Promise<Song | undefined> {
+  try {
+    const found = await saavnSearchSongs(`${name} ${artist}`.trim(), 1);
+    const want = norm(name);
+    const pick = found.items.find((s) => norm(s.name) === want) ?? found.items.find((s) => norm(s.name).includes(want) || want.includes(norm(s.name)));
+    if (!pick) return undefined;
+    return (await saavnSongs([pick.id]))[0] ?? pick;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One YouTube Music song with a stream; JioSaavn's version of it if YouTube cannot. */
+async function ytSong(id: string): Promise<Song | undefined> {
+  const meta = seen.get(id);
+  try {
+    const stream = await yt.resolveStream(yt.videoIdOf(id));
+    noteYtmOk();
+    return { ...(meta ?? yt.song(yt.videoIdOf(id), '', [], '', 0, '')), stream };
+  } catch {
+    noteYtmFailure();
+    return meta ? equivalent(meta.name, meta.artists.map((a) => a.name).join(' ')) : undefined;
+  }
+}
+
+export async function songs(ids: string[]): Promise<Song[]> {
+  const ytIds = ids.filter(yt.isYtId);
+  if (!ytIds.length) return saavnSongs(ids);
+  const rest = ids.filter((i) => !yt.isYtId(i));
+  const out = new Map<string, Song>();
+  const [saavn, resolved] = await Promise.all([rest.length ? saavnSongs(rest) : Promise.resolve([] as Song[]), Promise.all(ytIds.map(ytSong))]);
+  saavn.forEach((s) => out.set(s.id, s));
+  ytIds.forEach((id, i) => resolved[i] && out.set(id, resolved[i]!));
+  return ids.map((i) => out.get(i)).filter((s): s is Song => Boolean(s));
+}
 export const song = async (id: string) => (await songs([id]))[0];
 export const lyrics = (id: string) => get<Lyrics>(`/songs/${enc(id)}/lyrics`);
 export const album = (id: string) => get<Album>(`/albums/${enc(id)}`);
@@ -135,10 +236,53 @@ export const resolveLink = (url: string) => get<Item>(`/link${qs({ url })}`);
 /* ---------- radio ---------- */
 
 /** JioSaavn's "more like this": a station seeded with these songs, and its first few. */
-export const songRadio = (ids: string[], n = 10) => get<StationStart>(`/songs/${ids.map(enc).join(',')}/radio${qs({ n })}`);
+const saavnSongRadio = (ids: string[], n = 10) => get<StationStart>(`/songs/${ids.map(enc).join(',')}/radio${qs({ n })}`);
+
+/** Where each YouTube Music radio has got to: the last song handed out seeds the next batch. */
+const ytCursor = new Map<string, string>();
+
+export async function songRadio(ids: string[], n = 10): Promise<StationStart> {
+  const seed = [...ids].reverse().find(yt.isYtId) ?? (ytmActive() ? ids[ids.length - 1] : undefined);
+  if (seed && yt.isYtId(seed) && ytmActive()) {
+    try {
+      const vid = yt.videoIdOf(seed);
+      const next = await yt.upNext(vid, Math.max(n, 12));
+      noteYtmOk();
+      next.forEach(remember);
+      const stationId = `yt:${vid}`;
+      ytCursor.set(stationId, next[next.length - 1]!.id);
+      return { stationId, songs: next };
+    } catch {
+      noteYtmFailure();
+    }
+  }
+  // A YouTube seed with YouTube resting: radio from JioSaavn's version of it.
+  if (ids.some(yt.isYtId)) {
+    const meta = seen.get(ids[ids.length - 1]!);
+    const twin = meta ? await equivalent(meta.name, meta.artists.map((a) => a.name).join(' ')) : undefined;
+    if (twin) return saavnSongRadio([twin.id], n);
+    throw new MusicError('No radio for this song right now');
+  }
+  return saavnSongRadio(ids, n);
+}
 export const featuredStation = (name: string, lang?: string) => get<StationStart>(`/stations/featured${qs({ name, lang })}`);
 export const artistStation = (name: string, lang?: string) => get<StationStart>(`/stations/artist${qs({ name, lang })}`);
-export const stationNext = (stationId: string, n = 5) => get<Song[]>(`/stations/${enc(stationId)}/next${qs({ n })}`);
+const saavnStationNext = (stationId: string, n = 5) => get<Song[]>(`/stations/${enc(stationId)}/next${qs({ n })}`);
+
+export async function stationNext(stationId: string, n = 5): Promise<Song[]> {
+  if (!stationId.startsWith('yt:')) return saavnStationNext(stationId, n);
+  const seed = ytCursor.get(stationId) ?? stationId;
+  try {
+    const next = await yt.upNext(yt.videoIdOf(seed), Math.max(n, 12));
+    noteYtmOk();
+    next.forEach(remember);
+    if (next.length) ytCursor.set(stationId, next[next.length - 1]!.id);
+    return next;
+  } catch {
+    noteYtmFailure();
+    return [];
+  }
+}
 
 /* ---------- playing ---------- */
 

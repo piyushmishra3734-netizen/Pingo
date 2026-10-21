@@ -14,7 +14,7 @@ import { UploadsShelf } from './UploadsShelf.js';
  * fifteen seconds that play.
  */
 
-export interface Song { name: string; artist: string; img: string; url: string; secs: number; start: number }
+export interface Song { name: string; artist: string; img: string; url: string; secs: number; start: number; /** The catalogue id, when it came from PINGO Music: a YouTube Music song is shared by it. */ id?: string }
 export const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export function Panel({ children, title, onClose }: { children: ReactNode; title?: string; onClose: () => void }) {

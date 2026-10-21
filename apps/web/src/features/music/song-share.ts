@@ -1,5 +1,6 @@
 import { publicAppUrl } from '../../lib/public-origin.js';
 import type { Song } from './sheets.js';
+import { pageUrl } from './ytm/page.js';
 
 /**
  * A song sent in a chat, Instagram's way: picked from the Music tab beside the
@@ -24,7 +25,9 @@ export interface SharedSong {
 }
 
 export function songBody(song: Song): string {
-  const q = new URLSearchParams({ n: song.name, a: song.artist, i: song.img, u: song.url, d: String(Math.round(song.secs)) });
+  // A YouTube Music song is sent as its page address: its audio address is for this phone alone.
+  const u = song.id?.startsWith('yt:') ? pageUrl(song.id) : song.url;
+  const q = new URLSearchParams({ n: song.name, a: song.artist, i: song.img, u, d: String(Math.round(song.secs)) });
   return `Shared a song: ${song.name}${song.artist ? ` · ${song.artist}` : ''}\n${publicAppUrl(`/song?${q.toString()}`)}`;
 }
 
