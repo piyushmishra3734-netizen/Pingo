@@ -59,12 +59,14 @@ const asset = `../../.tools/release/PINGO.apk`;
  * rather than anything installed system-wide. Both are set here so the script
  * works from a shell that knows nothing about either.
  */
+// Another machine (the laptop) sets PINGO_JAVA_HOME / PINGO_GRADLE_HOME / PINGO_BUILD_TMP, or its own JAVA_HOME.
+const onThisPc = existsSync('E:/Pingo chat/.tools/jdk-21.0.11+10');
 const env = {
   ...process.env,
-  JAVA_HOME: 'E:/Pingo chat/.tools/jdk-21.0.11+10',
-  GRADLE_USER_HOME: 'E:/Pingo chat/.tools/gradle-home',
-  TMP: 'E:/pingo-build-tmp',
-  TEMP: 'E:/pingo-build-tmp',
+  JAVA_HOME: process.env.PINGO_JAVA_HOME ?? (onThisPc ? 'E:/Pingo chat/.tools/jdk-21.0.11+10' : process.env.JAVA_HOME),
+  GRADLE_USER_HOME: process.env.PINGO_GRADLE_HOME ?? (onThisPc ? 'E:/Pingo chat/.tools/gradle-home' : process.env.GRADLE_USER_HOME),
+  TMP: process.env.PINGO_BUILD_TMP ?? (onThisPc ? 'E:/pingo-build-tmp' : process.env.TMP),
+  TEMP: process.env.PINGO_BUILD_TMP ?? (onThisPc ? 'E:/pingo-build-tmp' : process.env.TEMP),
 };
 
 console.log(`\n▸ building the web bundle`);
