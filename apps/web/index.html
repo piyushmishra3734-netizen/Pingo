@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 
-    <title>PINGO. Connect. Privately.</title>
+    <title>PINGO. Connect. Privately. | Private chat, calls &amp; stories</title>
     <meta
       name="description"
       content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
     />
-    <link rel="canonical" href="https://pingochat.pages.dev/" />
+    <link rel="canonical" href="https://pingochat.xyz/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -20,8 +20,8 @@
       property="og:description"
       content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
     />
-    <meta property="og:url" content="https://pingochat.pages.dev/" />
-    <meta property="og:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta property="og:url" content="https://pingochat.xyz/" />
+    <meta property="og:image" content="https://pingochat.xyz/pingo-icon.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
@@ -34,8 +34,8 @@
       name="twitter:description"
       content="Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts. Connect privately on web and mobile."
     />
-    <meta name="twitter:url" content="https://pingochat.pages.dev/" />
-    <meta name="twitter:image" content="https://pingochat.pages.dev/pingo-icon.png" />
+    <meta name="twitter:url" content="https://pingochat.xyz/" />
+    <meta name="twitter:image" content="https://pingochat.xyz/pingo-icon.png" />
     <meta name="twitter:image:alt" content="PINGO app icon" />
 
     <!-- Tints browser chrome to the page colour so the app has no visible seam. -->
@@ -95,36 +95,37 @@
         "@graph": [
           {
             "@type": "Organization",
-            "@id": "https://pingochat.pages.dev/#organization",
+            "@id": "https://pingochat.xyz/#organization",
             "name": "PINGO",
-            "url": "https://pingochat.pages.dev/",
-            "logo": "https://pingochat.pages.dev/pingo-icon.png",
-            "description": "Private messaging, redefined for you."
+            "url": "https://pingochat.xyz/",
+            "logo": "https://pingochat.xyz/pingo-icon.png",
+            "description": "Private messaging, redefined for you.",
+            "sameAs": ["https://github.com/piyushmishra3734-netizen/Pingo"]
           },
           {
             "@type": "WebSite",
-            "@id": "https://pingochat.pages.dev/#website",
+            "@id": "https://pingochat.xyz/#website",
             "name": "PINGO",
-            "url": "https://pingochat.pages.dev/",
+            "url": "https://pingochat.xyz/",
             "description": "Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts.",
-            "publisher": { "@id": "https://pingochat.pages.dev/#organization" },
+            "publisher": { "@id": "https://pingochat.xyz/#organization" },
             "inLanguage": "en"
           },
           {
             "@type": "SoftwareApplication",
-            "@id": "https://pingochat.pages.dev/#app",
+            "@id": "https://pingochat.xyz/#app",
             "name": "PINGO",
             "applicationCategory": "CommunicationApplication",
             "operatingSystem": "Web, Android",
-            "url": "https://pingochat.pages.dev/download",
-            "image": "https://pingochat.pages.dev/pingo-icon.png",
+            "url": "https://pingochat.xyz/download",
+            "image": "https://pingochat.xyz/pingo-icon.png",
             "description": "Private messaging with disappearing Pings, stories that expire, and a profile that holds three posts.",
             "offers": {
               "@type": "Offer",
               "price": "0",
               "priceCurrency": "USD"
             },
-            "publisher": { "@id": "https://pingochat.pages.dev/#organization" }
+            "publisher": { "@id": "https://pingochat.xyz/#organization" }
           }
         ]
       }
@@ -416,6 +417,14 @@
         setTimeout(api.done, 15000);
       })();
     </script>
+    <noscript>
+      <main style="font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5">
+        <h1>PINGO. Connect. Privately.</h1>
+        <p>PINGO is a private chat app for web and Android: messages, voice and video calls, disappearing Pings, stories that expire, and a profile that holds three posts.</p>
+        <p><a href="/download">Download PINGO</a> &middot; <a href="/welcome">Sign up or log in</a> &middot; <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a></p>
+        <p>PINGO needs JavaScript to run. Turn it on to continue.</p>
+      </main>
+    </noscript>
     <div id="root">
       <!-- Replaced by React's first render. See the note in <head>. -->
       <div id="boot" aria-hidden="true">
