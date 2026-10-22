@@ -11,6 +11,7 @@ import {
   Palette,
   Phone,
   Shield,
+  Sparkles,
   SlidersHorizontal,
   Trash2,
   Type,
@@ -25,6 +26,7 @@ import { getSupabaseClient } from '../../../lib/supabase/client.js';
 import { callSoundsOn, setCallSounds } from '../../../lib/audio/call-sfx.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
+import { MasterPanel } from '../../master/MasterPanel.js';
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
 import { setFlowMotion, useFlowMotion } from '../flow/flow-face.js';
@@ -32,7 +34,7 @@ import { orderedLanguages, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId }
 import { AI_VOICES, useAiPrefs, useAiVoice } from './ai-prefs.js';
 import { AiPanel, Choices, Group, PageHeader, Row } from './ui.js';
 
-type Page = 'home' | 'behavior' | 'language' | 'voice' | 'data';
+type Page = 'home' | 'behavior' | 'language' | 'voice' | 'data' | 'master';
 
 /**
  * PINGO AI's settings, as one page of groups: who it is, how it behaves,
@@ -94,6 +96,8 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
           onPick={(id) => void save({ voice: id })}
         />
       </Group>
+    ) : page === 'master' ? (
+      <MasterPanel />
     ) : page === 'data' ? (
       <div className="flex flex-col gap-6">
         <Group>
@@ -189,6 +193,7 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
         </Group>
 
         <Group title="Data & Privacy">
+          <Row icon={<Sparkles size={21} />} title="PINGO Master" sub="Let PINGO AI message and set things up for you, with your approval" onClick={() => setPage('master')} />
           <Row icon={<Shield size={21} />} title="Data controls" sub="Clear this chat, reset memory or personality" onClick={() => setPage('data')} />
         </Group>
 
@@ -235,7 +240,7 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
       </div>
     );
 
-  const titles: Record<Page, string> = { home: 'Settings', behavior: 'AI behavior', language: 'Reply language', voice: 'Voice', data: 'Data controls' };
+  const titles: Record<Page, string> = { home: 'Settings', behavior: 'AI behavior', language: 'Reply language', voice: 'Voice', data: 'Data controls', master: 'PINGO Master' };
 
   return (
     <>

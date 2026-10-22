@@ -36,6 +36,8 @@ import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { MessageTranslate } from '../polish/MessageTranslate.js';
 import { SocialPostCard } from '../social/SocialPostCard.js';
+import { Sparkles } from 'lucide-react';
+import { MasterActionCard } from '../master/MasterActionCard.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
@@ -616,6 +618,14 @@ export function MessageBubble({
         mine ? 'text-white/75 [&_*]:!text-current' : 'text-text-tertiary',
       )}
     >
+      {message.viaAi && (
+        // Said on the message itself, to both sides: this was sent by PINGO AI at the sender's request.
+        <span className="inline-flex items-center gap-0.5 font-medium" title="Sent by PINGO AI, approved by the sender">
+          <Sparkles size={10} aria-hidden />
+          via PINGO AI
+          <span aria-hidden> ·</span>
+        </span>
+      )}
       {formatTime(message.createdAt)}
       {mine && <DeliveryIndicator status={message.status} />}
     </span>
@@ -809,6 +819,7 @@ export function MessageBubble({
         */}
         {/* Where the reply came from, when it searched the web. Plain for now: styled by the chat redesign. */}
         {message.aiMeta?.sources?.length ? <AiSources sources={message.aiMeta.sources} /> : null}
+        {message.aiMeta?.actions?.map((id) => <MasterActionCard key={id} id={id} />)}
 
         {isAiReply && !streaming && !room && (
           <AiMessageActions

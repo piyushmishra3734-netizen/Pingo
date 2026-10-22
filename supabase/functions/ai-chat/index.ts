@@ -285,8 +285,14 @@ async function runTurn(
         if (!isGroup) await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
         return drawn;
       }
+      // PINGO Master: only the person's own AI chat, and only when they have switched it on.
+      const { data: masterRow } = !isGroup
+        ? await userClient.from('ai_master_settings').select('enabled').eq('user_id', user.id).maybeSingle()
+        : { data: null };
       const out = await lunaTurn(
         {
+          master: masterRow?.enabled === true,
+          emitAction: (action) => emitExtra({ action }),
           db: userClient,
           userId: user.id,
           conversationId,

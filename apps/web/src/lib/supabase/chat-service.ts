@@ -617,6 +617,7 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
       : {}),
     // The assistant's own note on its reply (sources, a drawn picture's prompt), from `meta.ai`.
     ...((ai) => (ai ? { aiMeta: ai } : {}))(row.sender_id === PINGO_AI_USER_ID ? aiMetaOf(row.meta) : undefined),
+    ...((row.meta as { viaAi?: boolean } | null)?.viaAi === true ? { viaAi: true } : {}),
   };
 }
 
@@ -627,7 +628,7 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
  */
 export function aiMetaOf(meta: unknown): Message['aiMeta'] {
   const ai = (meta as { ai?: unknown } | null)?.ai as
-    | { sources?: unknown; image?: { revisedPrompt?: unknown; model?: unknown } }
+    | { sources?: unknown; actions?: unknown; image?: { revisedPrompt?: unknown; model?: unknown } }
     | undefined;
   if (!ai || typeof ai !== 'object') return undefined;
   const sources = Array.isArray(ai.sources)
@@ -649,8 +650,17 @@ export function aiMetaOf(meta: unknown): Message['aiMeta'] {
   const mood = typeof (ai as { mood?: unknown }).mood === 'string' && AI_MOODS.has((ai as { mood: string }).mood)
     ? ((ai as { mood: string }).mood as AiMood)
     : undefined;
-  if (!sources.length && !image && !mood) return undefined;
-  return { ...(sources.length ? { sources } : {}), ...(image ? { image } : {}), ...(mood ? { mood } : {}) };
+  // Task ids only, and only ones shaped like ids: the card looks each one up itself.
+  const actions = Array.isArray(ai.actions)
+    ? ai.actions.filter((id): id is string => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 4)
+    : [];
+  if (!sources.length && !image && !mood && !actions.length) return undefined;
+  return {
+    ...(sources.length ? { sources } : {}),
+    ...(image ? { image } : {}),
+    ...(mood ? { mood } : {}),
+    ...(actions.length ? { actions } : {}),
+  };
 }
 
 const AI_MOODS = new Set<string>(['default', 'happy', 'excited', 'thinking', 'surprised', 'sleepy', 'confused', 'sad', 'angry', 'listening', 'talking']);

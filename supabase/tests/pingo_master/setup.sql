@@ -1,0 +1,13 @@
+create role anon nologin; create role authenticated nologin; create role service_role nologin;
+create schema auth; create table auth.users (id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
+create schema cron; create function cron.schedule(text,text,text) returns bigint language sql as $$ select 1::bigint $$;
+create table public.conversations (id uuid primary key default gen_random_uuid(), kind text not null);
+create table public.conversation_members (conversation_id uuid, user_id uuid, deleted_at timestamptz);
+create table public.messages (id uuid primary key default gen_random_uuid(), conversation_id uuid, sender_id uuid, body text, meta jsonb, created_at timestamptz default now());
+create table public.blocks (blocker_id uuid, blocked_id uuid);
+grant usage on schema public, auth to anon, authenticated, service_role;
+grant select on all tables in schema public to authenticated;
+alter table public.conversations add column title text, add column last_message_at timestamptz default now();
+create table public.profiles (id uuid primary key, username text, display_name text);
+insert into public.profiles values ('11111111-1111-1111-1111-111111111111','me','Me'),('22222222-2222-2222-2222-222222222222','rohit','Rohit Verma'),('33333333-3333-3333-3333-333333333333','baani','Baani');

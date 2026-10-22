@@ -249,6 +249,8 @@ export interface Message {
    * read off `meta.ai`, which the server writes when it posts the reply.
    */
   aiMeta?: AiMeta;
+  /** Sent by PINGO AI on the sender's behalf (PINGO Master), after they approved it. */
+  viaAi?: boolean;
 }
 
 /** A web page PINGO AI cited. Shown under the reply as a source. */
@@ -276,6 +278,8 @@ export interface AiMeta {
   /** The face the assistant chose for this reply. */
   mood?: AiMood;
   image?: { revisedPrompt?: string; model?: string };
+  /** PINGO Master tasks this reply proposed; each is drawn as an Approve card. */
+  actions?: string[];
 }
 
 /*
