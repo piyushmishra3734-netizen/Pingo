@@ -14,7 +14,7 @@ import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { songBody } from '../music/song-share.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
-import { PolishSheet } from '../polish/PolishSheet.js';
+import { PolishPanel } from '../polish/PolishPanel.js';
 
 /** Someone you can @mention from the composer. */
 export interface MentionOption {
@@ -541,7 +541,7 @@ export function Composer({
         Out here it costs the field nothing and adds no height, so nothing
         jumps when it appears.
       */}
-      {hasText && value.trim().length >= 3 && !room && !onStop && !recorder.recording && !pickerOpen && (
+      {hasText && value.trim().length >= 3 && !room && !onStop && !recorder.recording && !pickerOpen && !polishOpen && (
         <div className="pointer-events-none absolute -top-10 right-1 z-10 flex">
           <button
             type="button"
@@ -552,6 +552,18 @@ export function Composer({
             Polish
           </button>
         </div>
+      )}
+      {polishOpen && (
+        <PolishPanel
+          text={value}
+          className="absolute bottom-full right-0 z-20 mb-2 w-[min(26rem,calc(100vw-1.5rem))]"
+          onClose={() => setPolishOpen(false)}
+          onUse={(next) => {
+            setValue(next);
+            setPolishOpen(false);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }}
+        />
       )}
       {(notice ?? recorder.error) && (
         <p role="status" className="px-1 text-caption text-text-tertiary">
@@ -1060,17 +1072,6 @@ export function Composer({
       )}
       </>)}
       </div>
-      {polishOpen && (
-        <PolishSheet
-          text={value}
-          onClose={() => setPolishOpen(false)}
-          onUse={(next) => {
-            setValue(next);
-            setPolishOpen(false);
-            requestAnimationFrame(() => textareaRef.current?.focus());
-          }}
-        />
-      )}
     </div>
   );
 }
