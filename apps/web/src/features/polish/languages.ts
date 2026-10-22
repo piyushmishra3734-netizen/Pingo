@@ -1,10 +1,8 @@
-import { franc } from 'franc-min';
-
 /** What the translate picker offers. `name` is what the model is told. */
 export const TRANSLATE_TARGETS: { code: string; name: string; native: string }[] = [
   { code: 'en', name: 'English', native: 'English' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
   { code: 'hinglish', name: 'Hinglish (Hindi in English letters)', native: 'Hinglish' },
+  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
   { code: 'es', name: 'Spanish', native: 'Español' },
   { code: 'fr', name: 'French', native: 'Français' },
   { code: 'de', name: 'German', native: 'Deutsch' },
@@ -55,17 +53,30 @@ const LATIN: Record<string, string> = {
   spa: 'es', fra: 'fr', deu: 'de', por: 'pt', tur: 'tr', ind: 'id', ita: 'it', nld: 'nl',
 };
 
+const detected = new Map<string, string | null>();
+
 /**
  * The language of a message when it is not English or Hinglish, otherwise nothing.
  *
- * Local and instant, so it can run on every message in a list. Short text is
- * left alone: three words are not enough to tell, and a wrong "Translate" under
- * a plain message is worse than a missing one.
+ * Local, so no request is made to find out. Scripts are told apart instantly;
+ * only Latin-letter text needs the trigram detector, and that is loaded the
+ * first time a long enough message asks for it rather than shipped with the app.
+ * Short text is left alone: three words are not enough to tell, and a wrong
+ * "Translate" under a plain message is worse than a missing one.
  */
-export function foreignLanguage(text: string): string | undefined {
+export async function foreignLanguage(text: string): Promise<string | undefined> {
   const t = text.trim();
   if (t.length < 4) return undefined;
+  const known = detected.get(t);
+  if (known !== undefined) return known ?? undefined;
 
+  const result = await detect(t);
+  detected.set(t, result ?? null);
+  if (detected.size > 400) detected.delete(detected.keys().next().value as string);
+  return result;
+}
+
+async function detect(t: string): Promise<string | undefined> {
   const letters = t.replace(/[^\p{L}]/gu, '');
   if (letters.length < 3) return undefined;
   for (const [pattern, code] of SCRIPTS) {
@@ -73,9 +84,9 @@ export function foreignLanguage(text: string): string | undefined {
   }
 
   if (t.length < 24) return undefined;
-  const hinglish = t.match(HINGLISH)?.length ?? 0;
-  if (hinglish >= 2) return undefined;
+  if ((t.match(HINGLISH)?.length ?? 0) >= 2) return undefined;
 
+  const { franc } = await import('franc-min');
   const guess = franc(t, { minLength: 24 });
   return LATIN[guess] && LATIN[guess] !== 'en' ? LATIN[guess] : undefined;
 }
