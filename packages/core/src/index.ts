@@ -233,6 +233,15 @@ export {
   type VideoPlatform,
 } from './video/index.js';
 
+// Posts from X and Pinterest, drawn as cards.
+export {
+  detectSocialLink,
+  withoutSocialLink,
+  identifySocial,
+  type SocialLink,
+  type SocialPlatform,
+} from './social/index.js';
+
 // What PINGO will carry, and what it says when it will not.
 export { MEDIA_LIMITS, formatLimit, mediaTooLarge, type MediaKind } from './media-limits.js';
 

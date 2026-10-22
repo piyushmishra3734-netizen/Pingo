@@ -1,5 +1,7 @@
 import {
   cardLine,
+  detectSocialLink,
+  withoutSocialLink,
   detectVideoLink,
   withoutVideoLink,
   formatEventTime,
@@ -33,6 +35,7 @@ import { AiSources } from '../ai/AiSources.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
 import { MessageTranslate } from '../polish/MessageTranslate.js';
+import { SocialPostCard } from '../social/SocialPostCard.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
@@ -268,9 +271,18 @@ export function MessageBubble({
    * What is written, less the video link: the video is shown, so the URL under
    * it would be the same thing twice. Copying the message still copies it.
    */
+  const socialLink = useMemo(
+    () => (message.deleted || videoLink ? undefined : detectSocialLink(message.body)),
+    [message.body, message.deleted, videoLink],
+  );
   const shownBody = useMemo(
-    () => (videoLink ? withoutVideoLink(message.body, videoLink) : message.body),
-    [message.body, videoLink],
+    () =>
+      videoLink
+        ? withoutVideoLink(message.body, videoLink)
+        : socialLink
+          ? withoutSocialLink(message.body, socialLink)
+          : message.body,
+    [message.body, videoLink, socialLink],
   );
   const hasBody = !arcadeInvite && shownBody.trim().length > 0;
   /*
@@ -281,14 +293,14 @@ export function MessageBubble({
    * about.
    */
   const firstLink = useMemo(() => {
-    if (message.deleted || videoLink || arcadeInvite) return undefined;
+    if (message.deleted || videoLink || socialLink || arcadeInvite) return undefined;
     for (const segment of linkify(message.body)) {
       // `mailto:` is a link the same way a phone number is - there is no page
       // behind it to describe.
       if (segment.kind === 'link' && segment.href.startsWith('http')) return segment.href;
     }
     return undefined;
-  }, [message.body, message.deleted, videoLink, arcadeInvite]);
+  }, [message.body, message.deleted, videoLink, socialLink, arcadeInvite]);
   /** First bubble of a group cluster from someone else. Sits above the glass. */
   const nameLabel =
     !mine && authorName && (position === 'first' || position === 'single') ? (
@@ -490,6 +502,22 @@ export function MessageBubble({
         <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
           {nameLabel}
           <VideoLinkCard preview={videoLink} messageId={message.id} bare />
+          <span className="mt-0.5 flex items-center gap-1 text-caption text-text-tertiary">
+            {formatTime(message.createdAt)}
+          </span>
+          <div className="clear-both">{reactions}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // The same for a post from X or Pinterest: the card is the message.
+  if (socialLink && !hasBody && !replyTo && !voiceNote && !file && !message.editedAt) {
+    return (
+      <div className={cn('flex w-full', mine ? 'justify-end' : 'justify-start')}>
+        <div id={`message-${message.id}`} {...trigger} className={cn(arrive, 'flex flex-col outline-none', mine ? 'items-end' : 'items-start')}>
+          {nameLabel}
+          <SocialPostCard link={socialLink} bare />
           <span className="mt-0.5 flex items-center gap-1 text-caption text-text-tertiary">
             {formatTime(message.createdAt)}
           </span>
@@ -729,6 +757,8 @@ export function MessageBubble({
           {videoLink && (
             <VideoLinkCard preview={videoLink} messageId={message.id} spaced={hasBody} />
           )}
+
+          {socialLink && <SocialPostCard link={socialLink} spaced={hasBody} />}
 
           {arcadeInvite && <ArcadeInviteCard invite={arcadeInvite} mine={mine} />}
 
