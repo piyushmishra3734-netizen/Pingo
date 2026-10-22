@@ -534,7 +534,25 @@ export function Composer({
   };
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
+    <div className={cn('relative flex flex-col gap-2', className)}>
+      {/*
+        Polish floats just above the field's top-right corner instead of living
+        in it: inside, it took width from the text and made the words wrap early.
+        Out here it costs the field nothing and adds no height, so nothing
+        jumps when it appears.
+      */}
+      {hasText && value.trim().length >= 3 && !room && !onStop && !recorder.recording && !pickerOpen && (
+        <div className="pointer-events-none absolute -top-10 right-1 z-10 flex">
+          <button
+            type="button"
+            onClick={() => setPolishOpen(true)}
+            className="glass-lit glass-press pointer-events-auto motion-safe:animate-panel-in flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-brand focus-ring"
+          >
+            <WandSparkles size={14} aria-hidden />
+            Polish
+          </button>
+        </div>
+      )}
       {(notice ?? recorder.error) && (
         <p role="status" className="px-1 text-caption text-text-tertiary">
           {recorder.error ?? notice}
@@ -897,17 +915,6 @@ export function Composer({
           two ways of putting something into the message. They were 36 and 40,
           which is close enough to look like a mistake rather than a decision.
         */}
-        {/* Polish lives inside the field, like Telegram: a quiet word at its edge, only once there is text. */}
-        {value.trim().length >= 3 && !room && (
-          <button
-            type="button"
-            onClick={() => setPolishOpen(true)}
-            className="flex h-9 shrink-0 items-center gap-1 self-end rounded-full px-2 text-[12.5px] font-medium text-brand transition-opacity duration-base ease-standard motion-safe:animate-panel-in hover:opacity-80 active:opacity-60 focus-ring"
-          >
-            <WandSparkles size={14} aria-hidden />
-            Polish
-          </button>
-        )}
         {!room && (
           <IconButton
             label="Emoji and stickers"
