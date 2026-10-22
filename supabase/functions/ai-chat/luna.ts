@@ -305,9 +305,9 @@ const MASTER_TOOLS: FunctionTool[] = [
       properties: {
         conversation_id: { type: 'string', description: 'A conversation_id returned by find_chat. Never invent one.' },
         text: { type: 'string', description: 'The exact message to send, in the user\'s own voice, first person. Never mention PINGO AI in it.' },
-        send_at: { type: 'string', description: 'When to send, ISO 8601 with a time zone offset, for example 2026-10-22T21:00:00+05:30. Leave out to send as soon as they approve.' },
+        send_at: { type: 'string', description: 'When to send, ISO 8601 with a time zone offset, for example 2026-10-22T21:00:00+05:30. An empty string sends it as soon as they approve.' },
       },
-      required: ['conversation_id', 'text'],
+      required: ['conversation_id', 'text', 'send_at'],
       additionalProperties: false,
     },
   },
@@ -777,7 +777,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const tModelDone = Date.now();
 
   const tagged = takeMood(reply);
-  const text = stripCitations(tagged.text, sources).trim();
+  let text = stripCitations(tagged.text, sources).trim();
+  /*
+   * Never tell somebody a task is waiting for their Approve when none was made.
+   * A model can narrate a tool call it did not make; the card is the truth, so a
+   * reply that talks of Approving with no proposal behind it is replaced.
+   */
+  if (t.master && !t.isGroup && !t.spoken && proposed.length === 0 && /\bapprove\b/i.test(text)) {
+    console.warn('[luna] master reply claimed an approval with no proposal; replaced');
+    text = 'I could not set that up, so nothing is waiting for your approval. Please try again.';
+  }
   // The model's own choice; happy when it forgot to choose.
   const mood: Mood = asMood(tagged.mood ?? moods.mood, 'happy');
   const meta: AiMeta = { ...(sources.length ? { sources } : {}), ...(proposed.length ? { actions: proposed } : {}), mood };
@@ -1122,14 +1131,17 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
     }
     if (call.name === 'find_chat' && t.master && !t.isGroup) {
       const { data, error } = await t.db.rpc('master_find_chat', { p_query: (args.name ?? '').slice(0, 60) });
-      if (error) return 'Could not look that up right now.';
+      if (error) {
+        console.warn('[luna] master find_chat failed', error.message);
+        return 'Could not look that up right now.';
+      }
       const rows = (data ?? []) as { conversation_id: string; kind: string; title: string }[];
       return rows.length ? rows.map((r) => `- ${r.title} (${r.kind}) conversation_id ${r.conversation_id}`).join('\n') : 'No chat matches that name.';
     }
     if ((call.name === 'schedule_message' || call.name === 'set_setting') && t.master && !t.isGroup && !t.spoken) {
       const message = call.name === 'schedule_message';
       let runAt: string | null = null;
-      if (message && args.send_at) {
+      if (message && args.send_at && args.send_at.trim()) {
         const when = new Date(args.send_at);
         if (Number.isNaN(when.getTime())) return 'That time was not understood. Ask them when.';
         runAt = when.toISOString();
@@ -1142,10 +1154,12 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
         p_run_at: runAt,
       });
       if (error || !data) {
+        console.warn('[luna] master propose refused', call.name, error?.message ?? 'no row');
         // The database says why in plain words; pass that on.
         return error?.message?.replace(/^.*?ERROR:\s*/, '').slice(0, 200) || 'That could not be proposed.';
       }
       const row = data as { id: string };
+      console.log('[luna] master proposed', call.name, row.id);
       t.emitAction?.({ id: row.id, kind: message ? 'send_message' : 'set_setting' });
       return 'Proposed. It is waiting for the person to tap Approve in the app (5 credits). It has NOT happened yet. Tell them that, briefly.';
     }

@@ -74,6 +74,18 @@ globalThis.fetch = async (url, init) => {
       { type: 'response.completed', response: { status: 'completed' } },
     ]);
   }
+  if (said.includes('bhej rohit')) {
+    const done = body.input.filter((m) => m.type === 'function_call_output').length;
+    const call = (id, name, args) => sse([
+      { type: 'response.output_item.added', output_index: 0, item: { type: 'function_call', id: `fc_${id}`, call_id: id, name, arguments: '' } },
+      { type: 'response.output_item.done', output_index: 0, item: { type: 'function_call', id: `fc_${id}`, call_id: id, name, arguments: JSON.stringify(args) } },
+      { type: 'response.completed', response: { status: 'completed' } },
+    ]);
+    if (done === 0) return call('m1', 'find_chat', { name: 'Rohit' });
+    if (done === 1) return call('m2', 'schedule_message', { conversation_id: 'c0000000-0000-0000-0000-000000000001', text: 'Happy birthday!', send_at: '' });
+    return sse(textEvents('Proposal ready, tap Approve. [[mood:happy]]'));
+  }
+  if (said.includes('bhej ghost')) return sse(textEvents('Proposal ready, tap Approve in the app. [[mood:happy]]'));
   if (said.includes('mood test')) return sse(textEvents('Wah, kya baat hai! [[mood:excited]]'));
   if (said.includes('tennis') && !said.includes('goal')) return sse(textEvents('Start with a good racket and a coach. [[mood:happy]] [[title:Learning tennis basics]]'));
   if (said.includes('goal') && !answered) {
@@ -104,7 +116,13 @@ function makeDb(state) {
   };
   return {
     from: q,
-    rpc: async (fn, args) => { state.posted.push(args.reply_body); state.rpcs.push({ fn, args }); return { data: 'msg-1', error: null }; },
+    rpc: async (fn, args) => {
+      state.rpcs.push({ fn, args });
+      if (fn === 'master_find_chat') return { data: [{ conversation_id: 'c0000000-0000-0000-0000-000000000001', kind: 'direct', title: 'Rohit Verma' }], error: null };
+      if (fn === 'master_propose') return { data: { id: 'aaaaaaaa-1111-4111-8111-111111111111' }, error: null };
+      state.posted.push(args.reply_body);
+      return { data: 'msg-1', error: null };
+    },
     storage: { from: (bucket) => ({ createSignedUrl: async (path) => ({ data: { signedUrl: `https://store/${bucket}/${path}?token=t` }, error: null }) }) },
   };
 }
@@ -142,13 +160,38 @@ assert.deepEqual(calls[0].reasoning, { effort: 'low' });
 assert.equal(calls[0].stream, true);
 assert.equal(calls[0].store, false);
 assert.equal(calls[0].prompt_cache_key, 'pingo-ai-me');
-assert.deepEqual(calls[0].tools.map((t) => t.type), ['function', 'function', 'function', 'function', 'function', 'function', 'web_search', 'image_generation']);
+assert.deepEqual(calls[0].tools.map((t) => t.type), ['function', 'function', 'function', 'function', 'function', 'function', 'function', 'web_search', 'image_generation']);
 assert.deepEqual(calls[0].tools.slice(3, 6).map((t) => t.name), ['add_goal', 'list_goals', 'complete_goal']);
 assert.equal(calls[0].tools[0].name, 'save_memory', 'function tools in the Responses (flat) shape');
-assert.equal(calls[0].tools[7].model, 'gpt-image-2');
+assert.equal(calls[0].tools[6].name, 'react_to_message', 'reactions are offered by default');
+assert.equal(calls[0].tools[8].model, 'gpt-image-2');
 assert.deepEqual(r.state.rpcs[0].args.reply_meta, { mood: 'happy' }, 'no tag: happy, stored with the reply');
 assert.equal(r.out.body.mood, 'happy');
 console.log('plain turn ok, stages', r.stages.join('>'));
+
+// ---- PINGO Master: tools only propose, the card id rides with the reply, a false claim is replaced
+calls.length = 0;
+const actions = [];
+r = await run('bhej rohit happy birthday', { master: true, emitAction: (a) => actions.push(a) });
+assert.deepEqual(calls[0].tools.slice(6, 9).map((t) => t.name), ['find_chat', 'schedule_message', 'set_setting'], 'Master tools are offered when Master is on');
+assert.ok(JSON.stringify(calls[0].input).includes('PINGO MASTER is on'), 'the Master rules are in the prompt');
+assert.equal(calls.length, 3, 'find_chat, schedule_message, then the answer');
+const proposal = r.state.rpcs.find((x) => x.fn === 'master_propose');
+assert.equal(proposal.args.p_kind, 'send_message');
+assert.equal(proposal.args.p_run_at, null, 'an empty send_at means as soon as approved');
+assert.equal(proposal.args.p_params.text, 'Happy birthday!');
+assert.deepEqual(actions, [{ id: 'aaaaaaaa-1111-4111-8111-111111111111', kind: 'send_message' }]);
+assert.deepEqual(r.state.rpcs.find((x) => x.fn === 'post_ai_reply').args.reply_meta.actions, ['aaaaaaaa-1111-4111-8111-111111111111'], 'the Approve card is stored with the reply');
+
+calls.length = 0;
+r = await run('bhej ghost something', { master: true });
+assert.ok(!/approve/i.test(r.state.posted[0]), 'a reply that claims an approval with no proposal is replaced');
+assert.ok(!('actions' in r.state.rpcs.find((x) => x.fn === 'post_ai_reply').args.reply_meta));
+
+calls.length = 0;
+r = await run('bhej rohit happy birthday');
+assert.ok(!calls[0].tools.some((t) => t.name === 'schedule_message'), 'no Master tools when Master is off');
+console.log('master turn ok');
 
 calls.length = 0;
 r = await run('mera birthday kab hai?');
