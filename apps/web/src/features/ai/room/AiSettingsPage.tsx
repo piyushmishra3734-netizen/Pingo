@@ -7,6 +7,7 @@ import {
   Globe,
   Languages,
   MessagesSquare,
+  Mic,
   Moon,
   Palette,
   Phone,
@@ -27,6 +28,7 @@ import { callSoundsOn, setCallSounds } from '../../../lib/audio/call-sfx.js';
 
 import { useConfirm } from '../../../components/ConfirmProvider.js';
 import { MasterPanel } from '../../master/MasterPanel.js';
+import { setHeyPingo, speechSupported, useHeyPingoOn } from '../../voice-assistant/useHeyPingo.js';
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
 import { setFlowMotion, useFlowMotion } from '../flow/flow-face.js';
@@ -55,6 +57,8 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
   useEffect(() => {
     void getSupabaseClient().rpc('ai_allowance').then(({ data }) => setAllowance(data?.[0]));
   }, []);
+  const heyOn = useHeyPingoOn();
+  const heySupported = speechSupported();
   const [profileOpen, setProfileOpen] = useState(false);
   const [memoriesOpen, setMemoriesOpen] = useState(false);
 
@@ -193,6 +197,24 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
         </Group>
 
         <Group title="Data & Privacy">
+          <Row
+            icon={<Mic size={21} />}
+            title="Hey Pingo"
+            sub={heySupported ? 'Say "Hey Pingo, play kesariya" while the app is open' : 'Works in Chrome and Edge on this device. The app version comes later.'}
+            end={
+              <Toggle
+                checked={heyOn && heySupported}
+                disabled={!heySupported}
+                onChange={(on) =>
+                  void (async () => {
+                    if (on && !(await confirm({ title: 'Turn on Hey Pingo?', description: 'While the app is open, your browser listens for "Hey Pingo". Chrome sends that audio to Google to turn it into words. PINGO keeps nothing, and only music and Pingo TV commands run.', confirmLabel: 'Turn on' }))) return;
+                    setHeyPingo(on);
+                  })()
+                }
+                label="Hey Pingo"
+              />
+            }
+          />
           <Row icon={<Sparkles size={21} />} title="PINGO Master" sub="Let PINGO AI message and set things up for you, with your approval" onClick={() => setPage('master')} />
           <Row icon={<Shield size={21} />} title="Data controls" sub="Clear this chat, reset memory or personality" onClick={() => setPage('data')} />
         </Group>

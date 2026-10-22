@@ -11,6 +11,7 @@ import { Dock } from './Dock.js';
 import { ScrollArrows } from './ScrollArrows.js';
 import { TvMiniPlayer } from '../features/tv/TvMiniPlayer.js';
 import { MusicIsland } from '../features/music/MusicIsland.js';
+import { HeyPingoPill } from '../features/voice-assistant/HeyPingoPill.js';
 import { restoreListenAlong } from '../features/music/listen-along.js';
 import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
 import { BackgroundPrompt } from '../features/native/BackgroundPrompt.js';
@@ -253,6 +254,7 @@ export function AppShell() {
 
       {/* A song keeps playing across screens; its island floats above all of them. */}
       <MusicIsland />
+      <HeyPingoPill />
       {/* PINGO Music: loaded the first time somebody opens it. */}
       <MusicSheetHost />
       {/* Android only: asks once to keep running in the background. */}
