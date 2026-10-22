@@ -1,5 +1,6 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
+import { poToken } from './pot.js';
 import type { Artist, Module, Song, Stream } from '../saavn/types.js';
 
 /**
@@ -48,6 +49,9 @@ const VR_CLIENT = {
   hl: 'en',
   gl: 'IN',
 };
+
+/** The client the PO token is minted for: the web player, which is what answers a challenge. */
+const POT_CLIENT = { clientName: 'WEB', clientVersion: '1.20250101.00.00', hl: 'en', gl: 'IN' };
 
 /** Only the native app can ask: a browser's request is refused by CORS. */
 let forcedNative: boolean | undefined;
@@ -261,24 +265,89 @@ const STREAM_TTL = 60 * 60_000;
 const streams = new Map<string, { at: number; stream: Stream }>();
 
 /**
- * Addresses for one video: itag 139 / 140 (AAC, 48 and about 130 kbps) plays
- * everywhere; 251 (Opus, about 136 kbps) is offered where the browser has an
- * Opus decoder. They go in the `Stream` slots the app already chooses from.
+ * The clients to ask for an audio address, in order.
+ *
+ * One client is not enough. YouTube answers some videos with
+ * `LOGIN_REQUIRED` / "Sign in to confirm you're not a bot" for one client and
+ * hands the same video over to another — which is why clients like Flow and
+ * PipePipe ship a set of them plus BotGuard attestation rather than a single
+ * call. The Quest client below is still first because it returns plain `url`s
+ * with no signature cipher, and it is the one that has needed nothing else so
+ * far; the rest are what a song falls back to when that stops being true.
+ *
+ * A client's headers and its `context.client` have to agree, or YouTube treats
+ * the request as the wrong app and refuses it.
  */
-export async function resolveStream(videoId: string): Promise<Stream> {
-  const hit = streams.get(videoId);
-  if (hit && Date.now() - hit.at < STREAM_TTL) return hit.stream;
+interface PlayerClient {
+  label: string;
+  name: string;
+  version: string;
+  userAgent: string;
+  context: Json;
+}
 
-  const res = await post(
-    PLAYER_API,
-    { 'user-agent': VR_UA, 'x-youtube-client-name': '28', 'x-youtube-client-version': VR_VERSION },
-    { context: { client: VR_CLIENT }, videoId, contentCheckOk: true, racyCheckOk: true },
-  );
-  const status = res.playabilityStatus?.status;
-  if (status && status !== 'OK') throw new YtmError(res.playabilityStatus?.reason ?? `Not playable (${status})`);
+const PLAYER_CLIENTS: PlayerClient[] = [
+  {
+    label: 'android_vr',
+    name: '28',
+    version: VR_VERSION,
+    userAgent: VR_UA,
+    context: VR_CLIENT,
+  },
+  {
+    // iOS still gets plain urls for most tracks and is rarely challenged.
+    label: 'ios',
+    name: '5',
+    version: '19.45.4',
+    userAgent: 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X;)',
+    context: {
+      clientName: 'IOS',
+      clientVersion: '19.45.4',
+      deviceModel: 'iPhone16,2',
+      osName: 'iPhone',
+      osVersion: '18.1.0.22B83',
+      hl: 'en',
+      gl: 'IN',
+    },
+  },
+  {
+    // The embedded player is what a website is allowed to use, so it is the
+    // least likely to demand a sign-in.
+    label: 'tv_embedded',
+    name: '85',
+    version: '2.0',
+    userAgent: 'Mozilla/5.0 (PlayStation; PlayStation 4/12.00) AppleWebKit/605.1.15 (KHTML, like Gecko)',
+    context: {
+      clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+      clientVersion: '2.0',
+      hl: 'en',
+      gl: 'IN',
+      thirdParty: { embedUrl: 'https://www.youtube.com/' },
+    },
+  },
+  {
+    label: 'web_embedded',
+    name: '56',
+    version: '1.20250101.00.00',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    context: {
+      clientName: 'WEB_EMBEDDED_PLAYER',
+      clientVersion: '1.20250101.00.00',
+      hl: 'en',
+      gl: 'IN',
+    },
+  },
+];
 
+/** True when YouTube is asking for a sign-in or accusing the caller of being a bot. */
+export const isBotCheck = (reason: string): boolean =>
+  /sign in|not a bot|verify you|automated|captcha/i.test(reason);
+
+/** Turn one player answer into the `Stream` slots the app already chooses from. */
+function formatsToStream(res: Json): Stream | null {
   const formats = (res.streamingData?.adaptiveFormats as Json[] | undefined) ?? [];
   const url = (itag: number) => formats.find((f) => f.itag === itag && typeof f.url === 'string')?.url as string | undefined;
+
   const stream: Stream = {};
   const low = url(139);
   const mid = url(140);
@@ -291,10 +360,113 @@ export async function resolveStream(videoId: string): Promise<Stream> {
   const opus = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/webm; codecs="opus"') !== '';
   if (high && opus) stream['320'] = high;
   else if (mid) stream['320'] = mid;
-  if (!Object.keys(stream).length) throw new YtmError('No audio address');
 
-  streams.set(videoId, { at: Date.now(), stream });
-  return stream;
+  return Object.keys(stream).length ? stream : null;
+}
+
+/**
+ * Addresses for one video: itag 139 / 140 (AAC, 48 and about 130 kbps) plays
+ * everywhere; 251 (Opus, about 136 kbps) is offered where the browser has an
+ * Opus decoder.
+ *
+ * Each client in the list is tried in turn, and only when every one of them
+ * refuses does the song become unavailable. That is the difference between one
+ * track being blocked and the whole catalogue looking broken.
+ */
+export async function resolveStream(videoId: string): Promise<Stream> {
+  const hit = streams.get(videoId);
+  if (hit && Date.now() - hit.at < STREAM_TTL) return hit.stream;
+
+  const failures: string[] = [];
+  let challenged = false;
+
+  for (const client of PLAYER_CLIENTS) {
+    try {
+      const res = await post(
+        PLAYER_API,
+        {
+          'user-agent': client.userAgent,
+          'x-youtube-client-name': client.name,
+          'x-youtube-client-version': client.version,
+        },
+        { context: { client: client.context }, videoId, contentCheckOk: true, racyCheckOk: true },
+      );
+
+      const status = res.playabilityStatus?.status;
+      const reason: string = res.playabilityStatus?.reason ?? '';
+
+      if (status && status !== 'OK') {
+        failures.push(`${client.label}: ${reason || status}`);
+        /*
+         * "Sign in to confirm you're not a bot" is not about the client.
+         *
+         * Measured: the same video is refused by ANDROID_VR and by TVHTML5 with
+         * the same wording, while another video plays fine as ANDROID_VR. It is
+         * the requesting address being challenged, so walking the rest of the
+         * list only spends seconds collecting identical refusals.
+         */
+        if (isBotCheck(reason)) {
+          challenged = true;
+          break;
+        }
+        continue;
+      }
+
+      const stream = formatsToStream(res);
+      if (!stream) {
+        failures.push(`${client.label}: no audio address`);
+        continue;
+      }
+
+      streams.set(videoId, { at: Date.now(), stream });
+      return stream;
+    } catch (e) {
+      failures.push(`${client.label}: ${e instanceof Error ? e.message : 'unreachable'}`);
+    }
+  }
+
+  /*
+   * The challenge is answered with a PO token, not with another client.
+   *
+   * `pot.ts` runs BotGuard on this device and returns proof that it passed; the
+   * player then accepts the same video it had just refused. When no token can be
+   * had — a browser, or a BotGuard change — this is skipped and the song falls
+   * back as it always did.
+   */
+  if (challenged) {
+    const token = await poToken();
+    if (token) {
+      try {
+        const res = await post(
+          `${PLAYER_API}&pot=${encodeURIComponent(token.poToken)}`,
+          { 'user-agent': PLAYER_CLIENTS[0]!.userAgent },
+          {
+            context: { client: { ...POT_CLIENT, visitorData: token.visitorData } },
+            videoId,
+            contentCheckOk: true,
+            racyCheckOk: true,
+            serviceIntegrityDimensions: { poToken: token.poToken },
+          },
+        );
+
+        const stream = formatsToStream(res);
+        if (stream) {
+          streams.set(videoId, { at: Date.now(), stream });
+          return stream;
+        }
+        failures.push(`web+pot: ${res.playabilityStatus?.reason ?? 'no audio address'}`);
+      } catch (e) {
+        failures.push(`web+pot: ${e instanceof Error ? e.message : 'unreachable'}`);
+      }
+    }
+  }
+
+  const bot = failures.some(isBotCheck);
+  throw new YtmError(
+    bot
+      ? `YouTube asked this device to sign in (${failures.join('; ')})`
+      : `No audio address (${failures.join('; ')})`,
+  );
 }
 
 export const forget = (videoId: string) => streams.delete(videoId);
