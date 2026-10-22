@@ -12,8 +12,7 @@ import { lastTarget, rememberTarget } from './target.js';
  * use it or leave the draft alone. Nothing replaces the text until "Use this".
  *
  * The draft's words go to ChatGPT through the `polish` function, and the line at
- * the bottom says so. Chats are end to end encrypted, so that line is the honest
- * part of this feature, not a footnote.
+ * the bottom says so.
  */
 
 export interface PolishSheetProps {
@@ -132,7 +131,7 @@ export function PolishSheet({ text, onUse, onClose }: PolishSheetProps) {
 
       {error && <p role="alert" className="px-1 pt-2 text-caption text-danger">{error}</p>}
       <p className="px-1 pt-3 text-caption text-text-tertiary">
-        Only this text goes to ChatGPT, only because you tapped. It is not saved, and the chat stays encrypted.
+        Only this text goes to ChatGPT, and only because you tapped. It is not saved.
       </p>
     </Sheet>
   );

@@ -3,10 +3,9 @@
  *
  * ## What leaves the phone
  *
- * Chats are end to end encrypted, so this is the one place a message's words
- * reach a server, and only because the person tapped Polish or Translate on it.
- * Nothing is stored here, no history is kept, and OpenAI is asked not to keep
- * the request either (`store: false`). The client says so before the first use.
+ * Only the text the person tapped Polish or Translate on is sent. Nothing is
+ * stored here, no history is kept, and OpenAI is asked not to keep the request
+ * either (`store: false`). The sheet says so.
  *
  * ## Why the key lives here
  *
