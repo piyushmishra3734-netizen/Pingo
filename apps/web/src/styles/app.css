@@ -1349,3 +1349,18 @@ video {
   src: url('/fonts/inter-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+
+/* ---- Notification prompt on Chats ------------------------------------------ */
+@keyframes np-rise { from { opacity: 0; transform: translateY(28px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes np-sink { to { opacity: 0; transform: translateY(24px) scale(0.98); } }
+@keyframes np-drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes np-wiggle { 0%, 60%, 100% { transform: rotate(0); } 68% { transform: rotate(14deg); } 76% { transform: rotate(-12deg); } 84% { transform: rotate(8deg); } 92% { transform: rotate(-4deg); } }
+@keyframes np-pulse { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.35); opacity: 0; } }
+.np-enter { animation: np-rise 420ms cubic-bezier(0.2, 0.9, 0.25, 1) both; }
+.np-leave { animation: np-sink 220ms ease-in both; }
+.np-float { animation: np-drift 3.4s ease-in-out infinite; }
+.np-bell { transform-origin: 50% 12%; animation: np-wiggle 3.6s ease-in-out 0.8s infinite; }
+.np-ring { animation: np-pulse 2.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .np-enter, .np-leave, .np-float, .np-bell, .np-ring { animation: none; }
+}

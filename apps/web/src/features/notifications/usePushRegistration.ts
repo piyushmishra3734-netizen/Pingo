@@ -1,10 +1,11 @@
 import { useAuth } from '@pingo/core';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { currentPlatform, isNative } from '../native/shell.js';
 import { requestWebPushToken } from '../../lib/firebase/web-push.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { armPushActions } from './chat-tray.js';
+import { PUSH_ALLOWED } from './usePushPermission.js';
 
 /**
  * Registers this device to receive push notifications.
@@ -43,6 +44,13 @@ import { armPushActions } from './chat-tray.js';
 export function usePushRegistration(): void {
   const { session } = useAuth();
   const userId = session?.user.id;
+  // Bumped when the person turns notifications on from the prompt, so registration runs now.
+  const [allowed, setAllowed] = useState(0);
+  useEffect(() => {
+    const again = () => setAllowed((n) => n + 1);
+    window.addEventListener(PUSH_ALLOWED, again);
+    return () => window.removeEventListener(PUSH_ALLOWED, again);
+  }, []);
 
   /**
    * One call, whichever platform produced the token.
@@ -105,7 +113,7 @@ export function usePushRegistration(): void {
     return () => {
       cancelled = true;
     };
-  }, [userId, remember]);
+  }, [userId, remember, allowed]);
 
   // ---- Android / iOS --------------------------------------------------------
 
@@ -210,5 +218,5 @@ export function usePushRegistration(): void {
       cancelled = true;
       for (const listener of listeners) listener.remove();
     };
-  }, [userId, remember]);
+  }, [userId, remember, allowed]);
 }

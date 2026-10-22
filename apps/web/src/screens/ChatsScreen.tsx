@@ -1,6 +1,7 @@
+import { NotificationPrompt } from '../features/notifications/NotificationPrompt.js';
 import { useChat, useProfile } from '@pingo/core';
 import { EmptyState, cn } from '@pingo/ui';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
@@ -48,6 +49,7 @@ export function ChatsScreen() {
   const { profile } = useProfile();
   const { conversations, aiSideChats, ready } = useChat();
   const isDesktop = useIsDesktop();
+  const [promptUp, setPromptUp] = useState(false);
   const missions = useDailyMissions();
   /*
    * Fetch the thread once the list has settled - on any link, since opening a
@@ -88,11 +90,13 @@ export function ChatsScreen() {
     ) : (
       <>
         <ConversationList />
+        <NotificationPrompt onVisible={setPromptUp} />
         {/*
           Home only, and only with no thread open. An offer to install has no
-          business over a conversation somebody is reading.
+          business over a conversation somebody is reading. Out of the way while
+          the notification card is up: both live at the bottom.
         */}
-        <InstallBanner />
+        {!promptUp && <InstallBanner />}
       {/*
         Once a day, on the screen the app opens to. Not a modal: nothing behind
         it is disabled and it leaves on its own after five seconds.
@@ -108,8 +112,9 @@ export function ChatsScreen() {
 
   return (
     <div className="flex h-full min-h-0">
+      {!conversationId && <NotificationPrompt onVisible={setPromptUp} />}
       {/* Not over an open conversation: on a laptop it sat on top of the composer. */}
-      {!conversationId && <InstallBanner />}
+      {!conversationId && !promptUp && <InstallBanner />}
       <aside
         className={cn(
           'hidden h-full shrink-0 border-r border-line bg-page lg:block',
