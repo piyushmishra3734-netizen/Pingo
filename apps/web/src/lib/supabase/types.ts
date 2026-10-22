@@ -292,6 +292,8 @@ export type AiProfileRow = {
   language: string | null;
   country: string | null;
   memory_enabled: boolean;
+  /** PINGO AI may react to this person's messages with an emoji. */
+  reactions_enabled: boolean;
   onboarded_at: string | null;
   /** A short line under its name on the profile. */
   tagline: string | null;

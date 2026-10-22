@@ -344,6 +344,29 @@ function masterNote(): string {
   ].join('\n');
 }
 
+/**
+ * A reaction: one emoji on the message that just called it. The database picks
+ * the message (the caller's newest, and in a group only one that tagged
+ * PINGO AI), so the model cannot aim it anywhere else.
+ */
+const REACT_TOOL: FunctionTool = {
+  type: 'function',
+  name: 'react_to_message',
+  description:
+    'Put one emoji reaction on the message the person just sent you. Free. Use it sparingly, only when a reaction fits like a friend would: thanks, good news, a joke, a celebration, sad news, or a plain "ok". Never on every message.',
+  parameters: {
+    type: 'object',
+    properties: {
+      emoji: { type: 'string', enum: ['❤️', '😂', '👍', '🔥', '😮', '😢', '🙏', '🎉', '💯', '👏', '😍', '🤝', '🫡', '😊', '🥹'] },
+    },
+    required: ['emoji'],
+    additionalProperties: false,
+  },
+};
+
+const REACT_NOTE =
+  'You can react to their message with react_to_message (an emoji), like a friend would: sparingly, when it fits (thanks, good news, a joke, a celebration, sad news, a plain ok). You may react and also reply, or only react when nothing needs saying. In a group you can only react to the message that tagged you.';
+
 /** Their goals list. Not offered in groups: a goal is private to its owner. */
 const GOAL_TOOLS: FunctionTool[] = [
   {
@@ -568,6 +591,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
   }
   if (t.master && !t.isGroup && !t.spoken) now.push(masterNote());
+  if (!t.spoken && (profile as { reactions_enabled?: boolean } | null)?.reactions_enabled !== false) now.push(REACT_NOTE);
   const command = t.command ? COMMANDS[t.command] : undefined;
   if (command) now.push(command(lang));
   if (needsTitle) now.push(TITLE_NOTE);
@@ -648,11 +672,13 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     }
   };
 
+  const reactionsOn = !t.spoken && (profile as { reactions_enabled?: boolean } | null)?.reactions_enabled !== false;
   const maxTokens = t.spoken ? 700 : len === 'detailed' ? 3000 : len === 'balanced' ? 1600 : 1000;
   let tools: Tool[] = [
     ...(memoryOn ? TOOLS : TOOLS.filter((x) => x.name === 'search_chat')),
     ...(t.isGroup ? [] : GOAL_TOOLS),
     ...(t.master && !t.isGroup && !t.spoken ? MASTER_TOOLS : []),
+    ...(reactionsOn ? [REACT_TOOL] : []),
     ...builtinTools(t, p),
   ];
   const imageOffered = tools.some((x) => x.type === 'image_generation');
@@ -1032,7 +1058,7 @@ function unlink(sentence: string): string {
 }
 
 async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: boolean, oldestInView: string): Promise<string> {
-  let args: { text?: string; query?: string; title?: string; goal?: string; name?: string; conversation_id?: string; send_at?: string; key?: string; value?: string } = {};
+  let args: { text?: string; query?: string; title?: string; goal?: string; name?: string; emoji?: string; conversation_id?: string; send_at?: string; key?: string; value?: string } = {};
   try {
     args = JSON.parse(call.arguments || '{}');
   } catch {
@@ -1122,6 +1148,15 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
       const row = data as { id: string };
       t.emitAction?.({ id: row.id, kind: message ? 'send_message' : 'set_setting' });
       return 'Proposed. It is waiting for the person to tap Approve in the app (5 credits). It has NOT happened yet. Tell them that, briefly.';
+    }
+    if (call.name === 'react_to_message') {
+      const emoji = (args.emoji ?? '').trim();
+      const { data, error } = await t.db.rpc('ai_react', { target_conversation: t.conversationId, symbol: emoji });
+      if (error) {
+        console.warn('[luna] react', error.message);
+        return 'Could not react right now.';
+      }
+      return data ? `Reacted ${data}.` : 'Not reacted (no message to react to, or not allowed).';
     }
     if (call.name === 'search_chat') {
       const words = [...new Set((args.query ?? '').toLowerCase().replace(/[^a-z0-9ऀ-ॿ\s]/gi, ' ').split(/\s+/).filter((w) => w.length >= 3))]

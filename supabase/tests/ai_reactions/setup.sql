@@ -1,0 +1,10 @@
+create role authenticated nologin;
+create schema auth; create table auth.users (id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
+create table public.conversations (id uuid primary key, kind text);
+create table public.messages (id uuid primary key default gen_random_uuid(), conversation_id uuid, sender_id uuid, body text, created_at timestamptz default now(), deleted_at timestamptz);
+create table public.message_reactions (message_id uuid, user_id uuid, emoji text, created_at timestamptz default now(), primary key (message_id, user_id));
+create table public.ai_profiles (user_id uuid primary key);
+create function public.pingo_ai_user_id() returns uuid language sql as $$ select '99999999-9999-9999-9999-999999999999'::uuid $$;
+create function public.ai_may_post(uuid) returns void language sql as $$ select $$;
+grant usage on schema public, auth to authenticated; grant select on all tables in schema public to authenticated;

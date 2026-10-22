@@ -13,6 +13,7 @@ import {
   Phone,
   Shield,
   Sparkles,
+  SmilePlus,
   SlidersHorizontal,
   Trash2,
   Type,
@@ -193,6 +194,12 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
             title="Remember me"
             sub="Let it save things you ask it to remember"
             end={<Toggle checked={prefs.memory_enabled !== false} onChange={(memory_enabled) => void save({ memory_enabled })} label="Remember me" />}
+          />
+          <Row
+            icon={<SmilePlus size={21} />}
+            title="React to my messages"
+            sub="PINGO AI can drop an emoji on your message. In a group, only on one that tags it"
+            end={<Toggle checked={prefs.reactions_enabled !== false} onChange={(reactions_enabled) => void save({ reactions_enabled })} label="React to my messages" />}
           />
         </Group>
 

@@ -220,6 +220,7 @@ export function toAiProfileUpsert(userId: string, next: Partial<AiProfileRow>, n
     preferred_name: next.preferred_name ?? null,
     language: next.language ?? null,
     memory_enabled: next.memory_enabled ?? true,
+    reactions_enabled: next.reactions_enabled ?? true,
     avatar_url: next.avatar_url ?? null,
     banner_url: next.banner_url ?? null,
     voice: next.voice ?? null,
