@@ -7,11 +7,19 @@
  * stored here, no history is kept, and OpenAI is asked not to keep the request
  * either (`store: false`). The sheet says so.
  *
- * ## Why the key lives here
+ * ## Why the key lives here, and who may use it
  *
  * A browser that could call OpenAI directly would hold a credential anybody can
- * spend. The platform verifies the caller's JWT before this runs.
+ * spend. The platform's JWT check is not enough on its own: the anon key every
+ * visitor can read is a valid JWT too. So this resolves the caller to a signed-in
+ * user itself, and `polish_allow` caps each person per hour before OpenAI is
+ * called. If the limit cannot be checked, the call is refused.
  */
+
+/** Calls per person per hour. A chat habit, not a bulk job. */
+const HOURLY_LIMIT = 30;
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const MODES = ['grammar', 'formal', 'casual', 'shorten', 'expand', 'translate'] as const;
 type Mode = (typeof MODES)[number];
@@ -59,6 +67,14 @@ Deno.serve(async (request) => {
   const key = Deno.env.get('OPENAI_API_KEY');
   if (!key) return reply(request, { error: 'not-configured' }, 503);
 
+  const authorization = request.headers.get('Authorization');
+  if (!authorization) return reply(request, { error: 'sign-in-required' }, 401);
+  const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: authorization } },
+  });
+  const { data: who, error: whoError } = await userClient.auth.getUser();
+  if (whoError || !who.user) return reply(request, { error: 'sign-in-required' }, 401);
+
   const body = (await request.json().catch(() => ({}))) as { mode?: string; text?: string; target?: string };
   const mode = MODES.find((m) => m === body.mode) as Mode | undefined;
   const text = (body.text ?? '').trim();
@@ -66,6 +82,11 @@ Deno.serve(async (request) => {
   if (!mode || !text) return reply(request, { error: 'bad-request' }, 400);
   if (text.length > MAX_CHARS) return reply(request, { error: 'too-long' }, 413);
   if (mode === 'translate' && !target) return reply(request, { error: 'bad-request' }, 400);
+
+  const { data: allowed, error: limitError } = await userClient.rpc('polish_allow', { p_limit: HOURLY_LIMIT });
+  if (limitError || allowed !== true) {
+    return reply(request, { error: limitError ? 'unavailable' : 'rate-limited' }, limitError ? 503 : 429);
+  }
 
   const task = mode === 'translate' ? `[Mode: translate] [Target language: ${target}]` : `[Mode: ${mode}]`;
   const res = await fetch('https://api.openai.com/v1/chat/completions', {

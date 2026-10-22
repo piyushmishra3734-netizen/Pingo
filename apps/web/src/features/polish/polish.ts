@@ -18,7 +18,11 @@ export async function polish(mode: PolishMode, text: string, target?: string): P
     body: { mode, text, ...(target ? { target } : {}) },
   });
   if (error || !data?.text) {
-    if (data?.error === 'too-long') throw new Error('That is too long to process.');
+    // A non-2xx answer comes back as an error whose body is the JSON the function sent.
+    const body = await (error as { context?: Response } | null)?.context?.json?.().catch(() => undefined);
+    const code = (body as { error?: string } | undefined)?.error ?? data?.error;
+    if (code === 'rate-limited') throw new Error('You have used a lot of Polish this hour. Try again later.');
+    if (code === 'too-long') throw new Error('That is too long to process.');
     throw new Error('That did not work. Try again.');
   }
   return data.text;
