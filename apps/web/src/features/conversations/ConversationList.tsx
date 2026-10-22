@@ -1,3 +1,4 @@
+import { ActivityTopPop } from '../notifications/ActivityTopPop.js';
 import { EllipsisVertical, Gamepad2, Search } from 'lucide-react';
 import {
   conversationFilterLabels,
@@ -553,6 +554,7 @@ export function ConversationList({
                 >
                   <Search size={22} strokeWidth={2} aria-hidden />
                 </IconButton>
+                <span className="relative">
                 <IconButton
                   label={unread > 0 ? t('chats.notifsUnread', { n: unread }) : t('chats.notifsAria')}
                   variant="ghost"
@@ -570,6 +572,8 @@ export function ConversationList({
                     />
                   </span>
                 </IconButton>
+                  <ActivityTopPop />
+                </span>
                 <IconButton label="More" variant="ghost" onClick={() => setStarting(true)} className="text-ink">
                   <EllipsisVertical size={22} strokeWidth={2} aria-hidden />
                 </IconButton>

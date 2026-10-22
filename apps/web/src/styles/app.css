@@ -1349,12 +1349,3 @@ video {
   src: url('/fonts/inter-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-
-/* ---- Notification prompt on Chats ------------------------------------------ */
-@keyframes np-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-@keyframes np-sink { to { opacity: 0; transform: translateY(10px); } }
-.np-enter { animation: np-rise 300ms cubic-bezier(0.2, 0.9, 0.25, 1) both; }
-.np-leave { animation: np-sink 180ms ease-in both; }
-@media (prefers-reduced-motion: reduce) {
-  .np-enter, .np-leave { animation: none; }
-}

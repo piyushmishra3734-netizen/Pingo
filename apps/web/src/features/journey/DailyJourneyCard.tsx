@@ -100,6 +100,7 @@ export function DailyJourneyCard({
     <div
       role="status"
       aria-live="polite"
+      data-daily-journey=""
       onPointerDown={(event) => {
         dragStart.current = event.clientY;
       }}
