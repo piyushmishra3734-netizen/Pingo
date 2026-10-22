@@ -32,6 +32,7 @@ import { AiMessageActions } from './AiMessageActions.js';
 import { AiSources } from '../ai/AiSources.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
+import { MessageTranslate } from '../polish/MessageTranslate.js';
 import { PhotoBubble } from './PhotoBubble.js';
 import { readReceiptsOn } from '../settings/privacy-flags.js';
 import { PingBubble } from './PingBubble.js';
@@ -763,6 +764,7 @@ export function MessageBubble({
               {streaming ? <span aria-hidden className="ai-caret" /> : room ? null : stamp}
             </p>
           )}
+          {hasBody && !mine && !streaming && !isAiReply && <MessageTranslate body={shownBody} mine={mine} />}
           {!hasBody && !room && <span className="flex justify-end">{stamp}</span>}
           {/* Reactions inside the bubble, at its foot - once, as in the approved design. */}
           <div className="clear-both">{reactions}</div>

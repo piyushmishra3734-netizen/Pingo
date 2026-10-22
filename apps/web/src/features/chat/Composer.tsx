@@ -1,6 +1,6 @@
 import type { Sticker } from '@pingo/core';
 import { Avatar, IconButton, MicIcon, SendIcon, SmileIcon, cn } from '@pingo/ui';
-import { AudioLines, Square } from 'lucide-react';
+import { AudioLines, Square, WandSparkles } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { receiveKeyboardImages } from '../native/keyboard-image.js';
@@ -14,6 +14,7 @@ import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { songBody } from '../music/song-share.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
+import { PolishSheet } from '../polish/PolishSheet.js';
 
 /** Someone you can @mention from the composer. */
 export interface MentionOption {
@@ -186,6 +187,7 @@ export function Composer({
   const [tab, setTab] = useState<'emoji' | 'stickers' | 'music'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
+  const [polishOpen, setPolishOpen] = useState(false);
 
   /*
    * The unsent message, restored on the way in and kept on the way out.
@@ -895,6 +897,17 @@ export function Composer({
           two ways of putting something into the message. They were 36 and 40,
           which is close enough to look like a mistake rather than a decision.
         */}
+        {/* Polish lives inside the field, like Telegram: a quiet word at its edge, only once there is text. */}
+        {value.trim().length >= 3 && !room && (
+          <button
+            type="button"
+            onClick={() => setPolishOpen(true)}
+            className="flex h-9 shrink-0 items-center gap-1 self-end rounded-full px-2 text-[12.5px] font-medium text-brand transition-opacity duration-base ease-standard motion-safe:animate-panel-in hover:opacity-80 active:opacity-60 focus-ring"
+          >
+            <WandSparkles size={14} aria-hidden />
+            Polish
+          </button>
+        )}
         {!room && (
           <IconButton
             label="Emoji and stickers"
@@ -1040,6 +1053,17 @@ export function Composer({
       )}
       </>)}
       </div>
+      {polishOpen && (
+        <PolishSheet
+          text={value}
+          onClose={() => setPolishOpen(false)}
+          onUse={(next) => {
+            setValue(next);
+            setPolishOpen(false);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }}
+        />
+      )}
     </div>
   );
 }
