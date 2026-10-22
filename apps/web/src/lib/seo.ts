@@ -6,10 +6,12 @@
  * marketing title on a private screen.
  */
 
+import { publicAppUrl } from './public-origin.js';
+
 export interface PageSeo {
   title: string;
   description: string;
-  /** Path only, e.g. `/download`. Origin is taken from the current host. */
+  /** Path only, e.g. `/download`. The origin is the public one (see `public-origin.ts`). */
   path: string;
   /** Open Graph type. Defaults to `website`. */
   type?: 'website' | 'article';
@@ -38,7 +40,9 @@ function setMeta(selector: string, attr: 'content' | 'href', value: string): str
  * Apply page-level SEO tags and return a restore function for unmount.
  */
 export function applyPageSeo(page: PageSeo): () => void {
-  const url = `${window.location.origin}${page.path}`;
+  // The branded domain on production, this deploy’s own URL on a preview. Both public domains
+  // then name the same canonical page, so search engines index one of each, not two.
+  const url = publicAppUrl(page.path);
   const type = page.type ?? 'website';
 
   const previous = {
