@@ -11,7 +11,7 @@ import {
 } from './catalog.js';
 
 /**
- * Product copy for the active voice (`en` or `en-genz`).
+ * Product copy for the active voice (`en`, `en-genz` or `hi`).
  *
  * ```tsx
  * const t = useT();

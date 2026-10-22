@@ -80,8 +80,7 @@ export function SettingsScreen() {
   const { appearance, resolvedTheme, preferences } = useAppearance();
   const t = useT();
   const language = resolveLanguage(preferences.language);
-  const languageValue =
-    language === 'en-genz' ? 'Chronically online' : 'English';
+  const languageValue = language === 'en-genz' ? 'Chronically online' : language === 'hi' ? 'हिन्दी' : 'English';
 
   const app = useAppVersion();
   const [query, setQuery] = useState('');

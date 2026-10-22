@@ -1,12 +1,16 @@
+import { genzPlus } from './catalog.genz.js';
+import { hi } from './catalog.hi.js';
+
 /**
- * App voice catalogs — two English *voices*, not full locales.
+ * App language catalogs.
  * - `en` default product English
- * - `en-genz` chronically-online / Gen-Z adjacent
+ * - `en-genz` chronically-online voice, same language
+ * - `hi` Hindi (Devanagari)
  *
  * Missing genz keys fall back via spread of `en`.
  */
 
-export type AppLanguage = 'en' | 'en-genz';
+export type AppLanguage = 'en' | 'en-genz' | 'hi';
 
 export const APP_LANGUAGES: {
   code: AppLanguage;
@@ -24,12 +28,18 @@ export const APP_LANGUAGES: {
     code: 'en-genz',
     label: 'English (chronically online)',
     short: 'Gen Z',
-    blurb: 'Same app, softer internet-native voice. Still readable.',
+    blurb: 'Same app, louder internet-native voice. Still readable.',
+  },
+  {
+    code: 'hi',
+    label: 'हिन्दी',
+    short: 'Hindi',
+    blurb: 'पूरा ऐप हिन्दी में।',
   },
 ];
 
 export function isAppLanguage(value: string | undefined | null): value is AppLanguage {
-  return value === 'en' || value === 'en-genz';
+  return value === 'en' || value === 'en-genz' || value === 'hi';
 }
 
 const en = {
@@ -1600,7 +1610,8 @@ const enGenz: Catalog = {
 
 const CATALOGS: Record<AppLanguage, Catalog> = {
   en: en as Catalog,
-  'en-genz': enGenz,
+  'en-genz': { ...enGenz, ...genzPlus },
+  hi,
 };
 
 export function resolveLanguage(raw: string | undefined | null): AppLanguage {
@@ -1625,7 +1636,7 @@ export function translate(
 export function syncDocumentVoice(language: string | undefined | null): void {
   const code = resolveLanguage(language);
   try {
-    document.documentElement.lang = 'en';
+    document.documentElement.lang = code === 'hi' ? 'hi' : 'en';
     document.documentElement.dataset.voice = code;
   } catch {
     // non-DOM

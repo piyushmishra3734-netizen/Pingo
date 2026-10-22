@@ -368,7 +368,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', resolvedTheme === 'dark' ? '#0c0d11' : '#FBFBFE');
 
-    // Voice / language mode for copy (`en` vs `en-genz`).
+    // Voice / language mode for copy (`en`, `en-genz`, `hi`).
     syncDocumentVoice(preferences.language);
 
     try {

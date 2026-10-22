@@ -6,8 +6,7 @@ import { Group, SettingsPage } from '../../features/settings/controls.js';
 /**
  * Language / voice.
  *
- * Two English *voices*, not two full locales yet:
- * default product English, and chronically-online (Gen-Z adjacent) chrome copy.
+ * Three voices: default product English, chronically-online English, and Hindi.
  */
 
 export function LanguageScreen() {
