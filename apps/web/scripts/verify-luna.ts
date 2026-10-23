@@ -246,6 +246,32 @@ assert.ok(lastUser.content[0].text.includes('ye kya hai?'));
 assert.ok(r.stages.includes('looking'), 'looking stage');
 console.log('vision ok');
 
+// A photo on R2: the assistant is handed a short link from the media Worker, asked with the purge key.
+{
+  const R2_PHOTO = `r2:photo/${'1'.repeat(8)}-1111-4111-8111-111111111111/${'a'.repeat(32)}.jpg`;
+  const real = globalThis.fetch;
+  const asked = [];
+  globalThis.Deno = { env: { get: (k) => ({ MEDIA_PURGE_KEY: 'purge-secret' })[k] } };
+  globalThis.fetch = async (u, init) => {
+    if (String(u).endsWith('/internal/sign')) {
+      asked.push({ key: init.headers['x-purge-key'], body: JSON.parse(init.body) });
+      return Response.json({ urls: { [R2_PHOTO]: 'https://media.test/s/photo/x?e=1&sig=s' } });
+    }
+    return real(u, init);
+  };
+  calls.length = 0;
+  r = await run('', {}, [
+    { id: 'p2', sender_id: 'me', body: 'ye kya hai?', kind: 'photo', photo_path: R2_PHOTO, created_at: nowIso() },
+    { id: 'm3', sender_id: 'BOT', body: 'Yo!', created_at: '2026-10-08T10:00:00Z' },
+  ]);
+  globalThis.fetch = real;
+  delete globalThis.Deno;
+  const content = calls[0].input.filter((m) => m.role === 'user').pop().content;
+  assert.deepEqual(content[1], { type: 'input_image', image_url: 'https://media.test/s/photo/x?e=1&sig=s', detail: 'auto' });
+  assert.deepEqual(asked, [{ key: 'purge-secret', body: { paths: [R2_PHOTO], seconds: 600 } }]);
+  console.log('vision on R2 ok');
+}
+
 calls.length = 0;
 r = await run('kya haal?', { spoken: true });
 assert.ok(!calls[0].tools.some((t) => t.type === 'image_generation'), 'no drawing on a call');
