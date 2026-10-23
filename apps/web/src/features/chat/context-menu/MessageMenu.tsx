@@ -237,7 +237,7 @@ export function MessageMenu({
           onCancel={() => setAskingDelete(false)}
           onConfirm={(forEveryone) => {
             setAskingDelete(false);
-            void service.deleteMessage(message.id, forEveryone).catch(() => setError('Delete failed'));
+            void service.deleteMessage(message.id, forEveryone, message).catch(() => setError('Delete failed'));
           }}
         />
       )}
@@ -288,7 +288,7 @@ function useLevel2(
         confirmLabel: 'Delete',
       });
       if (!go) return;
-      await service.deleteMessage(message.id, forEveryone).catch(() => onFail('Delete failed'));
+      await service.deleteMessage(message.id, forEveryone, message).catch(() => onFail('Delete failed'));
     })();
   };
 

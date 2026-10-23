@@ -1,15 +1,19 @@
-# Stories, posts, profile pictures and covers: PINGO's pictures and videos,
-# off Supabase Storage and onto R2, where reading them costs no egress.
+# Stories, posts, profile pictures and covers, and the media in chats (photos,
+# voice notes, documents and the videos that arrive as documents, Pings): all of
+# PINGO's media, off Supabase Storage and onto R2, where reading it costs no
+# egress. Only the chat's text and rows stay in the database.
 #
-# Chat media stays on Supabase. Everything here lives in the same bucket as the
-# APK and the songs, under `media/`.
+# Everything here lives in the same bucket as the APK and the songs, under
+# `media/`.
 #
 # Secrets (`npx wrangler secret put <NAME>`):
 #   SUPABASE_ANON_KEY  the project's public anon key, the one the app ships with
 #   SIGNING_KEY        any long random string; signs story and post links
 #   PURGE_KEY          any long random string; the same value goes into the
 #                      Supabase function secrets as MEDIA_PURGE_KEY, so
-#                      purge-media can delete expired stories here
+#                      purge-media can delete expired stories and chat media
+#                      here, and the assistant (ai-chat) can read a photo or
+#                      document it was sent
 name = "pingo-media"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"

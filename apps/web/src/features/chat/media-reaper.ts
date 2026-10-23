@@ -1,3 +1,4 @@
+import { isR2Path, r2RemoveConfirmed } from '../../lib/r2-media.js';
 import type { PingoSupabaseClient } from '../../lib/supabase/client.js';
 
 /**
@@ -66,6 +67,8 @@ async function removeObject(
   bucket: string,
   path: string,
 ): Promise<boolean> {
+  // A file on R2 is removed through the Worker, which lets only its owner do it.
+  if (isR2Path(path)) return r2RemoveConfirmed([path]);
   try {
     const { error } = await client.storage.from(bucket).remove([path]);
     /*

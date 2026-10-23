@@ -1,8 +1,9 @@
 import { LockedChatsRow } from '../lock/LockedChatsRow.js';
+import { usePullToOpenLocked } from '../lock/usePullToOpenLocked.js';
 import { PinGate } from '../lock/PinGate.js';
 import { hasPin, loadLocks, lockChats, useLockedIds } from '../lock/lock-store.js';
 import { ActivityTopPop } from '../notifications/ActivityTopPop.js';
-import { EllipsisVertical, Gamepad2, Search } from 'lucide-react';
+import { EllipsisVertical, Gamepad2, Lock, Search } from 'lucide-react';
 import {
   conversationFilterLabels,
   conversationFilters,
@@ -111,6 +112,9 @@ export function ConversationList({
   const { profile, service: profiles } = useProfile();
   const { groups: storyGroups, uploading: storyUploading } = useStories();
   const navigate = useNavigate();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  // Pull the list down from the top to open Locked chats (only while something is locked).
+  const { pull, armed } = usePullToOpenLocked(scrollerRef, lockedIds.size > 0, () => navigate('/chats/locked'));
   const searchRef = useRef<HTMLInputElement>(null);
   // Search is the header's icon now; the field shows while it is open or holds a query.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -376,12 +380,25 @@ export function ConversationList({
         and hides its address bar on every scroll, and the dock jumps with it.
       */}
       <div
-        className="mb-px min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
+        ref={scrollerRef}
+        className="mb-px min-h-0 flex-1 overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
         onScroll={(event) => {
           const rail = railRef.current?.offsetHeight ?? 0;
           setFolded(rail > 0 && event.currentTarget.scrollTop > rail * 0.55);
         }}
       >
+      {pull > 0 && (
+        // The gap the finger opens, with the lock in it. It says what letting go does, nothing else:
+        // not how many chats, not whose.
+        <div
+          aria-hidden
+          style={{ height: pull }}
+          className="flex shrink-0 items-end justify-center gap-2 overflow-hidden pb-2 text-[13px] font-medium text-text-secondary"
+        >
+          <Lock size={16} strokeWidth={2} className={cn('transition-transform duration-instant ease-standard', armed && 'scale-110 text-brand')} />
+          <span className={cn(armed && 'text-brand')}>{armed ? 'Release for Locked chats' : 'Pull for Locked chats'}</span>
+        </div>
+      )}
       <header
         ref={headerRef}
         className={cn(

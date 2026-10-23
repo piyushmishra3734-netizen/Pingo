@@ -1287,11 +1287,18 @@ export class SupabaseProfileService implements ProfileService {
 
     if (rows.length === 0) return [];
 
-    const { data: signed } = await this.client.storage
-      .from(PHOTO_BUCKET)
-      .createSignedUrls(rows.map((row) => row.photo_path), IMAGE_URL_TTL_SECONDS);
+    // Photos on R2 are signed by the Worker; the older ones by Supabase.
+    const onR2 = rows.map((row) => row.photo_path).filter(isR2Path);
+    const onSupabase = rows.map((row) => row.photo_path).filter((path) => !isR2Path(path));
+    const [fromR2, { data: signed }] = await Promise.all([
+      onR2.length > 0 ? r2Sign(onR2) : Promise.resolve(new Map<string, string>()),
+      onSupabase.length > 0
+        ? this.client.storage.from(PHOTO_BUCKET).createSignedUrls(onSupabase, IMAGE_URL_TTL_SECONDS)
+        : Promise.resolve({ data: [] as { path: string | null; signedUrl: string }[] }),
+    ]);
 
-    const urlByPath = new Map((signed ?? []).map((entry) => [entry.path, entry.signedUrl]));
+    const urlByPath = new Map<string, string>(fromR2);
+    for (const entry of signed ?? []) if (entry.path && entry.signedUrl) urlByPath.set(entry.path, entry.signedUrl);
 
     return rows
       .map((row) => ({
