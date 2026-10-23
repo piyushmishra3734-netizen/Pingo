@@ -1,3 +1,4 @@
+import { resetLocks } from '../lock/lock-store.js';
 import { useAuth } from '@pingo/core';
 import { useCallback } from 'react';
 
@@ -38,5 +39,6 @@ export function useSignOut(): () => Promise<void> {
     if (!go) return;
     await signOut();
     clearBlocks();
+    resetLocks();
   }, [confirm, signOut]);
 }

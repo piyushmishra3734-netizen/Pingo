@@ -1,7 +1,9 @@
+import { PinGate } from '../features/lock/PinGate.js';
+import { loadLocks, touchSession, useLockedIds, useUnlocked } from '../features/lock/lock-store.js';
 import { useChat, useProfile } from '@pingo/core';
 import { EmptyState, cn } from '@pingo/ui';
 import { Suspense, useEffect } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { useAiConversation } from '../features/ai/ai-data.js';
@@ -71,6 +73,21 @@ export function ChatsScreen() {
    */
   const side = useAiConversation(ready && conversationId && !listed ? conversationId : undefined);
   const conversation = listed ?? side.conversation;
+  /*
+   * A locked chat is behind the PIN wherever it is reached from: the locked
+   * list, a notification, a pasted link. Locked and not unlocked: no thread.
+   */
+  const lockedIds = useLockedIds();
+  const unlocked = useUnlocked();
+  const navigate = useNavigate();
+  useEffect(() => void loadLocks(), []);
+  const lockedOut = Boolean(conversation && lockedIds.has(conversation.id) && !unlocked);
+  useEffect(() => {
+    if (!conversation || !lockedIds.has(conversation.id) || !unlocked) return;
+    touchSession();
+    const id = setInterval(touchSession, 30_000);
+    return () => clearInterval(id);
+  }, [conversation, lockedIds, unlocked]);
 
   // A stale or mistyped id should land the user somewhere useful, not on an error.
   if (ready && conversationId && !conversation && !side.pending) {
@@ -82,9 +99,13 @@ export function ChatsScreen() {
 
   if (!isDesktop) {
     return conversation ? (
-      <Suspense fallback={<ThreadPending />}>
-        <ChatThread conversation={conversation} showBack />
-      </Suspense>
+      lockedOut ? (
+        <PinGate onSuccess={() => undefined} onCancel={() => navigate('/chats', { replace: true })} />
+      ) : (
+        <Suspense fallback={<ThreadPending />}>
+          <ChatThread conversation={conversation} showBack />
+        </Suspense>
+      )
     ) : (
       <>
         <ConversationList />
@@ -123,9 +144,13 @@ export function ChatsScreen() {
 
       <section className="min-w-0 flex-1">
         {conversation ? (
-          <Suspense fallback={<ThreadPending />}>
-            <ChatThread conversation={conversation} />
-          </Suspense>
+          lockedOut ? (
+            <PinGate onSuccess={() => undefined} onCancel={() => navigate('/chats', { replace: true })} />
+          ) : (
+            <Suspense fallback={<ThreadPending />}>
+              <ChatThread conversation={conversation} />
+            </Suspense>
+          )
         ) : (
           <div className="grid h-full place-items-center bg-page">
             {/*

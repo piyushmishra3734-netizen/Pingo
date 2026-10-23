@@ -1,3 +1,5 @@
+import { PinGate } from '../lock/PinGate.js';
+import { hasPin, lockChats, unlockChats, useLockedIds } from '../lock/lock-store.js';
 import { formatMuteUntil, type Conversation } from '@pingo/core';
 import { IconButton, MoreIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -86,6 +88,9 @@ export function ConversationMenu({
   const [open, setOpen] = useState(false);
   const [muting, setMuting] = useState(false);
   const [listing, setListing] = useState(false);
+  // Making the first PIN, with this chat waiting to be locked behind it.
+  const [pinning, setPinning] = useState(false);
+  const locked = useLockedIds().has(conversation.id);
   const [deleting, setDeleting] = useState(false);
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -208,6 +213,22 @@ export function ConversationMenu({
             }}
           />
           <Item
+            label={locked ? 'Unlock chat' : 'Lock chat'}
+            onSelect={() => {
+              setOpen(false);
+              void (async () => {
+                if (locked) {
+                  await unlockChats(id).catch(() => undefined);
+                } else if (await hasPin()) {
+                  await lockChats(id).catch(() => undefined);
+                  navigate('/chats', { replace: true });
+                } else {
+                  setPinning(true);
+                }
+              })();
+            }}
+          />
+          <Item
             label={conversation.archived ? t('select.unarchive') : t('select.archive')}
             onSelect={() => run(actions.archive(id, !conversation.archived))}
           />
@@ -323,6 +344,17 @@ export function ConversationMenu({
             setMuting(false);
             void actions.mute(id, ms);
           }}
+        />
+      )}
+
+      {pinning && (
+        <PinGate
+          onSuccess={() => {
+            setPinning(false);
+            void lockChats(id).catch(() => undefined);
+            navigate('/chats', { replace: true });
+          }}
+          onCancel={() => setPinning(false)}
         />
       )}
 

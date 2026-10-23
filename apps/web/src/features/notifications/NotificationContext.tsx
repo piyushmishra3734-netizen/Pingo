@@ -1,3 +1,4 @@
+import { loadLocks } from '../lock/lock-store.js';
 import { useChat } from '@pingo/core';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
@@ -65,6 +66,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Waits for the session: an unauthenticated count is always zero and the
     // request would only fail.
     if (!ready) return;
+    void loadLocks();
 
     let active = true;
     void service

@@ -1,3 +1,4 @@
+import { useLockedIds } from '../features/lock/lock-store.js';
 import { useChat } from '@pingo/core';
 import { Badge, CameraIcon, ChatIcon, UserIcon, cn } from '@pingo/ui';
 import { Music2, TvMinimalPlay } from 'lucide-react';
@@ -16,7 +17,10 @@ import { openMusic, preloadMusic } from '../features/music/app/sheet-store.js';
  */
 export function Dock() {
   const t = useT();
-  const { totalUnread } = useChat();
+  const { totalUnread: allUnread, conversations } = useChat();
+  const lockedIds = useLockedIds();
+  // A locked chat's unread messages are not counted: the badge would give it away.
+  const totalUnread = Math.max(0, allUnread - conversations.reduce((n, c) => (lockedIds.has(c.id) ? n + c.unreadCount : n), 0));
   const { pathname } = useLocation();
 
   const tab = (active: boolean) =>

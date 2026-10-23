@@ -63,6 +63,7 @@ function lazyScreen<M extends Record<string, unknown>>(load: () => Promise<M>, n
 
 const CallsScreen = lazyScreen(() => import('./screens/CallsScreen.js'), 'CallsScreen');
 const CameraScreen = lazyScreen(() => import('./screens/CameraScreen.js'), 'CameraScreen');
+import { LockedChatsScreen } from './features/lock/LockedChatsScreen.js';
 import { ChatsScreen } from './screens/ChatsScreen.js';
 const CommunitiesScreen = lazyScreen(() => import('./screens/CommunitiesScreen.js'), 'CommunitiesScreen');
 const PingoTvScreen = lazyScreen(() => import('./screens/PingoTvScreen.js'), 'PingoTvScreen');
@@ -560,6 +561,7 @@ export function App() {
                     higher anyway, but relying on that leaves "new" one careless
                     reorder away from being read as a conversation id.
                   */}
+                  <Route path="/chats/locked" element={<LockedChatsScreen />} />
                   <Route path="/chats/new" element={<NewChatScreen />} />
                   <Route path="/share" element={<ShareScreen />} />
                   <Route path="/chats/new-group" element={<NewGroupScreen />} />

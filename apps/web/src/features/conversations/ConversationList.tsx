@@ -1,3 +1,6 @@
+import { LockedChatsRow } from '../lock/LockedChatsRow.js';
+import { PinGate } from '../lock/PinGate.js';
+import { hasPin, loadLocks, lockChats, useLockedIds } from '../lock/lock-store.js';
 import { ActivityTopPop } from '../notifications/ActivityTopPop.js';
 import { EllipsisVertical, Gamepad2, Search } from 'lucide-react';
 import {
@@ -94,6 +97,8 @@ export function ConversationList({
 }: ConversationListProps) {
   const t = useT();
   const { conversations, ready, service, users, currentUser } = useChat();
+  const lockedIds = useLockedIds();
+  useEffect(() => void loadLocks(), []);
   /*
    * The same count the Journey screen runs, from the same cache. It is keyed on
    * the conversation ids rather than the array, so this does not re-read every
@@ -145,6 +150,8 @@ export function ConversationList({
   useBackStep(selectionMode, () => setSelectedIds(new Set()));
 
   const [pendingDelete, setPendingDelete] = useState<Conversation[]>();
+  // Chats waiting to be locked while the person makes their first PIN.
+  const [pinFor, setPinFor] = useState<string[]>();
   /** Ids, not conversations: the sheet needs their live state. */
   const [listsFor, setListsFor] = useState<string[]>();
   const [muting, setMuting] = useState<Conversation[]>();
@@ -192,10 +199,11 @@ export function ConversationList({
 
   const { active, archived } = useMemo(
     () => ({
-      active: conversations.filter((c) => !isArchived(c)),
-      archived: conversations.filter(isArchived),
+      // Locked chats are in neither list: they are behind the PIN, not archived.
+      active: conversations.filter((c) => !lockedIds.has(c.id) && !isArchived(c)),
+      archived: conversations.filter((c) => !lockedIds.has(c.id) && isArchived(c)),
     }),
-    [conversations, keepArchived],
+    [conversations, keepArchived, lockedIds],
   );
 
   const inList = useMemo(
@@ -428,6 +436,18 @@ export function ConversationList({
                     void (async () => {
                       const go = await confirmUnmute(selected.length, only?.title);
                       if (go) andClose(actions.mute(selected.map((c) => c.id), null));
+                    })();
+                  }}
+                />
+                <SelectionMenuItem
+                  label="Lock chat"
+                  onSelect={() => {
+                    void (async () => {
+                      const ids = selected.map((c) => c.id);
+                      clearSelection();
+                      // Never locked before a PIN exists: whoever opened Locked chats first would get to make it.
+                      if (await hasPin()) await lockChats(ids).catch(() => undefined);
+                      else setPinFor(ids);
                     })();
                   }}
                 />
@@ -758,6 +778,9 @@ export function ConversationList({
                   {...(journey.nextBadge ? { next: journey.nextBadge } : {})}
                   className="mt-1"
                 />
+                {lockedIds.size > 0 && (
+                  <LockedChatsRow count={lockedIds.size} onOpen={() => navigate('/chats/locked')} />
+                )}
               </div>
             ) : undefined
           }
@@ -867,6 +890,16 @@ export function ConversationList({
             setManagingStory(false);
             navigate('/stories/archive');
           }}
+        />
+      )}
+
+      {pinFor && (
+        <PinGate
+          onSuccess={() => {
+            void lockChats(pinFor).catch(() => undefined);
+            setPinFor(undefined);
+          }}
+          onCancel={() => setPinFor(undefined)}
         />
       )}
 

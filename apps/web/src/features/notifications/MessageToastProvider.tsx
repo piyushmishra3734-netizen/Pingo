@@ -1,3 +1,4 @@
+import { isLockedNow } from '../lock/lock-store.js';
 import {
   messagePreview,
   useChat,
@@ -466,6 +467,21 @@ function buildToastData(
   currentUserId: string,
   users: User[],
 ): MessageToastData {
+  // A locked chat is announced as nothing at all: no name, no face, no words.
+  if (isLockedNow(conversation.id)) {
+    return {
+      id: conversation.id,
+      conversationId: conversation.id,
+      title: 'PINGO',
+      preview: 'New message',
+      createdAt: message.createdAt,
+      senderName: 'PINGO',
+      senderId: 'locked',
+      senderAvatarUrl: undefined,
+      unreadCount: 1,
+      generation: message.createdAt,
+    };
+  }
   const firstName = sender.name.split(' ')[0] || sender.name;
   const title =
     conversation.kind === 'direct'
