@@ -6521,11 +6521,34 @@ export class SupabaseChatService implements ChatService {
     }
   }
 
-  async deleteMessage(messageId: MessageId, forEveryone: boolean): Promise<void> {
-    await this.#client.rpc('delete_message', {
+  async deleteMessage(messageId: MessageId, forEveryone: boolean, known?: Message): Promise<void> {
+    /*
+     * Shown as deleted first, asked of the server second.
+     *
+     * Deleting for everyone used to wait for the call, then for a second read of
+     * the row, before anything on screen changed: two round trips for a tap.
+     * With the message in hand the tombstone goes up at once, and if the server
+     * refuses it comes back with the reason. The server still owns the rule.
+     */
+    const tombstone: Message | undefined =
+      forEveryone && known
+        ? { ...known, body: '', attachments: [], reactions: [], deleted: true, deletedAt: Date.now() }
+        : undefined;
+    if (tombstone) this.#emit({ type: 'message:updated', message: tombstone });
+
+    const { error } = await this.#client.rpc('delete_message', {
       target: messageId,
       for_everyone: forEveryone,
     });
+
+    /*
+     * The call reports failure in `error`; it does not throw. This used to be
+     * dropped, so a refusal looked like success and the thread never changed.
+     */
+    if (error) {
+      if (known && tombstone) this.#emit({ type: 'message:updated', message: known });
+      throw new Error(error.message);
+    }
 
     /*
      * Two different outcomes, so two different events.
@@ -6537,7 +6560,11 @@ export class SupabaseChatService implements ChatService {
      * which is how this quietly did nothing before.
      */
     if (forEveryone) {
-      this.#emit({ type: 'message:updated', message: await this.#messageRow(messageId) });
+      // Settled behind the tap. If this read fails the delete still happened, so it must not
+      // turn the tap into an error; the tombstone above stands, or the next refresh shows it.
+      const settle = (message: Message) => this.#emit({ type: 'message:updated', message });
+      if (tombstone) void this.#messageRow(messageId).then(settle, () => undefined);
+      else settle(await this.#messageRow(messageId));
     } else {
       this.#hidden.add(messageId);
       this.#emit({ type: 'message:removed', messageId });

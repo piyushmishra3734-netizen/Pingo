@@ -599,7 +599,12 @@ export interface ChatService {
    * outside the window or on someone else's message, and hides it for you
    * instead of failing.
    */
-  deleteMessage(messageId: MessageId, forEveryone: boolean): Promise<void>;
+  /**
+   * `known` is the message as the reader sees it, when the caller has it. With it, deleting for
+   * everyone shows the tombstone at once and the server catches up behind it; without it the
+   * thread waits for the server, as it always did.
+   */
+  deleteMessage(messageId: MessageId, forEveryone: boolean, known?: Message): Promise<void>;
 
   /** Per person. Returns the new state so the menu can label itself. */
   toggleStar(messageId: MessageId): Promise<boolean>;

@@ -1490,12 +1490,12 @@ export function ChatThread({
           onCancel={() => setAskDelete(false)}
           onConfirm={(forEveryone) => {
             const ids = [...selection];
+            const byId = new Map(messages.map((message) => [message.id, message]));
             setAskDelete(false);
-            void (async () => {
-              // One at a time, so one failing does not leave the rest undeleted.
-              for (const id of ids) await service.deleteMessage(id, forEveryone).catch(() => undefined);
-              setSelection(undefined);
-            })();
+            // At once, and all together: each is its own call, and one failing leaves the rest
+            // alone. The thread shows them deleted before the server has answered any of them.
+            setSelection(undefined);
+            void Promise.allSettled(ids.map((id) => service.deleteMessage(id, forEveryone, byId.get(id))));
           }}
         />
       )}
@@ -1591,15 +1591,13 @@ export function ChatThread({
               });
               if (!go) return;
               /*
-               * One at a time, and failures ignored one at a time with them.
-               * A batch endpoint would be better and does not exist; what
-               * matters is that message nineteen failing does not leave the
-               * other eighteen undeleted.
+               * Together, and each on its own: a batch endpoint would be better and does not
+               * exist, but one call per message run side by side takes the time of the slowest,
+               * not the sum, and message nineteen failing leaves the other eighteen deleted.
                */
-              for (const id of ids) {
-                await service.deleteMessage(id, forEveryone).catch(() => undefined);
-              }
+              const byId = new Map(messages.map((message) => [message.id, message]));
               setSelection(undefined);
+              await Promise.allSettled(ids.map((id) => service.deleteMessage(id, forEveryone, byId.get(id))));
             })();
           }}
         />
