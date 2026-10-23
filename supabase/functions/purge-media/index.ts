@@ -102,9 +102,13 @@ Deno.serve(async (request: Request) => {
   for (const row of rows) {
     if (!row.media_purge_path || !row.media_purge_bucket) continue;
 
-    const { error: removeError } = await admin.storage
-      .from(row.media_purge_bucket)
-      .remove([row.media_purge_path]);
+    // Media on R2 is removed through the Worker; older media from Supabase Storage.
+    let removeError: { message: string } | null;
+    if (row.media_purge_path.startsWith('r2:')) {
+      removeError = (await removeFromR2([row.media_purge_path])) ? null : { message: 'R2 delete failed' };
+    } else {
+      removeError = (await admin.storage.from(row.media_purge_bucket).remove([row.media_purge_path])).error;
+    }
 
     /*
      * An object that has already gone is a success. The alternative is a row
@@ -179,9 +183,12 @@ Deno.serve(async (request: Request) => {
   for (const snap of (snapRows ?? []) as { id: string; snap_purge_path: string }[]) {
     if (!snap.snap_purge_path) continue;
 
-    const { error: removeError } = await admin.storage
-      .from('snaps')
-      .remove([snap.snap_purge_path]);
+    let removeError: { message: string } | null;
+    if (snap.snap_purge_path.startsWith('r2:')) {
+      removeError = (await removeFromR2([snap.snap_purge_path])) ? null : { message: 'R2 delete failed' };
+    } else {
+      removeError = (await admin.storage.from('snaps').remove([snap.snap_purge_path])).error;
+    }
 
     // Already gone is a success, exactly as above.
     if (removeError && !/not\s*found/i.test(removeError.message)) {

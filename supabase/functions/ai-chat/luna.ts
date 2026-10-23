@@ -1015,9 +1015,36 @@ const IMAGE_TYPES = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
 async function photoPart(t: LunaTurn, path: string): Promise<InputPart | null> {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
   if (!IMAGE_TYPES.has(ext)) return null;
+  if (path.startsWith('r2:')) {
+    const url = await r2Link(path);
+    return url ? { type: 'input_image', image_url: url, detail: 'auto' } : null;
+  }
   const { data, error } = await t.db.storage.from('photos').createSignedUrl(path, SIGNED_URL_SECONDS);
   if (error || !data?.signedUrl) return null;
   return { type: 'input_image', image_url: data.signedUrl, detail: 'auto' };
+}
+
+/**
+ * A short link to a file on R2, from the media Worker, with the shared purge key.
+ * The caller has already read the message under the person's own row level
+ * security, so the file is one they may show the assistant; the Worker only
+ * hands this out for chat media, and only to something that holds the key.
+ */
+async function r2Link(path: string): Promise<string | null> {
+  const key = Deno.env.get('MEDIA_PURGE_KEY');
+  if (!key) return null;
+  const endpoint = (Deno.env.get('MEDIA_URL') ?? 'https://pingo-media.dubesminecraft.workers.dev').replace(/\/+$/, '');
+  try {
+    const res = await fetch(`${endpoint}/internal/sign`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-purge-key': key },
+      body: JSON.stringify({ paths: [path], seconds: 600 }),
+    });
+    if (!res.ok) return null;
+    return ((await res.json()) as { urls?: Record<string, string> }).urls?.[path] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|csv|x-yaml|yaml|javascript|typescript|x-sh|sql|rtf))/i;
@@ -1037,7 +1064,16 @@ async function filePart(t: LunaTurn, path: string, name: string, mime: string): 
   const cannot = (why: string): InputPart[] => [{ type: 'input_text', text: `[They sent a file "${name}" that you cannot open (${why}). Say so if it matters.]` }];
   if (!asText && !asFile) return cannot(mime || 'unknown type');
 
-  const { data: blob, error } = await t.db.storage.from('documents').download(path);
+  let blob: Blob | null = null;
+  let error: unknown = null;
+  if (path.startsWith('r2:')) {
+    const url = await r2Link(path);
+    const res = url ? await fetch(url).catch(() => null) : null;
+    if (res?.ok) blob = await res.blob();
+    else error = 'not reachable';
+  } else {
+    ({ data: blob, error } = await t.db.storage.from('documents').download(path));
+  }
   if (error || !blob) return cannot('it could not be downloaded');
   if (blob.size > MAX_FILE_BYTES) return cannot('too large');
   if (asText) {

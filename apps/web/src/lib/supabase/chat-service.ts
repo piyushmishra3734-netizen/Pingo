@@ -99,6 +99,7 @@ import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper
 import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
+import { isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
@@ -685,6 +686,13 @@ function hostOf(url: string): string {
 const MAX_PAGE_READS = 5;
 
 /** Snaps live in a private bucket; the `snaps` migration explains why. */
+/**
+ * Where each kind of chat media goes on R2. The bucket names below are
+ * Supabase's, kept for the files that are still there and as the fallback when
+ * the Worker cannot take an upload; a stored path starting `r2:` is on R2.
+ */
+const R2_KIND: Record<string, R2Kind> = { photos: 'photo', voice: 'voice', documents: 'doc', snaps: 'snap' };
+
 const SNAP_BUCKET = 'snaps';
 
 /** Photos live in their own private bucket. See the `photo_messages` migration. */
@@ -735,6 +743,9 @@ function imageExtension(mime: string | undefined): string {
  */
 function pathFromSignedUrl(url: string | undefined, bucket: string): string | undefined {
   if (!url) return undefined;
+  // A link to a file on R2 carries its stored path in the same shape.
+  const onR2 = r2PathFromSignedUrl(url);
+  if (onR2) return onR2;
   try {
     const { pathname } = new URL(url);
     const marker = `/object/sign/${bucket}/`;
@@ -4112,6 +4123,26 @@ export class SupabaseChatService implements ChatService {
     if (complaint) throw new Error(complaint);
 
     const me = await this.#userId();
+
+    /*
+     * Cloudflare R2 first: reading it costs no egress, and the bytes of every
+     * photo, voice note, document and video somebody opens are most of what
+     * this app sends. The Worker names the file, so the claim is written after
+     * the upload rather than before; the gap is the same orphan the claim exists
+     * for, and a crash inside it is the only way to lose track of one. If the
+     * Worker cannot take the file - it is down, or refuses it - Supabase does,
+     * exactly as before.
+     */
+    const r2Kind = R2_KIND[bucket];
+    const onR2 = r2Kind ? await r2Upload(r2Kind, body, contentType) : null;
+    if (onR2) {
+      await Promise.resolve(uploadClaims(this.#client).insert({ path: onR2.path, bucket, user_id: me })).then(
+        undefined,
+        () => undefined,
+      );
+      return onR2.path;
+    }
+
     /*
      * Best effort, deliberately. A claim that fails to write must not stop
      * somebody sending a photograph; it only means that particular orphan
@@ -4391,6 +4422,20 @@ export class SupabaseChatService implements ChatService {
   ): Promise<Map<string, string>> {
     const urlByPath = new Map<string, string>();
 
+    // Files on R2 are signed by the Worker, which asks the database who may see
+    // them; everything older is signed by Supabase, as it always was.
+    const onR2 = paths.filter(isR2Path);
+    if (onR2.length > 0) {
+      const fresh = await r2Sign(onR2);
+      const expiresAt = Date.now() + PHOTO_URL_TTL_SECONDS * 1000;
+      for (const [path, url] of fresh) {
+        urlByPath.set(path, url);
+        this.#signedUrlCache.set(this.#signedUrlCacheKey(bucket, path), { url, expiresAt });
+      }
+      paths = paths.filter((path) => !isR2Path(path));
+      if (paths.length === 0) return urlByPath;
+    }
+
     const { data } = await this.#client.storage
       .from(bucket)
       .createSignedUrls(paths, PHOTO_URL_TTL_SECONDS);
@@ -4556,13 +4601,20 @@ export class SupabaseChatService implements ChatService {
     const row = data?.[0];
     if (error || !row?.path) return undefined;
 
-    const { data: signed } = await this.#client.storage
-      .from(PHOTO_BUCKET)
-      .createSignedUrl(row.path, PHOTO_URL_TTL_SECONDS);
+    // The same single look, whichever side the file is on.
+    let signedUrl: string | undefined;
+    if (isR2Path(row.path)) {
+      signedUrl = (await r2Sign([row.path])).get(row.path);
+    } else {
+      const { data: signed } = await this.#client.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrl(row.path, PHOTO_URL_TTL_SECONDS);
+      signedUrl = signed?.signedUrl;
+    }
 
-    if (!signed?.signedUrl) return undefined;
+    if (!signedUrl) return undefined;
     return {
-      url: signed.signedUrl,
+      url: signedUrl,
       ...(row.views_left !== null ? { viewsLeft: row.views_left } : {}),
     };
   }
@@ -4593,6 +4645,14 @@ export class SupabaseChatService implements ChatService {
      * longer is a window in which a shared link still works after the Ping is
      * supposed to be gone.
      */
+    if (isR2Path(row.path)) {
+      // Never remembered, and good for two minutes: the Worker's `short` link.
+      const url = await r2SignShort(row.path);
+      // The row exists, so a missing link is a failure to sign it, not an absence.
+      if (!url) throw new Error('Could not sign the Ping.');
+      return { url, viewsLeft: row.views_left };
+    }
+
     const signed = await this.#client.storage
       .from(SNAP_BUCKET)
       .createSignedUrl(row.path, SNAP_URL_TTL_SECONDS);

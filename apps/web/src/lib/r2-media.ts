@@ -1,11 +1,13 @@
 import { getSupabaseClient } from './supabase/client.js';
 
 /**
- * Stories, posts, profile pictures and covers on Cloudflare R2.
+ * Pictures, video, voice and documents on Cloudflare R2: stories, posts, profile
+ * pictures and covers, and the media in chats (photos, voice notes, documents
+ * - where video arrives - and Pings).
  *
- * Every view of a story used to be Supabase egress. R2 charges nothing to
- * read, so these now go to the `pingo-media` Worker (workers/media). Chat media
- * stays on Supabase.
+ * Every view used to be Supabase egress. R2 charges nothing to read, so these
+ * now go to the `pingo-media` Worker (workers/media). Only the chat's text and
+ * rows stay in the database.
  *
  * ## Paths
  *
@@ -22,7 +24,7 @@ import { getSupabaseClient } from './supabase/client.js';
 
 const ENDPOINT = ((import.meta.env.VITE_MEDIA_URL as string | undefined) ?? 'https://pingo-media.dubesminecraft.workers.dev').replace(/\/$/, '');
 
-export type R2Kind = 'avatar' | 'cover' | 'story' | 'post';
+export type R2Kind = 'avatar' | 'cover' | 'story' | 'post' | 'photo' | 'voice' | 'doc' | 'snap';
 
 export const isR2Path = (path: string | null | undefined): path is string => typeof path === 'string' && path.startsWith('r2:');
 
@@ -60,6 +62,13 @@ export async function r2Upload(kind: R2Kind, blob: Blob, contentType: string): P
     unreachableUntil = Date.now() + 10 * 60 * 1000;
     return null;
   }
+}
+
+/** The stored path behind a signed R2 link (chat media, stories, posts), or nothing if it is not one. */
+export function r2PathFromSignedUrl(url: string | null | undefined): string | undefined {
+  if (!url || !url.startsWith(`${ENDPOINT}/s/`)) return undefined;
+  const rest = url.slice(`${ENDPOINT}/s/`.length).split('?')[0] ?? '';
+  return rest ? `r2:${rest}` : undefined;
 }
 
 /** Link remembered per path until shortly before it expires. */
@@ -105,6 +114,26 @@ export async function r2Sign(paths: string[]): Promise<Map<string, string>> {
   return out;
 }
 
+/**
+ * A link that is only good for a couple of minutes, for a Ping. Never
+ * remembered: a link kept past the Ping's last look is the thing this avoids.
+ * Resolves to nothing when the Worker will not sign it (not yours to see).
+ */
+export async function r2SignShort(path: string): Promise<string | undefined> {
+  if (!isR2Path(path)) return undefined;
+  const token = await bearer();
+  if (!token) return undefined;
+  const res = await fetch(`${ENDPOINT}/sign`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ paths: [path], short: true }),
+  });
+  // A failed request is not "not allowed": the caller decides what an error means.
+  if (!res.ok) throw new Error(`Could not sign (${res.status}).`);
+  const body = (await res.json()) as { urls?: Record<string, string> };
+  return body.urls?.[path];
+}
+
 /** Best effort: removes your own files. A leftover is waste, never an error. */
 export async function r2Remove(paths: string[]): Promise<void> {
   const mine = paths.filter(isR2Path);
@@ -116,6 +145,28 @@ export async function r2Remove(paths: string[]): Promise<void> {
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify({ paths: mine }),
   }).catch(() => undefined);
+}
+
+/**
+ * Removes your own files and says whether they are gone. For the sweeper that
+ * clears a pointer only once the bytes are: a file already gone is a success,
+ * and so is nothing to remove; a Worker that did not answer is not.
+ */
+export async function r2RemoveConfirmed(paths: string[]): Promise<boolean> {
+  const mine = paths.filter(isR2Path);
+  if (mine.length === 0) return true;
+  const token = await bearer();
+  if (!token) return false;
+  try {
+    const res = await fetch(`${ENDPOINT}/delete`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ paths: mine }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** The stored path behind a public R2 link, for deleting a replaced face or cover. */
