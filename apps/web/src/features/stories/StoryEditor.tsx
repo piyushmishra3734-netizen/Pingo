@@ -3,8 +3,8 @@ import { useChat, useProfile, type StoryAudience, type StoryAudioDraft, type Sto
 import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
-  Download, Ellipsis, Eraser, Highlighter, Link as LinkIcon, MapPin, Music2, Pause, PenLine, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, Send, Settings2, Zap, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
+  Download, Ellipsis, Link as LinkIcon, MapPin, Music2, Pause, Play, Search, Sparkles, Star,
+  Sticker, Type, Undo2, Redo2, Send, Settings2, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -13,6 +13,9 @@ import { useBackStep } from '../navigation/useBackStep.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
+import { BrushRow, ColourRow, SizeSlider } from '../draw/DrawChrome.js';
+import { paintStrokes, type DrawStroke } from '../draw/brushes.js';
+import { useBrush } from '../draw/useBrush.js';
 import { SendTo, drawStickers, noteSends } from '../camera/snap/send-to.js';
 import { useStories } from './StoryContext.js';
 import { MenuGroup, MenuRow, SheetSearch } from './StorySheet.js';
@@ -45,9 +48,7 @@ const FILTERS: [string, string][] = [
 ];
 const PLACES = ['Indore', 'Bhopal', 'Mumbai', 'Rajwada, Indore', 'Sarafa Bazaar', 'Goa', 'Manali', 'Sequoia National Park, California'];
 const SLIDER_EMOJI = ['😍', '🔥', '😂', '😮', '💯', '🥳'];
-const DRAW_COLORS = ['#ffffff', '#000000', '#0a84ff', '#34c759', '#ffcc00', '#ff9500', '#ff3b30', '#e0559b', '#bf5af2'];
-export type Brush = 'pen' | 'marker' | 'neon' | 'eraser';
-export interface Stroke { brush: Brush; color: string; size: number; p: [number, number][] }
+export type Stroke = DrawStroke;
 type SheetKind = 'stickers' | 'music' | 'clip' | 'loc' | 'mention' | 'link' | 'tag' | 'countdown' | 'effects' | 'share' | 'discard' | 'more';
 
 const uid = () => Math.random().toString(36).slice(2, 8);
@@ -330,17 +331,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   const redraw = useCallback((list: Stroke[]) => {
     const c = ink.current; if (!c) return; const g2 = c.getContext('2d')!;
     g2.clearRect(0, 0, W, H);
-    for (const s of list) {
-      g2.save(); g2.lineJoin = 'round'; g2.lineCap = s.brush === 'marker' ? 'square' : 'round';
-      g2.lineWidth = s.size * (s.brush === 'marker' ? 2.2 : 1); g2.strokeStyle = s.color;
-      if (s.brush === 'marker') g2.globalAlpha = 0.5;
-      if (s.brush === 'eraser') g2.globalCompositeOperation = 'destination-out';
-      if (s.brush === 'neon') { g2.shadowColor = s.color; g2.shadowBlur = 40; }
-      const path = () => { g2.beginPath(); s.p.forEach(([x, y], i) => (i ? g2.lineTo(x, y) : g2.moveTo(x, y))); g2.stroke(); };
-      path();
-      if (s.brush === 'neon') { g2.shadowBlur = 0; g2.strokeStyle = '#fff'; g2.lineWidth = s.size * 0.35; path(); }
-      g2.restore();
-    }
+    paintStrokes(g2, list, W, H);
   }, []);
   useEffect(() => redraw(strokes), [strokes, redraw]);
 
@@ -587,7 +578,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
           <BoomerangMode src={src} boom={boom} trim={trim} onChange={(b, t) => { setBoom(b); setTrim(t); }}
             onDone={() => { setMode('none'); notify(boom === 'off' ? 'Effect off' : `Boomerang: ${BOOMS.find((x) => x[0] === boom)?.[1]}`, <InfinityIcon />); }} />
         )}
-        {mode === 'draw' && <DrawMode ink={ink} stage={stage} strokes={strokes} setStrokes={setStrokes} onDone={() => setMode('none')} />}
+        {mode === 'draw' && <DrawMode stage={stage} strokes={strokes} setStrokes={setStrokes} onDone={() => setMode('none')} />}
 
         {sheet && (
           <EditorSheets
@@ -670,44 +661,36 @@ export function TextMode({ initial, onDone, onLocation }: { initial?: TextData; 
 
 // ---------------------------------------------------------------------------------
 // draw
-export function DrawMode({ ink, stage, strokes, setStrokes, onDone }: {
-  ink: React.RefObject<HTMLCanvasElement | null>; stage: React.RefObject<HTMLDivElement | null>;
+export function DrawMode({ stage, strokes, setStrokes, onDone }: {
+  stage: React.RefObject<HTMLDivElement | null>;
   strokes: Stroke[]; setStrokes: React.Dispatch<React.SetStateAction<Stroke[]>>; onDone: () => void;
 }) {
-  const [brush, setBrush] = useState<Brush>('pen');
+  const { brush, size, setBrush, setSize } = useBrush();
   const [color, setColor] = useState('#ffffff');
-  const [size, setSize] = useState(10);
-  const sz = useRef<HTMLDivElement>(null);
+  const [redo, setRedo] = useState<Stroke[]>([]);
   const r = stage.current?.getBoundingClientRect();
   const cur = useRef<Stroke | undefined>(undefined);
-  const at = (e: { clientX: number; clientY: number }): [number, number] => { const b = stage.current!.getBoundingClientRect(); return [((e.clientX - b.left) / b.width) * W, ((e.clientY - b.top) / b.height) * H]; };
+  const at = (e: { clientX: number; clientY: number }) => { const b = stage.current!.getBoundingClientRect(); return { x: (e.clientX - b.left) / b.width, y: (e.clientY - b.top) / b.height }; };
+  const round = 'grid size-10 place-items-center rounded-full bg-black/35 backdrop-blur disabled:opacity-35';
   return (
     <div data-chrome className="absolute inset-0 z-30">
       {r && (
         <div className="absolute touch-none" style={{ left: r.left, top: r.top, width: r.width, height: r.height }}
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); cur.current = { brush, color, size: size * 3, p: [at(e)] }; setStrokes((s) => [...s, cur.current!]); }}
-          onPointerMove={(e) => { if (!cur.current) return; cur.current.p.push(at(e)); setStrokes((s) => [...s]); }}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setRedo([]); cur.current = { brush, colour: color, size, points: [at(e)] }; setStrokes((s) => [...s, cur.current!]); }}
+          onPointerMove={(e) => { if (!cur.current) return; cur.current.points.push(at(e)); setStrokes((s) => [...s]); }}
           onPointerUp={() => { cur.current = undefined; }} />
       )}
       <div className="absolute inset-x-3 top-3 z-10 flex items-center justify-between">
-        <button type="button" aria-label="Undo" onClick={() => setStrokes((s) => s.slice(0, -1))} disabled={!strokes.length} className="grid size-10 place-items-center rounded-full bg-black/35"><Undo2 size={20} /></button>
-        <div className="flex gap-1.5">
-          {([['pen', PenLine], ['marker', Highlighter], ['neon', Zap], ['eraser', Eraser]] as const).map(([k, Icon]) => (
-            <button key={k} type="button" aria-label={k} onClick={() => setBrush(k)} className={cn('grid size-[38px] place-items-center rounded-full', brush === k ? 'bg-white text-black' : 'bg-black/35')}><Icon size={19} /></button>
-          ))}
+        <div className="flex gap-2">
+          <button type="button" aria-label="Undo" onClick={() => setStrokes((s) => { const last = s[s.length - 1]; if (last) setRedo((x) => [...x, last]); return s.slice(0, -1); })} disabled={!strokes.length} className={round}><Undo2 size={19} /></button>
+          <button type="button" aria-label="Redo" onClick={() => { const next = redo[redo.length - 1]; if (!next) return; setRedo((x) => x.slice(0, -1)); setStrokes((s) => [...s, next]); }} disabled={!redo.length} className={round}><Redo2 size={19} /></button>
         </div>
-        <button type="button" onClick={onDone} className="px-1 text-[16px] font-bold">Done</button>
+        <button type="button" onClick={onDone} className="rounded-full bg-white px-4 py-1.5 text-[15px] font-bold text-black">Done</button>
       </div>
-      <div ref={sz} className="absolute top-24 left-3.5 z-10 h-56 w-7 touch-none" onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        const mv = (ev: { clientY: number }) => { const b = sz.current!.getBoundingClientRect(); setSize(Math.round(2 + (1 - Math.max(0, Math.min(1, (ev.clientY - b.top) / b.height))) * 38)); };
-        mv(e); e.currentTarget.onpointermove = mv; e.currentTarget.onpointerup = (ev) => { (ev.currentTarget as HTMLElement).onpointermove = null; };
-      }}>
-        <span className="absolute inset-0 rounded-sm bg-white/55 [clip-path:polygon(0_0,100%_0,58%_100%,42%_100%)]" />
-        <span className="absolute left-1/2 size-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" style={{ top: `${(1 - (size - 2) / 38) * 100}%` }} />
-      </div>
-      <div className="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2.5">
-        {DRAW_COLORS.map((c) => <button key={c} type="button" aria-label={c} onClick={() => setColor(c)} className={cn('size-7 rounded-full ring-2 ring-white transition-transform', color === c && 'scale-125')} style={{ background: c }} />)}
+      <SizeSlider size={size} colour={color} brush={brush} frameHeight={r?.height ?? 600} onChange={setSize} />
+      <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-1 px-3">
+        <BrushRow brush={brush} onChange={setBrush} />
+        <ColourRow colour={color} onChange={setColor} />
       </div>
     </div>
   );

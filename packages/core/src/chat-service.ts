@@ -88,6 +88,10 @@ export interface VideoEdit {
 export interface VideoOverlayStroke {
   colour: string;
   points: { x: number; y: number }[];
+  /** Absent on drawings made before brushes: a plain pen of the old width. */
+  brush?: 'pen' | 'marker' | 'neon' | 'chalk' | 'arrow' | 'eraser' | undefined;
+  /** Width as a fraction of the picture's shorter side. */
+  size?: number | undefined;
 }
 
 /**

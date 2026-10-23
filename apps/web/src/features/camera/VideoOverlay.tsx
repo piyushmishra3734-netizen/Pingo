@@ -1,6 +1,8 @@
 import type { VideoEdit, VideoOverlayItem, VideoOverlayStroke } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { useEffect, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+
+import { normalizeStroke, paintStrokes } from '../draw/brushes.js';
 
 /**
  * What somebody put on a video, put back at playback.
@@ -35,8 +37,6 @@ export const OVERLAY_SIZE = {
   sticker: '18cqh',
 } as const;
 
-/** Stroke width as a fraction of the picture's smaller side, so it scales. */
-export const PEN_WIDTH = 0.008;
 
 /**
  * How a turned and cropped clip is fitted into a box, in three flat numbers.
@@ -149,6 +149,26 @@ export function useContainBox(
   return box;
 }
 
+/** The drawing, painted by the same brushes the editor used, so playback matches what was made. */
+function StrokeCanvas({
+  strokes,
+  width,
+  height,
+}: {
+  strokes: VideoOverlayStroke[];
+  width: number;
+  height: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const context = ref.current?.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, width, height);
+    paintStrokes(context, strokes.map(normalizeStroke), width, height);
+  }, [strokes, width, height]);
+  return <canvas ref={ref} width={width} height={height} className="absolute inset-0 size-full" />;
+}
+
 export function VideoOverlayLayer({
   items,
   strokes = [],
@@ -180,28 +200,7 @@ export function VideoOverlayLayer({
         oval one and every line drawn on a portrait clip would come out thinner
         across than along.
       */}
-      {strokes.length > 0 && (
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          width={width}
-          height={height}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="absolute inset-0"
-        >
-          {strokes.map((stroke, index) => (
-            <polyline
-              key={index}
-              stroke={stroke.colour}
-              strokeWidth={PEN_WIDTH * Math.min(width, height)}
-              points={stroke.points
-                .map((point) => `${point.x * width},${point.y * height}`)
-                .join(' ')}
-            />
-          ))}
-        </svg>
-      )}
+      {strokes.length > 0 && <StrokeCanvas strokes={strokes} width={width} height={height} />}
 
       {items.map((item, index) => (
         <div
