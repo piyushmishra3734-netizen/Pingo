@@ -2535,7 +2535,11 @@ export class SupabaseChatService implements ChatService {
 
   async getCurrentUser(): Promise<CurrentUser> {
     const id = await this.#userId();
-    const { data } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await this.#client.from('profiles').select('*').eq('id', id).maybeSingle();
+
+    // A read that failed is not a missing profile: offline it would hand back a
+    // nameless user, which the startup snapshot then stores over the real one.
+    if (error) throw error;
 
     if (!data) {
       // Signed in without a profile - the setup flow's job, not this one's.
@@ -6690,12 +6694,15 @@ export class SupabaseChatService implements ChatService {
 
   async #listContactsOnce(): Promise<User[]> {
     const me = await this.#userId();
-    const { data } = await this.#client
+    const { data, error } = await this.#client
       .from('profiles')
       .select(USER_COLUMNS)
       .neq('id', me)
       .order('created_at', { ascending: false })
       .limit(100);
+
+    // Not an empty roster: see `getCurrentUser`. The failure is not cached either (above).
+    if (error) throw error;
 
     /*
      * Called with an explicit row, never passed straight to `.map`.

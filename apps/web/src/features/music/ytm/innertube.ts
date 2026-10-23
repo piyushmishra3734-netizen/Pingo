@@ -166,6 +166,8 @@ function fromRow(row: Json): Song | undefined {
   let secs = 0;
   for (const run of runs) {
     const text = String(run.text ?? '').trim();
+    // A podcast episode has a video id and sits among the songs in the results, but it is not one.
+    if (/^(episode|podcast)$/i.test(text)) return undefined;
     if (!text || text === '•' || /^(song|video)$/i.test(text)) continue;
     const browse: string = run.navigationEndpoint?.browseEndpoint?.browseId ?? '';
     if (/^\d+:\d{2}(:\d{2})?$/.test(text)) secs = seconds(text);
@@ -175,6 +177,27 @@ function fromRow(row: Json): Song | undefined {
   const fixed = cols.length > 2 ? runsText(row.fixedColumns?.[0]?.musicResponsiveListItemFixedColumnRenderer?.text) : '';
   if (!secs && fixed) secs = seconds(fixed);
   return song(videoId, title, artists, album, secs, lastThumb(row.thumbnail?.musicThumbnailRenderer?.thumbnail));
+}
+
+/** The "Top result" card of a search: a song or a video, or undefined when it is an artist, an album or a playlist. */
+function fromCard(card: Json): Song | undefined {
+  const runs = (card.subtitle?.runs as Json[] | undefined) ?? [];
+  if (!/^(song|video)$/i.test(String(runs[0]?.text ?? '').trim())) return undefined;
+  const videoId: string | undefined = collect(card.title, 'watchEndpoint')[0]?.videoId ?? collect(card.onTap, 'watchEndpoint')[0]?.videoId;
+  const title = runsText(card.title);
+  if (!videoId || !title) return undefined;
+  const artists: Artist[] = [];
+  let album = '';
+  let secs = 0;
+  for (const run of runs.slice(1)) {
+    const text = String(run.text ?? '').trim();
+    if (!text || text === '•') continue;
+    const browse: string = run.navigationEndpoint?.browseEndpoint?.browseId ?? '';
+    if (/^\d+:\d{2}(:\d{2})?$/.test(text)) secs = seconds(text);
+    else if (browse.startsWith('MPRE')) album = text;
+    else if (browse.startsWith('UC') || (!browse && !artists.length && !album)) artists.push(artistOf(text, browse));
+  }
+  return song(videoId, title, artists, album, secs, lastThumb(card.thumbnail?.musicThumbnailRenderer?.thumbnail));
 }
 
 /** An "up next" entry. */
@@ -199,18 +222,53 @@ function fromPanel(p: Json): Song | undefined {
 
 const SONGS_ONLY = 'EgWKAQIIAWoKEAMQBBAJEAoQBQ==';
 
+/**
+ * What YouTube Music's own search box shows, then its songs list after it.
+ *
+ * The songs-only filter used to be the whole answer, and it hides everything
+ * YouTube Music files as a video or an upload: bass-boosted and instrumental
+ * versions, live takes, fan edits. Typing "jeene laga hoon" in YouTube Music
+ * lists those near the top; here they never appeared. The unfiltered search is
+ * what the app itself shows, so it goes first and keeps its order exactly (the
+ * "Top result" card, then its own lists): nothing here reorders it, so the same
+ * words give the same first song as YouTube Music. The songs filter follows to
+ * add whatever the first page left out. One of the two failing is not a failed
+ * search.
+ */
 export async function searchSongs(query: string): Promise<Song[]> {
-  const res = await music('search', { query, params: SONGS_ONLY });
+  const [mixed, songs] = await Promise.allSettled([
+    music('search', { query }),
+    music('search', { query, params: SONGS_ONLY }),
+  ]);
   const out: Song[] = [];
   const seen = new Set<string>();
-  for (const row of collect(res, 'musicResponsiveListItemRenderer')) {
-    const s = fromRow(row);
+  const add = (s: Song | undefined) => {
     if (s && !seen.has(s.id)) {
       seen.add(s.id);
       out.push(s);
     }
+  };
+  // The "Top result" card first: it is what YouTube Music itself puts on top, and it is not a list row.
+  // Its own side panel ("More from YouTube": slowed, lo-fi and fan uploads) is made of list rows too,
+  // but the app shows it beside the card and not in the list, so those rows wait until the end here.
+  const aside: Json[] = [];
+  if (mixed.status === 'fulfilled') {
+    for (const card of collect(mixed.value, 'musicCardShelfRenderer')) {
+      add(fromCard(card));
+      aside.push(...collect(card.contents, 'musicResponsiveListItemRenderer'));
+    }
   }
-  if (!out.length) throw new YtmError('Nothing found');
+  for (const res of [mixed, songs]) {
+    if (res.status !== 'fulfilled') continue;
+    for (const row of collect(res.value, 'musicResponsiveListItemRenderer')) {
+      if (!aside.includes(row)) add(fromRow(row));
+    }
+  }
+  for (const row of aside) add(fromRow(row));
+  if (!out.length) {
+    const failed = [mixed, songs].find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    throw failed?.reason instanceof Error ? failed.reason : new YtmError('Nothing found');
+  }
   return out;
 }
 
@@ -346,6 +404,7 @@ export const isBotCheck = (reason: string): boolean =>
 /** Turn one player answer into the `Stream` slots the app already chooses from. */
 function formatsToStream(res: Json): Stream | null {
   const formats = (res.streamingData?.adaptiveFormats as Json[] | undefined) ?? [];
+
   const url = (itag: number) => formats.find((f) => f.itag === itag && typeof f.url === 'string')?.url as string | undefined;
 
   const stream: Stream = {};

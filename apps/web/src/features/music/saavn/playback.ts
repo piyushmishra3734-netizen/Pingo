@@ -79,7 +79,10 @@ async function playCurrent() {
   const full = await withStream(cur);
   const url = api.streamUrl(full, quality());
   if (!url) {
-    // Not streamable (rights): skip it rather than stop the music.
+    // Not streamable (rights, or YouTube would not hand it over): skip it rather than stop the music.
+    // Said out loud: a song that vanishes from the queue with no word looks like the app jumping
+    // ahead on its own, which is how "Jeene Laga Hoon" turned into "Tum Se Hi".
+    ytmNotice(Q.atEnd(queue) ? `Could not play "${cur.name}"` : `Could not play "${cur.name}", skipping`);
     if (!Q.atEnd(queue)) {
       setQueue(Q.next(queue));
       void playCurrent();
@@ -97,11 +100,21 @@ async function playCurrent() {
 /** The next song's address, looked up ahead so it starts the moment this one ends. */
 function prefetchNext() {
   const next = Q.upcoming(queue, 1)[0];
-  if (!next || downloads.isDownloaded(next.id) || api.streamUrl(next, quality())) return;
-  // A YouTube Music song's address is asked for on the phone; looking it up now is what lets the
-  // next one start the instant this ends, even with the screen off and nobody touching anything.
-  if (yt.isYtId(next.id)) void api.song(next.id).catch(() => undefined);
-  else api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
+  if (!next || downloads.isDownloaded(next.id)) return;
+  const known = api.streamUrl(next, quality());
+  if (known) {
+    // Its address is in hand: have the first of it waiting too.
+    musicPlayer.preload(known);
+    return;
+  }
+  if (yt.isYtId(next.id)) {
+    // YouTube Music: look the address up now (it is kept for an hour), then read ahead.
+    void api.warmStream(next.id, quality()).then((url) => {
+      if (url && Q.upcoming(queue, 1)[0]?.id === next.id) musicPlayer.preload(url);
+    });
+    return;
+  }
+  api.prefetch(`/songs/${encodeURIComponent(next.id)}`);
 }
 
 /**
