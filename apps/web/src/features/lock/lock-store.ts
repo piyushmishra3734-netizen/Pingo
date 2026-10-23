@@ -241,3 +241,35 @@ export async function clearPin(): Promise<void> {
   write(tryKey(uid), undefined);
   relock();
 }
+
+// ------------------------------------------------- resetting a forgotten PIN
+
+/**
+ * Forgetting the PIN is answered by proving it is you again, not by signing out.
+ * Two ways in: a code to the account's phone, or Google. Google leaves the page
+ * and comes back, so what is remembered across that trip is only the time the
+ * person started; coming back counts as proof when the account says it signed in
+ * after that moment.
+ */
+const resetKey = (uid: string) => `pingo:lock:reset:${uid}`;
+const RESET_WINDOW_MS = 20 * 60_000;
+
+export async function markResetStarted(): Promise<void> {
+  const uid = await me();
+  if (uid) write(resetKey(uid), { at: Date.now() });
+}
+
+/** True when the person left to sign in with Google a moment ago and has now come back signed in. */
+export async function resetVerifiedByReturn(): Promise<boolean> {
+  const uid = await me();
+  const started = uid ? read<{ at: number }>(resetKey(uid)) : undefined;
+  if (!uid || !started || Date.now() - started.at > RESET_WINDOW_MS) return false;
+  const { data } = await getSupabaseClient().auth.getUser();
+  const signedInAt = data.user?.last_sign_in_at ? Date.parse(data.user.last_sign_in_at) : 0;
+  return signedInAt >= started.at - 5_000;
+}
+
+export async function clearResetStarted(): Promise<void> {
+  const uid = await me();
+  if (uid) write(resetKey(uid), undefined);
+}

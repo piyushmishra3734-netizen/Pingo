@@ -1,11 +1,10 @@
-import { useAuth } from '@pingo/core';
 import { cn } from '@pingo/ui';
 import { Delete, Lock, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { useConfirm } from '../../components/ConfirmProvider.js';
-import { checkPin, clearPin, createPin, hasPin, PIN_LENGTH, pinWait, resetLocks, unlockSession } from './lock-store.js';
+import { ResetPin } from './ResetPin.js';
+import { checkPin, clearResetStarted, createPin, hasPin, PIN_LENGTH, pinWait, resetVerifiedByReturn, unlockSession } from './lock-store.js';
 
 /**
  * The PIN pad that stands in front of locked chats.
@@ -18,23 +17,29 @@ import { checkPin, clearPin, createPin, hasPin, PIN_LENGTH, pinWait, resetLocks,
  * for next time.
  */
 
-type Phase = 'checking' | 'verify' | 'create' | 'confirm';
+type Phase = 'checking' | 'verify' | 'reset' | 'create' | 'confirm';
 
 export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
-  const { signOut } = useAuth();
-  const confirm = useConfirm();
   const [phase, setPhase] = useState<Phase>('checking');
   const [digits, setDigits] = useState('');
   const [first, setFirst] = useState('');
   const [error, setError] = useState<string>();
   const [shake, setShake] = useState(false);
   const [wait, setWait] = useState(0);
+  // Past a successful reset check: the new PIN replaces the old one.
+  const [resetting, setResetting] = useState(false);
   const busy = useRef(false);
 
   useEffect(() => {
     let live = true;
-    void Promise.all([hasPin(), pinWait()]).then(([has, w]) => {
+    void Promise.all([hasPin(), pinWait(), resetVerifiedByReturn()]).then(([has, w, back]) => {
       if (!live) return;
+      // Came back from Google a moment after asking to reset: that was the check.
+      if (back && has) {
+        setResetting(true);
+        setPhase('create');
+        return;
+      }
       setPhase(has ? 'verify' : 'create');
       setWait(w);
     });
@@ -79,6 +84,7 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
             return;
           }
           await createPin(pin);
+          void clearResetStarted();
           unlockSession();
           onSuccess();
           return;
@@ -100,7 +106,7 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
 
   const press = useCallback(
     (d: string) => {
-      if (phase === 'checking' || wait > 0 || shake) return;
+      if (phase === 'checking' || phase === 'reset' || wait > 0 || shake) return;
       setError(undefined);
       navigator.vibrate?.(8);
       setDigits((cur) => {
@@ -117,30 +123,24 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
   // A keyboard on a laptop.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (phase === 'reset') {
+        if (e.key === 'Escape') onCancel();
+        return;
+      }
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') back();
       else if (e.key === 'Escape') onCancel();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [press, back, onCancel]);
+  }, [press, back, onCancel, phase]);
 
-  const forgot = async () => {
-    const go = await confirm({
-      title: 'Forgot your PIN?',
-      description: 'You will be signed out. Sign in again and you can make a new PIN. Your locked chats stay locked.',
-      confirmLabel: 'Sign out',
-    });
-    if (!go) return;
-    await clearPin();
-    resetLocks();
-    await signOut();
-  };
-
-  const title = phase === 'create' ? 'Create a PIN' : phase === 'confirm' ? 'Confirm your PIN' : 'Enter your PIN';
+  const title = phase === 'create' ? (resetting ? 'Make a new PIN' : 'Create a PIN') : phase === 'confirm' ? 'Confirm your PIN' : 'Enter your PIN';
   const sub =
     phase === 'create'
-      ? 'This PIN opens your locked chats on this device.'
+      ? resetting
+        ? 'You are verified. Your locked chats are still locked.'
+        : 'This PIN opens your locked chats on this device.'
       : phase === 'confirm'
         ? 'Type it once more.'
         : 'To open your locked chats.';
@@ -153,6 +153,16 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
         </button>
       </div>
 
+      {phase === 'reset' ? (
+        <ResetPin
+          onVerified={() => {
+            setResetting(true);
+            setDigits('');
+            setPhase('create');
+          }}
+          onBack={() => setPhase('verify')}
+        />
+      ) : (
       <div className="mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <span className="grid size-16 place-items-center rounded-full bg-hover text-ink">
           <Lock size={26} strokeWidth={1.8} aria-hidden />
@@ -196,11 +206,12 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
         </div>
 
         {phase === 'verify' && (
-          <button type="button" onClick={() => void forgot()} className="mt-5 rounded-full px-3 py-1.5 text-[14px] font-medium text-brand hover:bg-hover focus-ring">
+          <button type="button" onClick={() => setPhase('reset')} className="mt-5 rounded-full px-3 py-1.5 text-[14px] font-medium text-brand hover:bg-hover focus-ring">
             Forgot PIN?
           </button>
         )}
       </div>
+      )}
     </div>,
     document.body,
   );
