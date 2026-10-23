@@ -99,7 +99,7 @@ import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper
 import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
-import { isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
+import { chatMediaOnR2, isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
 import { mediaTooLarge, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
@@ -4125,16 +4125,17 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
 
     /*
-     * Cloudflare R2 first: reading it costs no egress, and the bytes of every
-     * photo, voice note, document and video somebody opens are most of what
-     * this app sends. The Worker names the file, so the claim is written after
+     * Cloudflare R2 first, once it is switched on (`chatMediaOnR2`: an app that
+     * predates R2 cannot read these, so it is on only when enough can). Reading
+     * it costs no egress, and the bytes of every photo, voice note, document and
+     * video somebody opens are most of what this app sends. The Worker names the file, so the claim is written after
      * the upload rather than before; the gap is the same orphan the claim exists
      * for, and a crash inside it is the only way to lose track of one. If the
      * Worker cannot take the file - it is down, or refuses it - Supabase does,
      * exactly as before.
      */
     const r2Kind = R2_KIND[bucket];
-    const onR2 = r2Kind ? await r2Upload(r2Kind, body, contentType) : null;
+    const onR2 = r2Kind && (await chatMediaOnR2()) ? await r2Upload(r2Kind, body, contentType) : null;
     if (onR2) {
       await Promise.resolve(uploadClaims(this.#client).insert({ path: onR2.path, bucket, user_id: me })).then(
         undefined,

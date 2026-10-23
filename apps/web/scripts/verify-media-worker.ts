@@ -70,6 +70,9 @@ const MEDIA = {
 const memberOf: Record<string, Set<string>> = { [FRIEND]: new Set(), [STRANGER]: new Set(), [ME]: new Set() };
 const rpcCalls: string[] = [];
 let failRpc = false;
+/** What `take_media_quota` answers; `'missing'` is a database that does not have it yet. */
+let quota: boolean | 'missing' = true;
+const budgetAsked: number[] = [];
 
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
@@ -86,6 +89,10 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (rpc === 'visible_chat_media') {
       // The rule: your own folder, or a path a message you can see names.
       return Response.json(asked.filter((p) => p.split('/')[1] === who || memberOf[who!]?.has(p)));
+    }
+    if (rpc === 'take_media_quota') {
+      budgetAsked.push((JSON.parse(String(init?.body)) as { p_bytes: number }).p_bytes);
+      return quota === 'missing' ? new Response('no such function', { status: 404 }) : Response.json(quota);
     }
     if (rpc === 'visible_media') return Response.json(asked.filter((p) => p.split('/')[1] === who));
   }
@@ -191,6 +198,29 @@ await check('the size limits are the ones the app refuses at', async () => {
 await check('signed-out uploads are refused', async () => {
   const res = await call('/upload?kind=photo&type=image%2Fpng', { method: 'POST', body: png as unknown as BodyInit });
   assert.equal(res.status, 401);
+});
+
+// ---- the daily budget -------------------------------------------------------
+await check('an upload takes its size from the daily budget of whoever sends it', async () => {
+  budgetAsked.length = 0;
+  assert.equal((await upload(ME, 'photo', 'image/png', png)).status, 201);
+  assert.deepEqual(budgetAsked, [png.length]);
+});
+
+await check('an upload over the budget is refused and stores nothing', async () => {
+  const before = bucket.size;
+  quota = false;
+  const res = await upload(ME, 'photo', 'image/png', png);
+  quota = true;
+  assert.equal(res.status, 429);
+  assert.equal(bucket.size, before);
+});
+
+await check('a database without the budget function does not stop an upload', async () => {
+  quota = 'missing';
+  const res = await upload(ME, 'photo', 'image/png', png);
+  quota = true;
+  assert.equal(res.status, 201);
 });
 
 // ---- who is handed a link ----------------------------------------------------
@@ -323,6 +353,25 @@ await check('the assistant gets a link only with the purge key, for chat media o
   assert.ok(ok.expiresAt <= Date.now() + 601_000 && ok.expiresAt > Date.now() + 500_000);
   const link = new URL(ok.urls[up.path]!);
   assert.deepEqual(new Uint8Array(await (await call(link.pathname + link.search)).arrayBuffer()), png);
+});
+
+// ---- moving what was on Supabase before R2 ---------------------------------
+await check('an old face can be imported with the purge key, and is then public and immutable', async () => {
+  const imp = (key: string | null, qs: string) =>
+    call(`/internal/import?${qs}`, { method: 'POST', headers: key ? { 'x-purge-key': key } : {}, body: png as unknown as BodyInit });
+  const q = `kind=avatar&user=${FRIEND}&type=image%2Fpng`;
+  assert.notEqual((await imp(null, q)).status, 201, 'no key, no import');
+  assert.equal((await imp('nope', q)).status, 401);
+  assert.equal((await imp('purge-secret', `kind=photo&user=${FRIEND}&type=image%2Fpng`)).status, 400, 'a chat photo is not importable');
+  assert.equal((await imp('purge-secret', 'kind=avatar&user=nobody&type=image%2Fpng')).status, 400);
+  const res = await imp('purge-secret', q);
+  assert.equal(res.status, 201);
+  const { url } = (await res.json()) as { url: string };
+  assert.ok(url.startsWith(`${ORIGIN}/p/avatar/${FRIEND}/`));
+  const got = await call(new URL(url).pathname);
+  assert.equal(got.status, 200);
+  assert.deepEqual(new Uint8Array(await got.arrayBuffer()), png);
+  assert.equal(got.headers.get('cache-control'), 'public, max-age=31536000, immutable');
 });
 
 console.log(`\nAll ${checks} media-worker checks passed.`);

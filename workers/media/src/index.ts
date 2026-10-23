@@ -206,6 +206,29 @@ export default {
       return json({ urls, expiresAt: expires * 1000 });
     }
 
+    /*
+     * Moves a face or a cover that is already somebody's into R2, for the one-off
+     * copy of what was on Supabase before R2 existed. Public kinds only, to a
+     * user id given by the caller, with the purge key: it is how a file gets
+     * here without that person being signed in, so nothing else may reach it.
+     */
+    if (path === '/internal/import' && request.method === 'POST' && request.headers.has('x-purge-key')) {
+      if (!env.PURGE_KEY || !sameSecret(request.headers.get('x-purge-key') ?? '', env.PURGE_KEY)) return fail(401, 'Not allowed');
+      const kind = url.searchParams.get('kind') ?? '';
+      const owner = url.searchParams.get('user') ?? '';
+      const type = (url.searchParams.get('type') ?? '').toLowerCase().split(';')[0]!.trim();
+      const ext = EXTENSIONS[type];
+      if (!PUBLIC_KINDS.has(kind) || !/^[0-9a-f-]{36}$/i.test(owner) || !ext || !type.startsWith('image/')) return fail(400, 'Bad request');
+      const whole = await request.arrayBuffer();
+      if (whole.byteLength === 0 || whole.byteLength > MAX_BYTES.image!) return fail(413, 'Bad size');
+      const file = `${crypto.randomUUID().replace(/-/g, '')}.${ext}`;
+      await env.MEDIA.put(`media/${kind}/${owner}/${file}`, whole, {
+        httpMetadata: { contentType: type, cacheControl: 'public, max-age=31536000, immutable' },
+        customMetadata: { owner },
+      });
+      return json({ url: `${url.origin}/p/${kind}/${owner}/${file}` }, 201);
+    }
+
     // ---- everything else is somebody signed in ----------------------------------
     const user = await whoIs(request, env);
     if (!user) return fail(401, 'Sign in to PINGO first.');
@@ -254,6 +277,17 @@ export default {
         if (whole.byteLength === 0) return fail(400, 'That file is empty.');
         if (whole.byteLength > max) return fail(413, 'That file is too big.');
         body = whole;
+      }
+
+      /*
+       * A person's daily budget, taken before a byte is stored. R2 has no limits
+       * of its own, so without this any signed-in account could upload without
+       * end. Only a clear "no" stops it: a database that cannot be reached, or
+       * one that does not have the function yet, must not stop somebody sending
+       * a photograph.
+       */
+      if (!(await withinBudget(request, env, body instanceof ArrayBuffer ? body.byteLength : declared))) {
+        return fail(429, 'That is more than PINGO can take from you today. Try again tomorrow.');
       }
 
       const id = crypto.randomUUID().replace(/-/g, '');
@@ -325,6 +359,24 @@ export default {
     return fail(404, 'Not found');
   },
 };
+
+async function withinBudget(request: Request, env: Env, bytes: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/take_media_quota`, {
+      method: 'POST',
+      headers: {
+        authorization: request.headers.get('authorization')!,
+        apikey: env.SUPABASE_ANON_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ p_bytes: bytes }),
+    });
+    if (!res.ok) return true;
+    return (await res.json().catch(() => true)) !== false;
+  } catch {
+    return true;
+  }
+}
 
 async function deleteAll(env: Env, paths: string[]): Promise<void> {
   const keys = paths.map((p) => `media/${p.slice(3)}`);
