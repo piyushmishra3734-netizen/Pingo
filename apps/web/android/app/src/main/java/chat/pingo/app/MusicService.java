@@ -53,9 +53,10 @@ public class MusicService extends Service {
      * Where a plain (non-media-style) player is posted. A channel's importance cannot be
      * raised once it exists, and "music" is LOW, which sorts a notification into the
      * silent section at the very bottom of the shade, under everything else. This one
-     * is DEFAULT without sound or vibration: the same quiet player, near the top.
+     * is HIGH without sound or vibration: the same quiet player, in the section of the
+     * shade that sorts first (a DEFAULT one was found, but under a stack of promotions).
      */
-    static final String CHANNEL_NOW = "music_now";
+    static final String CHANNEL_NOW = "music_player";
     static final int NOTIFICATION_ID = 7301;
 
     static final String ACTION_UPDATE = "chat.pingo.app.music.UPDATE";
@@ -381,7 +382,7 @@ public class MusicService extends Service {
         channel.setShowBadge(false);
         manager().createNotificationChannel(channel);
 
-        NotificationChannel now = new NotificationChannel(CHANNEL_NOW, "Now playing", NotificationManager.IMPORTANCE_DEFAULT);
+        NotificationChannel now = new NotificationChannel(CHANNEL_NOW, "Now playing", NotificationManager.IMPORTANCE_HIGH);
         now.setDescription("The song playing in PINGO, with its controls");
         now.setShowBadge(false);
         now.setSound(null, null);
