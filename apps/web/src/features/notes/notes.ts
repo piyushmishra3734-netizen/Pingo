@@ -72,7 +72,7 @@ const publish = (next: State) => {
 /** The demo has no server: a couple of notes, and yours kept in memory. */
 const DEMO_FEED: Note[] = [
   { userId: 'u-baani', username: 'baani', name: 'Baani', avatarUrl: undefined, body: 'chai > coffee, fight me', song: undefined, audience: 'friends', createdAt: Date.now() - 3_600_000, expiresAt: Date.now() + 20 * 3_600_000 },
-  { userId: 'u-rohit', username: 'rohit', name: 'Rohit', avatarUrl: undefined, body: 'Sunday reset', song: { name: 'Raataan Lambiyan', artist: 'Jubin Nautiyal', img: '', url: '', secs: 230 }, audience: 'friends', createdAt: Date.now() - 7_200_000, expiresAt: Date.now() + 18 * 3_600_000 },
+  { userId: 'u-rohit', username: 'rohit', name: 'Rohit', avatarUrl: undefined, body: 'Sunday reset, long walk, no phone, only chai', song: { name: 'Raataan Lambiyan', artist: 'Jubin Nautiyal', img: '', url: '', secs: 230 }, audience: 'friends', createdAt: Date.now() - 7_200_000, expiresAt: Date.now() + 18 * 3_600_000 },
 ];
 
 export async function refreshNotes(): Promise<void> {

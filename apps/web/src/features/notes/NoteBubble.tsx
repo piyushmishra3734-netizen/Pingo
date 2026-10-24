@@ -51,7 +51,7 @@ export function NoteBubble({
                 <span className="truncate">{note.song.name}</span>
               </span>
             )}
-            {note.body && <span className="line-clamp-3 break-words">{note.body}</span>}
+            {note.body && <span className={cn('break-words', note.song ? 'line-clamp-2' : 'line-clamp-3')}>{note.body}</span>}
           </>
         ) : (
           <span>Note...</span>
