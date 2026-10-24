@@ -108,7 +108,13 @@ const DEMO_FEED: Note[] = [
   { userId: 'u-rohit', username: 'rohit', name: 'Rohit', avatarUrl: undefined, body: 'Sunday reset, long walk, no phone, only chai', song: { name: 'Raataan Lambiyan', artist: 'Jubin Nautiyal', img: '', url: '', secs: 230 }, audience: 'friends', bg: 'default', createdAt: Date.now() - 7_200_000, expiresAt: Date.now() + 18 * 3_600_000 },
 ];
 
-export async function refreshNotes(): Promise<void> {
+/** Notes change slowly; going back to Chats must not ask for them again every time. */
+const FRESH_MS = 30_000;
+let refreshedAt = 0;
+
+export async function refreshNotes(force = false): Promise<void> {
+  if (!force && Date.now() - refreshedAt < FRESH_MS) return;
+  refreshedAt = Date.now();
   if (demoOn()) {
     if (state.feed.length === 0) publish({ ...state, feed: DEMO_FEED });
     return;
@@ -136,7 +142,7 @@ export async function saveNote(input: { body: string; song: ProfileSong | undefi
   }
   const { error } = await db().rpc('note_set', { p_body: body, p_song: input.song ?? null, p_audience: input.audience, p_bg: input.bg });
   if (error) return error.message;
-  await refreshNotes();
+  await refreshNotes(true);
   return undefined;
 }
 
@@ -178,5 +184,6 @@ export function dropExpired(): void {
 
 /** Signing out must not leave the last person's notes on screen. */
 export function resetNotes(): void {
+  refreshedAt = 0;
   publish({ mine: undefined, feed: [] });
 }
