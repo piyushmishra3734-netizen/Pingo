@@ -18,17 +18,26 @@ const BRUSHES: { id: Brush; label: string; icon: ReactNode }[] = [
 ];
 
 /** One frosted tray holding the brushes and colours, with the active brush named above it. */
-export function DrawDock({ brush, children }: { brush: Brush; children: ReactNode }) {
+export function DrawDock({ brush, soft = false, children }: { brush: Brush; soft?: boolean; children: ReactNode }) {
   const name = BRUSHES.find((item) => item.id === brush)?.label ?? '';
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-1 rounded-[26px] border border-white/12 bg-black/45 px-2 pt-1.5 pb-2 shadow-[0_10px_30px_-12px_rgb(0_0_0/0.7)] backdrop-blur-xl">
+    <div
+      className={cn(
+        'mx-auto flex w-full max-w-sm flex-col items-center gap-1 rounded-[26px] border px-2 pt-1.5 pb-2 backdrop-blur-xl',
+        // `soft` follows the app's theme, for drawing over a conversation; the
+        // photo editors sit on a picture and stay dark.
+        soft
+          ? 'border-line bg-surface/85 shadow-[0_10px_30px_-14px_rgb(16_17_20/0.35)]'
+          : 'border-white/12 bg-black/45 shadow-[0_10px_30px_-12px_rgb(0_0_0/0.7)]',
+      )}
+    >
       <span className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">{name}</span>
       {children}
     </div>
   );
 }
 
-export function BrushRow({ brush, onChange }: { brush: Brush; onChange: (brush: Brush) => void }) {
+export function BrushRow({ brush, soft = false, onChange }: { brush: Brush; soft?: boolean; onChange: (brush: Brush) => void }) {
   return (
     <div role="radiogroup" aria-label="Brush" className="flex items-center justify-center gap-1">
       {BRUSHES.map((item) => (
@@ -42,7 +51,7 @@ export function BrushRow({ brush, onChange }: { brush: Brush; onChange: (brush: 
           className={cn(
             'focus-ring flex size-10 items-center justify-center rounded-full active:scale-90',
             'transition-[background-color,color,transform] duration-150 ease-standard',
-            brush === item.id ? 'bg-brand text-on-brand shadow-[0_4px_14px_-4px_var(--color-brand)]' : 'text-white/70 hover:bg-white/10',
+            brush === item.id ? 'bg-brand text-on-brand shadow-[0_4px_14px_-4px_var(--color-brand)]' : soft ? 'text-text-secondary hover:bg-sunken' : 'text-white/70 hover:bg-white/10',
           )}
         >
           {item.icon}
@@ -53,15 +62,17 @@ export function BrushRow({ brush, onChange }: { brush: Brush; onChange: (brush: 
 }
 
 /** Rainbow dial for any colour, ending the limit of ten swatches. */
-export function ColourRow({ colour, onChange }: { colour: string; onChange: (colour: string) => void }) {
+export function ColourRow({ colour, soft = false, onChange }: { colour: string; soft?: boolean; onChange: (colour: string) => void }) {
+  const ring = soft ? 'ring-text-primary ring-offset-surface' : 'ring-white ring-offset-ink';
+  const idle = soft ? 'ring-1 ring-line' : 'ring-1 ring-white/20';
   const custom = !SWATCHES.includes(colour);
   return (
     <div className="scrollbar-none flex items-center justify-center gap-2 overflow-x-auto px-1 py-1">
       <label
         aria-label="Custom colour"
         className={cn(
-          'focus-within:ring-2 relative size-6 shrink-0 cursor-pointer overflow-hidden rounded-full ring-white',
-          custom ? 'ring-[1.5px] ring-offset-1 ring-offset-ink' : 'ring-1 ring-white/20',
+          'focus-within:ring-2 relative size-6 shrink-0 cursor-pointer overflow-hidden rounded-full',
+          custom ? `ring-[1.5px] ring-offset-1 ${ring}` : idle,
         )}
         style={{
           background: custom
@@ -86,7 +97,7 @@ export function ColourRow({ colour, onChange }: { colour: string; onChange: (col
           style={{ backgroundColor: swatch }}
           className={cn(
             'focus-ring size-6 shrink-0 rounded-full transition-[box-shadow] duration-150 ease-standard',
-            colour === swatch ? 'ring-[1.5px] ring-white ring-offset-1 ring-offset-ink' : 'ring-1 ring-white/20',
+            colour === swatch ? `ring-[1.5px] ring-offset-1 ${ring}` : idle,
           )}
         />
       ))}
@@ -103,6 +114,7 @@ export function SizeSlider({
   colour,
   brush,
   frameHeight,
+  soft = false,
   onChange,
 }: {
   size: number;
@@ -110,6 +122,7 @@ export function SizeSlider({
   brush: Brush;
   /** Height in px of the picture, to turn a width fraction into a preview dot. */
   frameHeight: number;
+  soft?: boolean;
   onChange: (size: number) => void;
 }) {
   const track = useRef<HTMLDivElement>(null);
@@ -150,7 +163,7 @@ export function SizeSlider({
       >
         {/* The taper: a wedge, wide at the top. */}
         <div
-          className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 bg-white/40"
+          className={cn('absolute inset-y-0 left-1/2 w-3 -translate-x-1/2', soft ? 'bg-text-tertiary' : 'bg-white/40')}
           style={{ clipPath: 'polygon(0 100%, 100% 100%, 100% 0%, 0 55%)', borderRadius: 6 }}
         />
         <div
@@ -160,7 +173,7 @@ export function SizeSlider({
       </div>
       <div
         aria-hidden
-        className="flex size-12 items-center justify-center rounded-full bg-black/35 backdrop-blur"
+        className={cn('flex size-12 items-center justify-center rounded-full backdrop-blur', soft ? 'bg-surface/85 ring-1 ring-line' : 'bg-black/35')}
       >
         <span
           className="rounded-full"

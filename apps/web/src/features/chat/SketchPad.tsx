@@ -120,11 +120,11 @@ export function SketchPad({ content, onCancel, onDone }: { content: HTMLElement 
     return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
   };
 
-  const round = 'grid size-10 place-items-center rounded-full bg-black/45 text-white backdrop-blur disabled:opacity-35';
+  const round = 'grid size-10 place-items-center rounded-full bg-surface/85 text-text-primary ring-1 ring-line backdrop-blur disabled:opacity-35';
 
   return (
     <Overlay onDismiss={onCancel}>
-      <div className="fixed inset-0 z-500 bg-black/35 backdrop-blur-[1px]">
+      <div className="fixed inset-0 z-500 bg-surface/30">
         <div
           ref={surface}
           className="absolute inset-0 touch-none"
@@ -197,11 +197,11 @@ export function SketchPad({ content, onCancel, onDone }: { content: HTMLElement 
           </button>
         </div>
 
-        <SizeSlider size={size} colour={colour} brush={brush} frameHeight={box.h || 600} onChange={setSize} />
+        <SizeSlider soft size={size} colour={colour} brush={brush} frameHeight={box.h || 600} onChange={setSize} />
         <div className="absolute inset-x-0 bottom-4 z-10 px-3 pb-[env(safe-area-inset-bottom)]">
-          <DrawDock brush={brush}>
-            <BrushRow brush={brush} onChange={setBrush} />
-            <ColourRow colour={colour} onChange={setColour} />
+          <DrawDock soft brush={brush}>
+            <BrushRow soft brush={brush} onChange={setBrush} />
+            <ColourRow soft colour={colour} onChange={setColour} />
           </DrawDock>
         </div>
       </div>
