@@ -77,23 +77,23 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
               </div>
             </section>
           )}
-          {onNote && (
-            <button
-              type="button"
-              onClick={onNote}
-              className="mx-3.5 mb-2.5 flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.05] px-3.5 py-3 text-left transition-colors active:bg-white/10"
-            >
-              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 [&>svg]:size-[18px]"><PenLine /></span>
-              <span className="min-w-0">
-                <span className="block text-[14.5px] font-semibold">Note</span>
-                <span className="block text-[12.5px] text-white/60">A thought, a mood or a song</span>
-              </span>
-            </button>
-          )}
           <div className="scrollbar-none grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-0.5 overflow-y-auto">
             {/* Named, not just drawn: two dark tiles with a glyph each read as something still loading. */}
             <button type="button" onClick={onCamera} className="flex aspect-[9/16] flex-col items-center justify-center gap-2 bg-media-sheet text-[13px] font-semibold active:bg-white/10 [&>svg]:size-[30px]"><Camera />Camera</button>
             <button type="button" onClick={onGallery} className="flex aspect-[9/16] flex-col items-center justify-center gap-2 bg-media-sheet text-[13px] font-semibold active:bg-white/10 [&>svg]:size-[30px]"><Images />Your photos</button>
+            {onNote && (
+              <button
+                type="button"
+                onClick={onNote}
+                className="col-span-3 mx-3 my-2.5 flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.05] px-3.5 py-3 text-left transition-colors active:bg-white/10"
+              >
+                <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 [&>svg]:size-[18px]"><PenLine /></span>
+                <span className="min-w-0">
+                  <span className="block text-[14.5px] font-semibold">Note</span>
+                  <span className="block text-[12.5px] text-white/60">A thought, a mood or a song</span>
+                </span>
+              </button>
+            )}
             {photos.length === 0 && (
               /*
                * Without this the rest of the screen was plain black, which looks
