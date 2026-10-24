@@ -264,10 +264,7 @@ export function ProfileScreen() {
     }
 
     if (isSelf) {
-      void profiles
-        .listChatMedia()
-        .then((next) => { if (active) setMedia(next); })
-        .catch(() => { if (active) setMedia([]); });
+      // The Media tab's photos are read when that tab is opened (below), not on every visit.
     } else {
       void profiles
         .sharedWith(personId)
@@ -289,6 +286,23 @@ export function ProfileScreen() {
       active = false;
     };
   }, [profiles, personId, isSelf, mine?.id]);
+
+  /*
+   * Your shared photos: sixty of them to find and sign, for a tab most visits
+   * never open. They were read on every visit to this screen; now when the tab is
+   * opened, once.
+   */
+  useEffect(() => {
+    if (!isSelf || tab !== 'media' || media !== undefined) return;
+    let active = true;
+    void profiles
+      .listChatMedia()
+      .then((next) => { if (active) setMedia(next); })
+      .catch(() => { if (active) setMedia([]); });
+    return () => {
+      active = false;
+    };
+  }, [profiles, isSelf, tab, media]);
 
   const reload = useCallback(() => {
     if (!personId) return;
