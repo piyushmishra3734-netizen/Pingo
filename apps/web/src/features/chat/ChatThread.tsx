@@ -104,6 +104,7 @@ import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
 import { queueMedia } from './media-outbox.js';
+import { DrawingLayer } from './DrawingLayer.js';
 import { PendingMedia } from './PendingMedia.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
@@ -360,7 +361,7 @@ export function ChatThread({
   const {
     messages,
     receipts,
-    groups,
+    groups: allGroups,
     loading,
     loadingOlder,
     hasOlder,
@@ -368,6 +369,11 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
+  // Drawings are laid over the thread (`DrawingLayer`), not set in its flow.
+  const groups = useMemo(
+    () => allGroups.map((group) => group.filter((m) => !m.photo?.drawing)).filter((group) => group.length > 0),
+    [allGroups],
+  );
   /*
    * Only the newest messages are drawn: 40, and 40 more each time the reader
    * reaches the top. A long thread used to put every bubble it had loaded on
@@ -1820,7 +1826,7 @@ export function ChatThread({
           <div
             ref={contentRef}
             className={cn(
-              'mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
+              'relative mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
               // Anchors a short thread to the bottom, against the composer, rather
               // than leaving it stranded at the top under a large void. Long
               // threads overflow past `min-h-full` and scroll as normal.
@@ -2193,6 +2199,8 @@ export function ChatThread({
             {/* Photos and videos still going out, or failed with Retry. */}
             <PendingMedia conversationId={conversation.id} />
 
+            <DrawingLayer messages={messages} contentRef={contentRef} />
+
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
           </div>
@@ -2531,16 +2539,15 @@ export function ChatThread({
         <Suspense fallback={null}>
           <SketchPad
             onCancel={() => setSheet(undefined)}
-            onDone={(file) => {
+            content={contentRef.current}
+            onDone={(file, anchor) => {
               setSheet(undefined);
-              // Straight into the thread: a drawing has no caption to write.
-              void queueMedia({
+              // Not queued and not scrolled to: it lands where it was drawn.
+              void service.sendMessage({
                 conversationId: conversation.id,
-                caption: '',
-                viewOnce: false,
-                items: [{ kind: 'photo', blob: file, name: 'drawing', drawing: true }],
+                body: '',
+                photo: { image: file, drawing: anchor },
               });
-              window.setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), 60);
             }}
           />
         </Suspense>

@@ -100,7 +100,7 @@ import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
 import { chatMediaOnR2, isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
-import { mediaTooLarge, type MediaKind } from '@pingo/core';
+import { mediaTooLarge, type DrawingAnchor, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
@@ -579,7 +579,9 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
       ? {
           photo: {
             ...(row.view_limit ? { viewLimit: row.view_limit } : {}),
-            ...((row.meta as { drawing?: boolean } | null)?.drawing === true ? { drawing: true } : {}),
+            ...((d) => (d && typeof d.messageId === 'string' ? { drawing: d } : {}))(
+              (row.meta as { drawing?: DrawingAnchor } | null)?.drawing,
+            ),
             // Kept even though the URL is not: this is what a cached page
             // re-signs from once the hour is up. Absent once the object is
             // gone, which is how the bubble tells "deleted" from "not signed
@@ -4867,7 +4869,7 @@ export class SupabaseChatService implements ChatService {
           ? {
               photo: {
                 url: preview(draft.photo.image),
-                ...(draft.photo.drawing ? { drawing: true } : {}),
+                ...(draft.photo.drawing ? { drawing: draft.photo.drawing } : {}),
                 ...(draft.photo.viewLimit ? { viewLimit: draft.photo.viewLimit } : {}),
               },
             }
@@ -5015,7 +5017,7 @@ export class SupabaseChatService implements ChatService {
                 // Playback marks, not content: the file is untouched and this
                 // is what every reader applies to it.
                 if (draft.videoEdit) bits.videoEdit = draft.videoEdit;
-                if (draft.photo?.drawing) bits.drawing = true;
+                if (draft.photo?.drawing) bits.drawing = draft.photo.drawing;
                 if (mentionedUserIds.length > 0) bits.mentionedUserIds = mentionedUserIds;
                 return Object.keys(bits).length > 0 ? bits : undefined;
               })();

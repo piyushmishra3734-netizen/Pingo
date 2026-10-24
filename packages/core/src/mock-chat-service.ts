@@ -451,7 +451,7 @@ export class MockChatService implements ChatService {
       ...(draft.sticker ? { sticker: draft.sticker } : {}),
       // Likewise a photo, so a picture or a drawing shows in the demo thread.
       ...(draft.photo && typeof URL.createObjectURL === 'function'
-        ? { photo: { url: URL.createObjectURL(draft.photo.image), ...(draft.photo.drawing ? { drawing: true } : {}) } }
+        ? { photo: { url: URL.createObjectURL(draft.photo.image), ...(draft.photo.drawing ? { drawing: draft.photo.drawing } : {}) } }
         : {}),
     };
 

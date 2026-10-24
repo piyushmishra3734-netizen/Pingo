@@ -1,3 +1,4 @@
+import type { DrawingAnchor } from '@pingo/core';
 import { Redo2, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -11,13 +12,13 @@ import { useBrush } from '../draw/useBrush.js';
  *
  * The chat stays visible behind a light veil and the page is clear, so what
  * is drawn is lines and nothing else. Done crops to the drawing and sends it as
- * a picture with no page behind it; it reaches the other person as the same
- * lines, sitting in the thread without a frame.
+ * a picture and pins it to the message beside it, so it stays on that spot of
+ * the page for both people (see `DrawingLayer`).
  */
 
 const SCALE = 2;
 
-function exportDrawing(strokes: DrawStroke[], w: number, h: number): Promise<Blob | null> {
+function exportDrawing(strokes: DrawStroke[], w: number, h: number, content: HTMLElement | null): Promise<{ blob: Blob; anchor: DrawingAnchor } | null> {
   const full = document.createElement('canvas');
   full.width = Math.round(w * SCALE);
   full.height = Math.round(h * SCALE);
@@ -50,10 +51,37 @@ function exportDrawing(strokes: DrawStroke[], w: number, h: number): Promise<Blo
   out.width = width;
   out.height = height;
   out.getContext('2d')?.drawImage(full, x, y, width, height, 0, 0, width, height);
-  return new Promise((resolve) => out.toBlob(resolve, 'image/png'));
+
+  /*
+   * Pinned to the message it sits beside: the last one that starts above the
+   * drawing's top edge (or the first on the page, when it is above them all).
+   * What is stored is the offset from that message, in thread widths.
+   */
+  if (!content) return Promise.resolve(null);
+  const base = content.getBoundingClientRect();
+  const left = x / SCALE;
+  const top = y / SCALE;
+  let anchor: HTMLElement | undefined;
+  let anchorTop = -Infinity;
+  for (const element of content.querySelectorAll<HTMLElement>('[id^="message-"]')) {
+    const t = element.getBoundingClientRect().top;
+    if (t <= top && t > anchorTop) {
+      anchor = element;
+      anchorTop = t;
+    }
+  }
+  anchor ??= content.querySelector<HTMLElement>('[id^="message-"]') ?? undefined;
+  if (!anchor || base.width === 0) return Promise.resolve(null);
+  const placement: DrawingAnchor = {
+    messageId: anchor.id.slice('message-'.length),
+    x: (left - base.left) / base.width,
+    y: (top - anchor.getBoundingClientRect().top) / base.width,
+    w: width / SCALE / base.width,
+  };
+  return new Promise((resolve) => out.toBlob((blob) => resolve(blob ? { blob, anchor: placement } : null), 'image/png'));
 }
 
-export function SketchPad({ onCancel, onDone }: { onCancel: () => void; onDone: (file: File) => void }) {
+export function SketchPad({ content, onCancel, onDone }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void }) {
   const { brush, size, setBrush, setSize } = useBrush();
   // Not white: it lands on the other person's wallpaper, light or dark.
   const [colour, setColour] = useState('#ff3b5c');
@@ -158,9 +186,9 @@ export function SketchPad({ onCancel, onDone }: { onCancel: () => void; onDone: 
             disabled={strokes.length === 0 || busy}
             onClick={() => {
               setBusy(true);
-              void exportDrawing(strokes, box.w, box.h).then((blob) => {
+              void exportDrawing(strokes, box.w, box.h, content).then((made) => {
                 setBusy(false);
-                if (blob) onDone(new File([blob], 'drawing.png', { type: 'image/png' }));
+                if (made) onDone(new File([made.blob], 'drawing.png', { type: 'image/png' }), made.anchor);
               });
             }}
             className="rounded-full bg-brand px-5 py-1.5 text-[15px] font-bold text-on-brand disabled:opacity-40"

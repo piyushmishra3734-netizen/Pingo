@@ -15,6 +15,7 @@
  */
 
 import type {
+  DrawingAnchor,
   AiChatSummary,
   AiGoal,
   AiLibraryItem,
@@ -190,7 +191,7 @@ export interface OutgoingMessage {
    * concept - rather than a photo feature and a separate disappearing-photo
    * feature that behave differently for no reason a user could name.
    */
-  photo?: { image: Blob; viewLimit?: number; /** A sketch on a clear page: shown without a frame. */ drawing?: boolean };
+  photo?: { image: Blob; viewLimit?: number; /** A sketch on a clear page: shown without a frame. */ drawing?: DrawingAnchor };
   /** Makes this a call-log entry. See `logCall`. */
   call?: {
     callKind: 'voice' | 'video';
