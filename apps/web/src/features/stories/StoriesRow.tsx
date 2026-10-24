@@ -104,6 +104,41 @@ export function StoriesRow({
     onOpen(group, (el.querySelector('[data-ring]') ?? el).getBoundingClientRect());
   };
 
+  const renderGroup = (group: StoryGroup) => (
+          <li key={group.authorId} className="flex w-[74px] shrink-0 flex-col items-center">
+            <NoteBubble note={noteOf(group.authorId)} onClick={() => { const n = noteOf(group.authorId); if (n) onNoteOther?.(n); }} />
+            <button
+              type="button"
+              onClick={(event) => void open(group, event.currentTarget)}
+              aria-label={`${group.authorName}'s story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}, ${
+                group.allSeen ? 'already seen' : 'not seen yet'}${group.closeFriends ? ', close friends' : ''}`}
+              className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink"
+            >
+              <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
+                <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
+                <RingListening id={group.authorId} />
+              </Ring>
+              <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
+            </button>
+          </li>
+        );
+  const renderNoteOnly = (n: Note) => (
+    <li key={`note-${n.userId}`} className="flex w-[74px] shrink-0 flex-col items-center">
+      <NoteBubble note={n} onClick={() => onNoteOther?.(n)} />
+      <button type="button" onClick={() => onNoteOther?.(n)} aria-label={`${n.name}'s note`} className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink">
+        <Ring state="none">
+          <RingFace name={n.name} id={n.userId} src={n.avatarUrl} />
+        </Ring>
+        <span className="w-full truncate text-center">{n.username || n.name}</span>
+      </button>
+    </li>
+  );
+  /* People who left a note come first, newest note first, then the rest of the tray as before. */
+  const withNotes = (notes?.feed ?? []).map((n) => {
+    const group = others.find((g) => g.authorId === n.userId);
+    return group ? { group, note: n } : { group: undefined, note: n };
+  });
+
   return (
     <div>
       <h2 className="sr-only">Stories</h2>
@@ -139,38 +174,8 @@ export function StoriesRow({
         </li>
         {extra && <li><span aria-hidden className="block" style={{ height: NOTE_SLOT }} />{extra}</li>}
 
-        {others.map((group) => (
-          <li key={group.authorId} className="flex w-[74px] shrink-0 flex-col items-center">
-            <NoteBubble note={noteOf(group.authorId)} onClick={() => { const n = noteOf(group.authorId); if (n) onNoteOther?.(n); }} />
-            <button
-              type="button"
-              onClick={(event) => void open(group, event.currentTarget)}
-              aria-label={`${group.authorName}'s story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}, ${
-                group.allSeen ? 'already seen' : 'not seen yet'}${group.closeFriends ? ', close friends' : ''}`}
-              className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink"
-            >
-              <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
-                <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
-                <RingListening id={group.authorId} />
-              </Ring>
-              <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
-            </button>
-          </li>
-        ))}
-        {/* Friends with a note but no story still get a circle, so a note is never unreachable. */}
-        {(notes?.feed ?? [])
-          .filter((n) => !others.some((g) => g.authorId === n.userId))
-          .map((n) => (
-            <li key={`note-${n.userId}`} className="flex w-[74px] shrink-0 flex-col items-center">
-              <NoteBubble note={n} onClick={() => onNoteOther?.(n)} />
-              <button type="button" onClick={() => onNoteOther?.(n)} aria-label={`${n.name}'s note`} className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink">
-                <Ring state="none">
-                  <RingFace name={n.name} id={n.userId} src={n.avatarUrl} />
-                </Ring>
-                <span className="w-full truncate text-center">{n.username || n.name}</span>
-              </button>
-            </li>
-          ))}
+        {withNotes.map((entry) => entry.group ? renderGroup(entry.group) : renderNoteOnly(entry.note))}
+        {others.filter((g) => !noteOf(g.authorId)).map(renderGroup)}
       </ul>
     </div>
   );
