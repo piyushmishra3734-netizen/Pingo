@@ -292,8 +292,30 @@ public class MusicService extends Service {
         if (info.hasNext) { b.addAction(new Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", control("next", 4)).build()); shown++; }
         compact = shown == 3 ? new int[] {0, 1, 2} : shown == 2 ? new int[] {0, 1} : new int[] {playIndex};
 
+        if (!showsMediaStyle()) {
+            // A plain ongoing notification with the same buttons; see showsMediaStyle().
+            return b.build();
+        }
+        b.setCategory(Notification.CATEGORY_TRANSPORT);
         b.setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(compact));
         return b.build();
+    }
+
+    /**
+     * Whether this phone draws a media-style notification.
+     *
+     * Measured on a vivo phone running OriginOS 7: Android's SystemUI had the
+     * session (playing, with its title) and the foreground service, yet the shade
+     * showed no player and no notification for it, while every other ongoing
+     * notification was there. vivo's shade does not draw media-style notifications
+     * from other apps. A plain ongoing notification with the same Previous /
+     * Pause / Next buttons does show, so on vivo and iQOO that is what is posted;
+     * the media session behind it is unchanged, so headphones, the car and the
+     * lock screen still work. Every other phone gets the media notification.
+     */
+    private static boolean showsMediaStyle() {
+        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase(java.util.Locale.ROOT);
+        return !(maker.contains("vivo") || maker.contains("iqoo"));
     }
 
     private PendingIntent control(String what, int code) {
