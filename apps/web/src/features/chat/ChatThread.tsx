@@ -2533,10 +2533,14 @@ export function ChatThread({
             onCancel={() => setSheet(undefined)}
             onDone={(file) => {
               setSheet(undefined);
-              void (async () => {
-                const media = await vetMedia([file]);
-                if (media.length > 0) setPending(media);
-              })();
+              // Straight into the thread: a drawing has no caption to write.
+              void queueMedia({
+                conversationId: conversation.id,
+                caption: '',
+                viewOnce: false,
+                items: [{ kind: 'photo', blob: file, name: 'drawing', drawing: true }],
+              });
+              window.setTimeout(() => bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), 60);
             }}
           />
         </Suspense>

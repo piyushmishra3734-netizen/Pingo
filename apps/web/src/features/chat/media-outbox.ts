@@ -31,6 +31,8 @@ export interface MediaJobItem {
   blob: Blob;
   name: string;
   edit?: VideoEdit;
+  /** A sketch on a clear page, sent without a frame. */
+  drawing?: boolean;
 }
 
 export interface MediaJob {
@@ -164,7 +166,7 @@ async function sendJob(svc: ChatService, job: MediaJob): Promise<void> {
           conversationId: job.conversationId,
           body,
           quiet: true,
-          photo: { image: item.blob, ...(job.viewOnce ? { viewLimit: 1 } : {}) },
+          photo: { image: item.blob, ...(job.viewOnce ? { viewLimit: 1 } : {}), ...(item.drawing ? { drawing: true } : {}) },
         });
       } else {
         await svc.sendMessage({

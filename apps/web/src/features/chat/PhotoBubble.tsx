@@ -225,7 +225,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
             onClick={() => setViewing(true)}
             aria-label={caption ? `Open photo: ${caption}` : 'Open photo'}
             className={cn(
-              'focus-ring block w-full overflow-hidden rounded-lg',
+              'focus-ring block',
+              // A drawing is lines on nothing: no clip, no frame, its own width.
+              photo.drawing ? 'w-fit' : 'w-full overflow-hidden rounded-lg',
               'transition-transform duration-instant active:scale-[0.99]',
             )}
           >
@@ -241,7 +243,9 @@ export function PhotoBubble({ message, photo, mine }: PhotoBubbleProps) {
               // way the honest panel below says so - see `failedSrc`.
               onError={() => setFailedSrc(shown)}
               className={cn(
-                'max-h-[22rem] w-full rounded-lg object-cover',
+                photo.drawing
+                  ? 'max-h-64 w-auto max-w-full object-contain'
+                  : 'max-h-[22rem] w-full rounded-lg object-cover',
                 // A limited photo that is currently open is ringed, so it is
                 // obvious this is the version that goes away.
                 limited && 'ring-2 ring-brand',

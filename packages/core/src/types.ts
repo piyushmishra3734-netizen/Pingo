@@ -347,6 +347,8 @@ export interface EventRef {
 
 /** A photo message's picture. Like a Ping, it carries no URL - see `PhotoRef.url`. */
 export interface PhotoRef {
+  /** A drawing on a clear page, shown as the lines alone with no frame behind it. */
+  drawing?: boolean;
   /**
    * How many times each recipient may open it. Absent means without limit.
    *

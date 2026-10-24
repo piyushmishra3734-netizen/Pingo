@@ -579,6 +579,7 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
       ? {
           photo: {
             ...(row.view_limit ? { viewLimit: row.view_limit } : {}),
+            ...((row.meta as { drawing?: boolean } | null)?.drawing === true ? { drawing: true } : {}),
             // Kept even though the URL is not: this is what a cached page
             // re-signs from once the hour is up. Absent once the object is
             // gone, which is how the bubble tells "deleted" from "not signed
@@ -4866,6 +4867,7 @@ export class SupabaseChatService implements ChatService {
           ? {
               photo: {
                 url: preview(draft.photo.image),
+                ...(draft.photo.drawing ? { drawing: true } : {}),
                 ...(draft.photo.viewLimit ? { viewLimit: draft.photo.viewLimit } : {}),
               },
             }
@@ -5013,6 +5015,7 @@ export class SupabaseChatService implements ChatService {
                 // Playback marks, not content: the file is untouched and this
                 // is what every reader applies to it.
                 if (draft.videoEdit) bits.videoEdit = draft.videoEdit;
+                if (draft.photo?.drawing) bits.drawing = true;
                 if (mentionedUserIds.length > 0) bits.mentionedUserIds = mentionedUserIds;
                 return Object.keys(bits).length > 0 ? bits : undefined;
               })();

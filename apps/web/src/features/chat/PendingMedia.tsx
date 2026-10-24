@@ -51,7 +51,10 @@ function PendingSet({ job }: { job: MediaJob }) {
   return (
     <div className="flex max-w-[76%] flex-col items-end gap-1.5">
       <div className={cn('grid gap-1 overflow-hidden rounded-[18px]', left.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-        {left.slice(0, 4).map((item, i) => (
+        {left.slice(0, 4).map((item, i) => item.drawing ? (
+          // A drawing waits as the lines alone, the way it will land.
+          <img key={i} src={urls[i]} alt="" className={cn('max-h-64 w-auto max-w-full object-contain', !failed && 'opacity-70')} />
+        ) : (
           <div key={i} className="relative size-32 overflow-hidden rounded-[14px] bg-surface">
             {item.kind === 'photo' ? (
               <img src={urls[i]} alt="" className={cn('size-full object-cover', !failed && 'opacity-80')} />
