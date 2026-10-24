@@ -346,7 +346,27 @@ export interface EventRef {
 }
 
 /** A photo message's picture. Like a Ping, it carries no URL - see `PhotoRef.url`. */
+/**
+ * Where a drawing sits in a conversation: on the page itself, not in the flow.
+ *
+ * Pinned to a message and measured from it, so it stays on the same spot of
+ * the thread however far either person scrolls, and on any screen width
+ * (distances are fractions of the thread's width).
+ */
+export interface DrawingAnchor {
+  /** The message the drawing is measured from. */
+  messageId: string;
+  /** Left edge, as a fraction of the thread's width. */
+  x: number;
+  /** Top edge below the top of that message, as a fraction of the thread's width. */
+  y: number;
+  /** Width, as a fraction of the thread's width. */
+  w: number;
+}
+
 export interface PhotoRef {
+  /** Set when this photo is a drawing laid over the thread rather than a picture in it. */
+  drawing?: DrawingAnchor;
   /**
    * How many times each recipient may open it. Absent means without limit.
    *

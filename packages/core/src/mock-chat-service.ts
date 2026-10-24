@@ -449,6 +449,10 @@ export class MockChatService implements ChatService {
       ...(draft.replyToId ? { replyToId: draft.replyToId } : {}),
       // A sticker stays a sticker here too, so the demo renders it as the app does.
       ...(draft.sticker ? { sticker: draft.sticker } : {}),
+      // Likewise a photo, so a picture or a drawing shows in the demo thread.
+      ...(draft.photo && typeof URL.createObjectURL === 'function'
+        ? { photo: { url: URL.createObjectURL(draft.photo.image), ...(draft.photo.drawing ? { drawing: draft.photo.drawing } : {}) } }
+        : {}),
     };
 
     (this.#messages[draft.conversationId] ??= []).push(message);

@@ -167,10 +167,8 @@ function MediaGrid({ media, onZoom }: { media: SocialMedia[]; onZoom: (m: Social
   );
 }
 
-/** A picture opens full screen; a video or GIF plays here, on tap. */
+/** A picture, a video or a GIF: tapping any of them opens it full screen. */
 function Tile({ media, onZoom }: { media: SocialMedia; onZoom: (m: SocialMedia) => void }) {
-  const [playing, setPlaying] = useState(false);
-
   if (media.kind === 'photo') {
     return (
       <button type="button" aria-label="View picture" className="block size-full focus-ring" onClick={() => onZoom(media)}>
@@ -179,23 +177,8 @@ function Tile({ media, onZoom }: { media: SocialMedia; onZoom: (m: SocialMedia) 
     );
   }
 
-  if (playing) {
-    return (
-      <video
-        src={media.src}
-        poster={media.poster ? assetUrl(media.poster) : undefined}
-        controls={media.kind === 'video'}
-        loop={media.kind === 'gif'}
-        muted={media.kind === 'gif'}
-        autoPlay
-        playsInline
-        className="size-full bg-black object-contain"
-      />
-    );
-  }
-
   return (
-    <button type="button" aria-label={media.kind === 'gif' ? 'Play GIF' : 'Play video'} className="relative block size-full focus-ring" onClick={() => setPlaying(true)}>
+    <button type="button" aria-label={media.kind === 'gif' ? 'Play GIF' : 'Play video'} className="relative block size-full focus-ring" onClick={() => onZoom(media)}>
       {media.poster && <img src={assetUrl(media.poster)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
       <span className="absolute inset-0 grid place-items-center bg-black/15">
         <span className="grid size-12 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm">
@@ -298,11 +281,25 @@ function Lightbox({ media, onClose }: { media: SocialMedia; onClose: () => void 
   }, [onClose]);
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label="Picture" className="fixed inset-0 z-[400] grid place-items-center bg-black/90 p-3 motion-safe:animate-panel-in" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label={media.kind === 'photo' ? 'Picture' : 'Video'} className="fixed inset-0 z-[400] grid place-items-center bg-black/90 p-3 motion-safe:animate-panel-in" onClick={onClose}>
       <button type="button" aria-label="Close" className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] grid size-10 place-items-center rounded-full bg-white/15 text-white focus-ring" onClick={onClose}>
         <X size={20} aria-hidden />
       </button>
-      <img src={assetUrl(media.src)} alt="" className="max-h-full max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
+      {media.kind === 'photo' ? (
+        <img src={assetUrl(media.src)} alt="" className="max-h-full max-w-full rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <video
+          src={media.src}
+          poster={media.poster ? assetUrl(media.poster) : undefined}
+          controls={media.kind === 'video'}
+          loop={media.kind === 'gif'}
+          muted={media.kind === 'gif'}
+          autoPlay
+          playsInline
+          className="max-h-full max-w-full rounded-lg bg-black object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
     </div>,
     document.body,
   );

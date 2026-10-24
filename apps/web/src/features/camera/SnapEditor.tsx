@@ -14,6 +14,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { StoryAudioDraft, VideoEdit, VideoOverlayItem } from '@pingo/core';
 
+import { BrushRow, ColourRow, DrawDock, SizeSlider } from '../draw/DrawChrome.js';
+import { normalizeStroke, paintStrokes, type DrawStroke } from '../draw/brushes.js';
+import { useBrush } from '../draw/useBrush.js';
 import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
 import { useStickers } from '../stickers/StickerContext.js';
 import { SoundPreviewBar } from '../stories/SoundPreviewBar.js';
@@ -22,7 +25,6 @@ import { soundLength } from '../stories/StorySound.js';
 import { clock } from '../stories/story-audio.js';
 import {
   OVERLAY_SIZE,
-  PEN_WIDTH,
   pictureRatio,
   useContainBox,
   videoGeometry,
@@ -52,11 +54,7 @@ import {
 
 const COLOURS = ['#ffffff', '#101114', '#ff3b5c', '#ffc93c', '#3ddc84', '#5c6cff'];
 
-interface Stroke {
-  colour: string;
-  /** Normalised points, 0-1. */
-  points: { x: number; y: number }[];
-}
+type Stroke = DrawStroke;
 
 /**
  * Anything placed on top of the picture.
@@ -127,6 +125,7 @@ export function SnapEditor({
    * photo (multi-slide stories). Absent for camera send / single-shot flows.
    */
   onAddAnother,
+  startDrawing = false,
   addAnotherLabel = 'Add another photo',
   untouchable,
   video = false,
@@ -143,6 +142,8 @@ export function SnapEditor({
   extras?: React.ReactNode;
   /** 'Next' from the camera, 'Send' when the picture is going straight out. */
   doneLabel?: string;
+  /** Open with the pen already in hand, for a blank sketch. */
+  startDrawing?: boolean;
   onAddAnother?: (blob: Blob) => void;
   addAnotherLabel?: string;
   /**
@@ -198,10 +199,11 @@ export function SnapEditor({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ratio, setRatio] = useState<number>();
 
-  const [tool, setTool] = useState<Tool>('none');
+  const [tool, setTool] = useState<Tool>(startDrawing ? 'draw' : 'none');
   const [colour, setColour] = useState(COLOURS[0]!);
+  const { brush, size: brushSize, setBrush, setSize: setBrushSize } = useBrush();
   const [strokes, setStrokes] = useState<Stroke[]>(() =>
-    (initialEdit?.strokes ?? []).map((stroke) => ({ ...stroke })),
+    (initialEdit?.strokes ?? []).map((stroke) => normalizeStroke(stroke)),
   );
   const [items, setItems] = useState<Item[]>(() =>
     (initialEdit?.overlay ?? []).map((item) => ({ ...item, id: crypto.randomUUID() })),
@@ -361,23 +363,9 @@ export function SnapEditor({
 
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, rect.width, rect.height);
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-
     const all = drawing.current ? [...strokes, drawing.current] : strokes;
-    for (const stroke of all) {
-      if (stroke.points.length === 0) continue;
-      context.strokeStyle = stroke.colour;
-      context.lineWidth = PEN_WIDTH * Math.min(rect.width, rect.height);
-      context.beginPath();
-      stroke.points.forEach((point, index) => {
-        const x = point.x * rect.width;
-        const y = point.y * rect.height;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      });
-      context.stroke();
-    }
+    // On a layer of its own, so the eraser removes ink and never the picture.
+    paintStrokes(context, all, rect.width, rect.height);
   }, [strokes]);
 
   useEffect(paint, [paint]);
@@ -415,7 +403,7 @@ export function SnapEditor({
         ...(rotation ? { rotate: rotation as 90 | 180 | 270 } : {}),
         ...(crop ? { crop } : {}),
         ...(strokes.length > 0
-          ? { strokes: strokes.map((stroke) => ({ colour: stroke.colour, points: stroke.points })) }
+          ? { strokes: strokes }
           : {}),
         ...(items.length > 0
           ? {
@@ -480,20 +468,15 @@ export function SnapEditor({
 
       // Strokes, re-drawn at native size rather than upscaled from the preview  - 
       // scaling a bitmap would soften every line.
-      context.lineCap = 'round';
-      context.lineJoin = 'round';
-      for (const stroke of strokes) {
-        if (stroke.points.length === 0) continue;
-        context.strokeStyle = stroke.colour;
-        context.lineWidth = PEN_WIDTH * Math.min(width, height);
-        context.beginPath();
-        stroke.points.forEach((point, index) => {
-          const x = point.x * width;
-          const y = point.y * height;
-          if (index === 0) context.moveTo(x, y);
-          else context.lineTo(x, y);
-        });
-        context.stroke();
+      if (strokes.length > 0) {
+        const ink = document.createElement('canvas');
+        ink.width = width;
+        ink.height = height;
+        const inkContext = ink.getContext('2d');
+        if (inkContext) {
+          paintStrokes(inkContext, strokes, width, height);
+          context.drawImage(ink, 0, 0);
+        }
       }
 
       const fontSize = Math.round(height * 0.052);
@@ -706,6 +689,15 @@ export function SnapEditor({
           video && 'grid place-items-center',
         )}
       >
+      {tool === 'draw' && (
+        <SizeSlider
+          size={brushSize}
+          colour={colour}
+          brush={brush}
+          frameHeight={box?.height ?? 600}
+          onChange={setBrushSize}
+        />
+      )}
       {video ? (
         /*
           The stage is the screen; the frame is the picture.
@@ -730,7 +722,7 @@ export function SnapEditor({
             const point = toNormalised(event);
             if (!point) return;
             event.currentTarget.setPointerCapture(event.pointerId);
-            drawing.current = { colour, points: [point] };
+            drawing.current = { brush, colour, size: brushSize, points: [point] };
             paint();
           }}
           onPointerMove={(event) => {
@@ -855,7 +847,7 @@ export function SnapEditor({
           const point = toNormalised(event);
           if (!point) return;
           event.currentTarget.setPointerCapture(event.pointerId);
-          drawing.current = { colour, points: [point] };
+          drawing.current = { brush, colour, size: brushSize, points: [point] };
           paint();
         }}
         onPointerMove={(event) => {
@@ -1126,26 +1118,14 @@ export function SnapEditor({
 
         {/* Belongs to the pen, so it goes when the pen does. */}
         {!untouchable && (
-        <div className="flex items-center justify-center gap-2">
-          {COLOURS.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              aria-label={`Colour ${swatch}`}
-              aria-pressed={colour === swatch}
-              onClick={() => setColour(swatch)}
-              style={{ backgroundColor: swatch }}
-              className={cn(
-                // ~2–3px smaller than size-7; equal gap-2; no scale bounce.
-                'focus-ring size-6 shrink-0 rounded-full',
-                'transition-[box-shadow,ring-color] duration-150 ease-standard',
-                colour === swatch
-                  ? 'ring-[1.5px] ring-white ring-offset-1 ring-offset-ink'
-                  : 'ring-1 ring-white/20',
-              )}
-            />
-          ))}
-        </div>
+        tool === 'draw' ? (
+          <DrawDock brush={brush}>
+            <BrushRow brush={brush} onChange={setBrush} />
+            <ColourRow colour={colour} onChange={setColour} />
+          </DrawDock>
+        ) : (
+          <ColourRow colour={colour} onChange={setColour} />
+        )
         )}
 
         {exportError && (

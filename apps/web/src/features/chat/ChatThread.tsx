@@ -104,6 +104,7 @@ import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
 import { queueMedia } from './media-outbox.js';
+import { DrawingLayer } from './DrawingLayer.js';
 import { PendingMedia } from './PendingMedia.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
@@ -114,6 +115,7 @@ const AiSettingsPage = lazyNamed(() => import('../ai/room/AiSettingsPage.js'), '
 const AiDrawer = lazyNamed(() => import('../ai/room/AiDrawer.js'), 'AiDrawer');
 const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
 const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
+const SketchPad = lazyNamed(() => import('./SketchPad.js'), 'SketchPad');
 const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
 const SharedMediaSheet = lazySuspended(() => import('./SharedMediaSheet.js'), 'SharedMediaSheet');
 const AiOnboardingSheet = lazySuspended(() => import('../ai/AiOnboardingSheet.js'), 'AiOnboardingSheet');
@@ -359,7 +361,7 @@ export function ChatThread({
   const {
     messages,
     receipts,
-    groups,
+    groups: allGroups,
     loading,
     loadingOlder,
     hasOlder,
@@ -367,6 +369,11 @@ export function ChatThread({
     send,
     sendSticker,
   } = useMessages(conversation.id);
+  // Drawings are laid over the thread (`DrawingLayer`), not set in its flow.
+  const groups = useMemo(
+    () => allGroups.map((group) => group.filter((m) => !m.photo?.drawing)).filter((group) => group.length > 0),
+    [allGroups],
+  );
   /*
    * Only the newest messages are drawn: 40, and 40 more each time the reader
    * reaches the top. A long thread used to put every bubble it had loaded on
@@ -417,7 +424,7 @@ export function ChatThread({
   const standardVideo = useCallback(async (file: File) => file, []);
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
-  const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
+  const [sheet, setSheet] = useState<'location' | 'contact' | 'event' | 'draw'>();
   const mutuals = useMutuals();
 
   /**
@@ -1819,7 +1826,7 @@ export function ChatThread({
           <div
             ref={contentRef}
             className={cn(
-              'mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
+              'relative mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-4',
               // Anchors a short thread to the bottom, against the composer, rather
               // than leaving it stranded at the top under a large void. Long
               // threads overflow past `min-h-full` and scroll as normal.
@@ -2192,6 +2199,8 @@ export function ChatThread({
             {/* Photos and videos still going out, or failed with Retry. */}
             <PendingMedia conversationId={conversation.id} />
 
+            <DrawingLayer messages={messages} contentRef={contentRef} />
+
             {/* Scroll anchor. */}
             <div ref={bottomRef} className="h-0" />
           </div>
@@ -2418,6 +2427,7 @@ export function ChatThread({
               location: () => setSheet('location'),
               contact: () => setSheet('contact'),
               event: () => setSheet('event'),
+              draw: () => setSheet('draw'),
             }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             onRecording={(recording) => void service.setRecording(conversation.id, recording)}
@@ -2523,6 +2533,24 @@ export function ChatThread({
             void service.sendMessage({ conversationId: conversation.id, body: '', contact });
           }}
         />
+      )}
+
+      {sheet === 'draw' && (
+        <Suspense fallback={null}>
+          <SketchPad
+            onCancel={() => setSheet(undefined)}
+            content={contentRef.current}
+            onDone={(file, anchor) => {
+              setSheet(undefined);
+              // Not queued and not scrolled to: it lands where it was drawn.
+              void service.sendMessage({
+                conversationId: conversation.id,
+                body: '',
+                photo: { image: file, drawing: anchor },
+              });
+            }}
+          />
+        </Suspense>
       )}
 
       {sheet === 'event' && (

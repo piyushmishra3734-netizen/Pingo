@@ -164,7 +164,7 @@ async function sendJob(svc: ChatService, job: MediaJob): Promise<void> {
           conversationId: job.conversationId,
           body,
           quiet: true,
-          photo: { image: item.blob, ...(job.viewOnce ? { viewLimit: 1 } : {}) },
+          photo: { image: item.blob, ...(job.viewOnce ? { viewLimit: 1 } : {}), },
         });
       } else {
         await svc.sendMessage({

@@ -24,6 +24,66 @@ function writeLocalStorage(items: WatchlistItem[]): void {
   }
 }
 
+/** How long the list fetched from the server is trusted before it is asked for again. */
+const SYNC_TTL_MS = 5 * 60 * 1000;
+let inflight: Promise<void> | undefined;
+let syncedAt = 0;
+let syncedFor: string | undefined;
+
+/**
+ * Loads the signed-in person's saved list from Supabase into local storage.
+ *
+ * This used to run inside the hook, and the hook is used by every poster card on
+ * the TV screen: twenty cards were twenty identical requests, on every screen
+ * that kept the TV tab alive - 17 to 19 `pingo_tv_watchlist` calls per tap,
+ * which on a slow connection queue in front of what the person asked for. One
+ * request at a time is shared by everybody who asks, and its answer is trusted
+ * for five minutes (and for another account, not at all).
+ */
+export function syncWatchlistFromServer(): Promise<void> {
+  if (!isSupabaseConfigured()) return Promise.resolve();
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const client = getSupabaseClient();
+      const { data } = await client.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+      if (syncedFor === userId && Date.now() - syncedAt < SYNC_TTL_MS) return;
+      const { data: dbRows, error } = await client
+        .from('pingo_tv_watchlist' as any)
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (error) return;
+      syncedFor = userId;
+      syncedAt = Date.now();
+      if (Array.isArray(dbRows) && dbRows.length > 0) {
+        const mapped: WatchlistItem[] = dbRows.map((r: any) => ({
+          id: r.id,
+          user_id: r.user_id,
+          media_id: String(r.media_id),
+          media_type: r.media_type as MediaType,
+          title: r.title,
+          poster_path: r.poster_path,
+          backdrop_path: r.backdrop_path,
+          overview: r.overview,
+          rating: r.rating ? Number(r.rating) : undefined,
+          release_year: r.release_year,
+          created_at: r.created_at,
+        }));
+        // Every mounted copy of the hook hears this and reads the list again.
+        writeLocalStorage(mapped);
+      }
+    } catch {
+      // Supabase not yet configured or table not yet migrated
+    }
+  })().finally(() => {
+    inflight = undefined;
+  });
+  return inflight;
+}
+
 export function useWatchlist() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => readLocalStorage());
 
@@ -40,42 +100,9 @@ export function useWatchlist() {
     };
   }, [sync]);
 
-  // Optionally load from Supabase if authenticated
+  // Pull the saved list from Supabase once for everybody, not once per card.
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const client = getSupabaseClient();
-      void client.auth.getSession().then(({ data }) => {
-        if (!data.session?.user) return;
-        const userId = data.session.user.id;
-        void client
-          .from('pingo_tv_watchlist' as any)
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .then(({ data: dbRows, error }) => {
-            if (!error && Array.isArray(dbRows) && dbRows.length > 0) {
-              const mapped: WatchlistItem[] = dbRows.map((r: any) => ({
-                id: r.id,
-                user_id: r.user_id,
-                media_id: String(r.media_id),
-                media_type: r.media_type as MediaType,
-                title: r.title,
-                poster_path: r.poster_path,
-                backdrop_path: r.backdrop_path,
-                overview: r.overview,
-                rating: r.rating ? Number(r.rating) : undefined,
-                release_year: r.release_year,
-                created_at: r.created_at,
-              }));
-              writeLocalStorage(mapped);
-              setWatchlist(mapped);
-            }
-          });
-      });
-    } catch {
-      // Supabase not yet configured or table not yet migrated
-    }
+    void syncWatchlistFromServer();
   }, []);
 
   const isSaved = useCallback(

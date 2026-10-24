@@ -1,5 +1,5 @@
 import { PlusIcon, cn } from '@pingo/ui';
-import { CalendarDays, Camera, FileText, Images, MapPin, UserRound } from 'lucide-react';
+import { CalendarDays, Camera, PenLine, FileText, Images, MapPin, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -25,6 +25,7 @@ export interface AttachMenuProps {
   onLocation: () => void;
   onContact: () => void;
   onEvent: () => void;
+  onDraw?: () => void;
 }
 
 export function AttachMenu({
@@ -34,6 +35,7 @@ export function AttachMenu({
   onLocation,
   onContact,
   onEvent,
+  onDraw,
 }: AttachMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -65,6 +67,7 @@ export function AttachMenu({
     // Each on its own colour from the PINGO sweep, so the grid reads at a glance.
     { label: 'Gallery', icon: <Images />, tone: '#8b5dff', onSelect: onGallery },
     { label: 'Camera', icon: <Camera />, tone: '#e0559b', onSelect: onCamera },
+    ...(onDraw ? [{ label: 'Draw', icon: <PenLine />, tone: '#ff6fb5', onSelect: onDraw }] : []),
     { label: 'Document', icon: <FileText />, tone: '#ef6a33', onSelect: onDocument },
     { label: 'Location', icon: <MapPin />, tone: '#17a67a', onSelect: onLocation },
     { label: 'Contact', icon: <UserRound />, tone: '#3b82f6', onSelect: onContact },

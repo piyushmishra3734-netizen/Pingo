@@ -16,7 +16,7 @@
     "verify:recovery": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-recovery.ts",
     "bench": "node apps/web/scripts/benchmark.mjs",
     "functions:deploy": "supabase functions deploy turn-credentials ai-chat --project-ref gpijpmepzowwhvgkriqu",
-    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak && pnpm verify:speak-chunks && pnpm verify:speakable && pnpm verify:echo && pnpm verify:referral-code && pnpm verify:achievements && pnpm verify:update-notice && pnpm verify:device-identity && pnpm verify:media-quality && pnpm verify:tv-probe && pnpm verify:ytm && pnpm verify:social && pnpm verify:voice-commands && pnpm verify:route-boundary && pnpm verify:hook-order && pnpm verify:ai-context && pnpm verify:private-access && pnpm verify:music && pnpm verify:luna && pnpm verify:ai-data && pnpm verify:responses && pnpm verify:realtime && pnpm verify:ai-profile && pnpm verify:flip-camera && pnpm --filter @pingo/arcade test && pnpm verify:pull-to-locked && pnpm verify:media-worker",
+    "check": "pnpm typecheck && pnpm check:docs && pnpm verify:qr && pnpm verify:crypto && pnpm verify:recovery && pnpm verify:local-first && pnpm verify:image-intent && pnpm verify:reply-envelope && pnpm verify:demand && pnpm verify:reasoning-leak && pnpm verify:speak-chunks && pnpm verify:speakable && pnpm verify:echo && pnpm verify:referral-code && pnpm verify:achievements && pnpm verify:update-notice && pnpm verify:device-identity && pnpm verify:media-quality && pnpm verify:tv-probe && pnpm verify:ytm && pnpm verify:social && pnpm verify:voice-commands && pnpm verify:route-boundary && pnpm verify:hook-order && pnpm verify:ai-context && pnpm verify:private-access && pnpm verify:music && pnpm verify:luna && pnpm verify:ai-data && pnpm verify:responses && pnpm verify:realtime && pnpm verify:ai-profile && pnpm verify:flip-camera && pnpm --filter @pingo/arcade test && pnpm verify:pull-to-locked && pnpm verify:media-worker && pnpm verify:presence-resume && pnpm verify:notes",
     "verify:realtime": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-realtime.ts",
     "verify:flip-camera": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-flip-camera.ts",
     "verify:ai-profile": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-ai-profile.ts",
@@ -75,7 +75,9 @@
     "verify:hook-order": "node apps/web/scripts/verify-hook-order.mjs",
     "measure:qr": "node --experimental-strip-types apps/web/scripts/measure-qr-contrast.mjs",
     "verify:pull-to-locked": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-pull-to-locked.ts",
-    "verify:media-worker": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-media-worker.ts"
+    "verify:media-worker": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-media-worker.ts",
+    "verify:presence-resume": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-presence-resume.ts",
+    "verify:notes": "node apps/web/scripts/run-ts.mjs apps/web/scripts/verify-notes.ts"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",

@@ -35,11 +35,12 @@ import { useT } from '../i18n/useT.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { useNotifications } from '../notifications/NotificationContext.js';
 import { StoriesRow } from '../stories/StoriesRow.js';
+import { NoteComposeSheet, NoteViewSheet } from '../notes/NoteSheets.js';
+import { useNotes, type Note } from '../notes/notes.js';
 import { JourneyStrip } from '../journey/JourneyStrip.js';
 import { useJourneyProgress } from '../journey/useJourneyProgress.js';
 import { MyStoryManageSheet } from '../stories/MyStoryManageSheet.js';
 import { useBackStep } from '../navigation/useBackStep.js';
-import { LiveCreateSheet } from '../live/LiveCreateSheet.js';
 import { LiveBanner } from '../live/LiveBanner.js';
 import { useLive } from '../live/LiveContext.js';
 import { useStories } from '../stories/StoryContext.js';
@@ -133,11 +134,13 @@ export function ConversationList({
   const [openStory, setOpenStory] = useState<{ index: number; origin: DOMRect } | undefined>();
   const [creating, setCreating] = useState(false);
   /** The `+` asks Story or Live first - Instagram's mode switch. */
-  const [choosingCreate, setChoosingCreate] = useState(false);
   const { lives, mine: myLive } = useLive();
   /** What the plus opens: a chat, or a group. */
   const [starting, setStarting] = useState(false);
   const [managingStory, setManagingStory] = useState(false);
+  const notes = useNotes();
+  const [writingNote, setWritingNote] = useState(false);
+  const [viewingNote, setViewingNote] = useState<Note>();
   const [query, setQuery] = useState('');
 
   /** Selection mode is "the set is non-empty", so there is no second flag. */
@@ -669,6 +672,9 @@ export function ConversationList({
                       onManageMine={() => setManagingStory(true)}
                       uploading={storyUploading > 0}
                       extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
+                      notes={notes}
+                      onNoteMine={() => setWritingNote(true)}
+                      onNoteOther={setViewingNote}
                     />
                   </div>
                 </div>
@@ -878,23 +884,26 @@ export function ConversationList({
 
       {creating && (
         <Suspense fallback={null}>
-          <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} onLive={() => navigate('/live/setup')} />
+          <StoryComposer
+            onClose={() => setCreating(false)}
+            onPosted={() => setCreating(false)}
+            onLive={() => navigate('/live/setup')}
+            onNote={() => setWritingNote(true)}
+          />
         </Suspense>
       )}
 
-      {choosingCreate && (
-        <LiveCreateSheet
-          onPickStory={() => {
-            setChoosingCreate(false);
-            setCreating(true);
-          }}
-          onPickLive={() => {
-            setChoosingCreate(false);
-            navigate('/live/setup');
-          }}
-          onClose={() => setChoosingCreate(false)}
+      {writingNote && (
+        <NoteComposeSheet
+          mine={notes.mine}
+          name={profile?.displayName ?? 'You'}
+          avatarUrl={profile?.avatarUrl}
+          userId={profile?.id}
+          onClose={() => setWritingNote(false)}
+          onCamera={() => setCreating(true)}
         />
       )}
+      {viewingNote && <NoteViewSheet note={viewingNote} onClose={() => setViewingNote(undefined)} />}
 
       {managingStory && (
         <MyStoryManageSheet

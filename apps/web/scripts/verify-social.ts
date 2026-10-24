@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { detectSocialLink, withoutSocialLink } from '../../../packages/core/src/social/index.js';
-import { biggestPin, isAllowedImage, isAllowedVideo, normalizeTweet } from '../functions/api/social.js';
+import { biggestPin, isAllowedImage, isAllowedVideo, normalizeTweet, normalizeVx, pinIdFromPath, pinVideo } from '../functions/api/social.js';
 
 // X, in the spellings people paste.
 assert.equal(detectSocialLink('https://twitter.com/nasa/status/1790123456789012345?s=20&t=abc')?.canonicalUrl, 'https://x.com/nasa/status/1790123456789012345');
@@ -91,3 +91,34 @@ for (const name of ['social.ts', 'social-img.ts']) {
 }
 
 console.log('social links: x and pinterest recognised, edge allowlist holds, copies in step');
+
+// A pin.it link lands on a "sent" page; the pin id must still be found.
+assert.equal(pinIdFromPath('/pin/123456789012/sent/'), '123456789012');
+assert.equal(pinIdFromPath('/pin/123456789012/'), '123456789012');
+assert.equal(pinIdFromPath('/pin/cute-cat--123456789012/'), '123456789012');
+assert.equal(pinIdFromPath('/pin/abc/'), undefined);
+assert.equal(pinIdFromPath('/'), undefined);
+
+// A pin's video: the mp4 from the page, or the mp4 beside a playlist.
+assert.equal(
+  pinVideo('"url":"https:\\/\\/v1.pinimg.com\\/videos\\/mc\\/720p\\/ab\\/cd\\/xyz.mp4"'),
+  'https://v1.pinimg.com/videos/mc/720p/ab/cd/xyz.mp4',
+);
+assert.equal(
+  pinVideo('https://v1.pinimg.com/videos/mc/hls/ab/cd/xyz.m3u8'),
+  'https://v1.pinimg.com/videos/mc/720p/ab/cd/xyz.mp4',
+);
+assert.equal(pinVideo('https://evil.com/videos/x.mp4'), undefined);
+
+// The second X source.
+const vx = normalizeVx({
+  tweetID: '1790123456789012345', text: 'hi', user_name: 'NASA', user_screen_name: 'nasa', likes: 5,
+  media_extended: [
+    { type: 'image', url: 'https://pbs.twimg.com/media/a.jpg', size: { width: 100, height: 50 } },
+    { type: 'video', url: 'https://video.twimg.com/ext_tw_video/1/pu/vid/720x1280/a.mp4', thumbnail_url: 'https://pbs.twimg.com/t.jpg' },
+    { type: 'image', url: 'https://evil.com/x.jpg' },
+  ],
+});
+assert.equal(vx?.media.length, 2);
+assert.equal(vx?.media[1]?.kind, 'video');
+assert.equal(normalizeVx({}), undefined);

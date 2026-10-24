@@ -3,6 +3,8 @@ import { Avatar, cn } from '@pingo/ui';
 import { Plus } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 
+import { NoteBubble, NOTE_COL, NOTE_SLOT } from '../notes/NoteBubble.js';
+import type { Note } from '../notes/notes.js';
 import type { LiveStream } from '../live/types.js';
 import { useListening } from '../music/listening.js';
 import { ListeningBadge } from '../music/ListeningBadge.js';
@@ -53,6 +55,12 @@ export interface StoriesRowProps {
   uploading?: boolean;
   /** Rendered right after your own circle - the Arcade sits there. */
   extra?: ReactNode;
+  /** Notes over the circles: yours, and your friends'. */
+  notes?: { mine: Note | undefined; feed: Note[] };
+  /** Tapping your own bubble, to write or change it. */
+  onNoteMine?: () => void;
+  /** Tapping a friend's bubble. */
+  onNoteOther?: (note: Note) => void;
 }
 
 export function StoriesRow({
@@ -68,7 +76,11 @@ export function StoriesRow({
   onManageMine,
   uploading = false,
   extra,
+  notes,
+  onNoteMine,
+  onNoteOther,
 }: StoriesRowProps) {
+  const noteOf = (id: string) => notes?.feed.find((n) => n.userId === id);
   const mine = groups.find((group) => group.authorId === currentUserId);
   const others = groups.filter((group) => group.authorId !== currentUserId);
   const myLive = lives.find((live) => live.hostId === currentUserId);
@@ -92,10 +104,45 @@ export function StoriesRow({
     onOpen(group, (el.querySelector('[data-ring]') ?? el).getBoundingClientRect());
   };
 
+  const renderGroup = (group: StoryGroup) => (
+          <li key={group.authorId} className="flex shrink-0 flex-col items-center" style={{ width: noteOf(group.authorId) ? NOTE_COL : 74 }}>
+            <NoteBubble note={noteOf(group.authorId)} onClick={() => { const n = noteOf(group.authorId); if (n) onNoteOther?.(n); }} />
+            <button
+              type="button"
+              onClick={(event) => void open(group, event.currentTarget)}
+              aria-label={`${group.authorName}'s story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}, ${
+                group.allSeen ? 'already seen' : 'not seen yet'}${group.closeFriends ? ', close friends' : ''}`}
+              className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink"
+            >
+              <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
+                <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
+                <RingListening id={group.authorId} />
+              </Ring>
+              <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
+            </button>
+          </li>
+        );
+  const renderNoteOnly = (n: Note) => (
+    <li key={`note-${n.userId}`} className="flex shrink-0 flex-col items-center" style={{ width: NOTE_COL }}>
+      <NoteBubble note={n} onClick={() => onNoteOther?.(n)} />
+      <button type="button" onClick={() => onNoteOther?.(n)} aria-label={`${n.name}'s note`} className="focus-ring flex w-full shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink">
+        <Ring state="none">
+          <RingFace name={n.name} id={n.userId} src={n.avatarUrl} />
+        </Ring>
+        <span className="w-full truncate text-center">{n.username || n.name}</span>
+      </button>
+    </li>
+  );
+  /* People who left a note come first, newest note first, then the rest of the tray as before. */
+  const withNotes = (notes?.feed ?? []).map((n) => {
+    const group = others.find((g) => g.authorId === n.userId);
+    return group ? { group, note: n } : { group: undefined, note: n };
+  });
+
   return (
     <div>
       <h2 className="sr-only">Stories</h2>
-      <ul className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pt-1.5 pb-3" aria-label="Stories">
+      <ul className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pt-4 pb-3" aria-label="Stories">
         {(myLive || liveOthers.length > 0) && <LiveHaloStyle />}
         {myLive && (
           <li key={`live-${myLive.id}`}>
@@ -120,28 +167,15 @@ export function StoriesRow({
             onOpen={(el) => mine && void open(mine, el)}
             onCreate={onCreate}
             onManage={onManageMine}
+            note={notes?.mine}
+            onNote={onNoteMine}
             state={uploading || loading === currentUserId ? 'loading' : !mine ? 'none' : mine.allSeen ? 'seen' : 'unseen'}
           />
         </li>
-        {extra && <li>{extra}</li>}
+        {extra && <li><span aria-hidden className="block" style={{ height: NOTE_SLOT }} />{extra}</li>}
 
-        {others.map((group) => (
-          <li key={group.authorId}>
-            <button
-              type="button"
-              onClick={(event) => void open(group, event.currentTarget)}
-              aria-label={`${group.authorName}'s story, ${group.stories.length} ${group.stories.length === 1 ? 'item' : 'items'}, ${
-                group.allSeen ? 'already seen' : 'not seen yet'}${group.closeFriends ? ', close friends' : ''}`}
-              className="focus-ring flex w-[74px] shrink-0 flex-col items-center gap-[5px] rounded-[12px] text-[12px] text-ink"
-            >
-              <Ring state={loading === group.authorId ? 'loading' : group.allSeen ? 'seen' : group.closeFriends ? 'cf' : 'unseen'}>
-                <RingFace name={group.authorName} id={group.authorId} src={group.authorAvatarUrl} />
-                <RingListening id={group.authorId} />
-              </Ring>
-              <span className="w-full truncate text-center">{group.authorUsername || group.authorName}</span>
-            </button>
-          </li>
-        ))}
+        {withNotes.map((entry) => entry.group ? renderGroup(entry.group) : renderNoteOnly(entry.note))}
+        {others.filter((g) => !noteOf(g.authorId)).map(renderGroup)}
       </ul>
     </div>
   );
@@ -213,6 +247,8 @@ function MyCircle({
   onCreate,
   onManage,
   state,
+  note,
+  onNote,
 }: {
   group: StoryGroup | undefined;
   name: string;
@@ -222,6 +258,8 @@ function MyCircle({
   onCreate: () => void;
   onManage: () => void;
   state: RingState;
+  note: Note | undefined;
+  onNote: (() => void) | undefined;
 }) {
   const timer = useRef<number | undefined>(undefined);
   const held = useRef(false);
@@ -232,7 +270,8 @@ function MyCircle({
   };
 
   return (
-    <span className="relative flex w-[74px] shrink-0 flex-col items-center gap-[5px] text-[12px] text-ink">
+    <span className="relative flex shrink-0 flex-col items-center gap-[5px] text-[12px] text-ink" style={{ width: NOTE_COL }}>
+      <NoteBubble mine note={note} onClick={() => onNote?.()} />
       <button
         type="button"
         onPointerDown={(event) => {
@@ -268,7 +307,7 @@ function MyCircle({
         onClick={onCreate}
         aria-label={group ? 'Add another story' : 'Add to your story'}
         tabIndex={group ? 0 : -1}
-        className="absolute top-12 left-[50px] grid size-[22px] place-items-center rounded-full bg-brand text-on-brand shadow-[0_0_0_3px_var(--color-page,#fff)] after:absolute after:-inset-2 after:content-['']"
+        style={{ top: 48 + NOTE_SLOT + 5, left: NOTE_COL / 2 + 13 }} className="absolute grid size-[22px] place-items-center rounded-full bg-brand text-on-brand shadow-[0_0_0_3px_var(--color-page,#fff)] after:absolute after:-inset-2 after:content-['']"
       >
         <Plus size={14} strokeWidth={3} />
       </button>

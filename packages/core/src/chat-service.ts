@@ -15,6 +15,7 @@
  */
 
 import type {
+  DrawingAnchor,
   AiChatSummary,
   AiGoal,
   AiLibraryItem,
@@ -88,6 +89,10 @@ export interface VideoEdit {
 export interface VideoOverlayStroke {
   colour: string;
   points: { x: number; y: number }[];
+  /** Absent on drawings made before brushes: a plain pen of the old width. */
+  brush?: 'pen' | 'marker' | 'neon' | 'chalk' | 'arrow' | 'eraser' | undefined;
+  /** Width as a fraction of the picture's shorter side. */
+  size?: number | undefined;
 }
 
 /**
@@ -186,7 +191,7 @@ export interface OutgoingMessage {
    * concept - rather than a photo feature and a separate disappearing-photo
    * feature that behave differently for no reason a user could name.
    */
-  photo?: { image: Blob; viewLimit?: number };
+  photo?: { image: Blob; viewLimit?: number; /** A sketch on a clear page: shown without a frame. */ drawing?: DrawingAnchor };
   /** Makes this a call-log entry. See `logCall`. */
   call?: {
     callKind: 'voice' | 'video';
