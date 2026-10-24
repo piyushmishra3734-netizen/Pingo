@@ -886,7 +886,12 @@ export function ConversationList({
 
       {creating && (
         <Suspense fallback={null}>
-          <StoryComposer onClose={() => setCreating(false)} onPosted={() => setCreating(false)} onLive={() => navigate('/live/setup')} />
+          <StoryComposer
+            onClose={() => setCreating(false)}
+            onPosted={() => setCreating(false)}
+            onLive={() => navigate('/live/setup')}
+            onNote={() => setWritingNote(true)}
+          />
         </Suspense>
       )}
 

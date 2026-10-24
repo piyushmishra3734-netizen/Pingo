@@ -1,6 +1,6 @@
 import { MusicMark } from '../music/MusicMark.js';
 import { useAuth, useProfile, type ChatMediaItem } from '@pingo/core';
-import { Camera, CloudOff, Images, LayoutTemplate, Radio, Settings, Trash2, X } from 'lucide-react';
+import { Camera, CloudOff, Images, LayoutTemplate, Radio, Settings, Trash2, X, PenLine } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
@@ -16,7 +16,7 @@ import { deleteStoryDraft, useStoryDrafts, type StoryDraftRecord } from './story
  * have. Templates starts a story on colour, Music starts it with a song, and
  * Collage picks several at once.
  */
-export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate, onMusic, onCollage, onLive, onSettings }: {
+export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate, onMusic, onCollage, onLive, onNote, onSettings }: {
   onClose: () => void;
   onCamera: () => void;
   /** The phone's own picker, one picture or clip. */
@@ -28,6 +28,8 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
   onCollage: () => void;
   /** Going live starts here too, when it is offered. */
   onLive?: () => void;
+  /** A Note (a thought, a mood or a song on your circle) starts here too, when it is offered. */
+  onNote?: () => void;
   onSettings: () => void;
 }) {
   const { service } = useProfile();
@@ -74,6 +76,19 @@ export function StoryGallery({ onClose, onCamera, onGallery, onPick, onTemplate,
                 ))}
               </div>
             </section>
+          )}
+          {onNote && (
+            <button
+              type="button"
+              onClick={onNote}
+              className="mx-3.5 mb-2.5 flex items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.05] px-3.5 py-3 text-left transition-colors active:bg-white/10"
+            >
+              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 [&>svg]:size-[18px]"><PenLine /></span>
+              <span className="min-w-0">
+                <span className="block text-[14.5px] font-semibold">Note</span>
+                <span className="block text-[12.5px] text-white/60">A thought, a mood or a song</span>
+              </span>
+            </button>
           )}
           <div className="scrollbar-none grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-0.5 overflow-y-auto">
             {/* Named, not just drawn: two dark tiles with a glyph each read as something still loading. */}

@@ -61,11 +61,14 @@ export function StoryComposer({
   onClose,
   onPosted,
   onLive,
+  onNote,
 }: {
   onClose: () => void;
   onPosted: () => void;
   /** Going live, offered in "Add to story" when the caller has it. */
   onLive?: () => void;
+  /** Writing a Note, offered in "Add to story" when the caller has it. */
+  onNote?: () => void;
 }) {
   const t = useT();
   const { service, refresh, upload } = useStories();
@@ -372,6 +375,7 @@ export function StoryComposer({
           onMusic={() => blank('music')}
           onCollage={openGallery}
           {...(onLive ? { onLive: () => { onClose(); onLive(); } } : {})}
+          {...(onNote ? { onNote: () => { onClose(); onNote(); } } : {})}
           onSettings={() => setSettings(true)}
         />
         {settings && <StoryPrivacySheet onClose={() => setSettings(false)} />}
