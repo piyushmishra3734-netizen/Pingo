@@ -8,16 +8,20 @@
  */
 
 import { CameraIcon, VideoIcon, cn } from '@pingo/ui';
+import { PenLine } from 'lucide-react';
 
 import { Sheet, SheetCancel } from '../../components/Sheet.js';
 
 export function LiveCreateSheet({
   onPickStory,
   onPickLive,
+  onPickNote,
   onClose,
 }: {
   onPickStory: () => void;
   onPickLive: () => void;
+  /** Instagram puts a note in the same chooser; absent hides the row. */
+  onPickNote?: () => void;
   onClose: () => void;
 }) {
   return (
@@ -64,6 +68,21 @@ export function LiveCreateSheet({
           </span>
         </button>
       </div>
+      {onPickNote && (
+        <button
+          type="button"
+          onClick={onPickNote}
+          className="focus-ring mt-2.5 flex w-full items-center gap-3 rounded-3xl border border-line/50 bg-sunken/50 px-4 py-3.5 text-left transition-transform duration-[160ms] ease-standard active:scale-[0.98]"
+        >
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#14161c] text-[#ff2d92]">
+            <PenLine size={20} strokeWidth={2.2} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-body font-semibold text-ink">Note</span>
+            <span className="block text-caption leading-snug text-text-tertiary">A line or a song on your circle, up for a day</span>
+          </span>
+        </button>
+      )}
       <SheetCancel onClick={onClose} />
     </Sheet>
   );

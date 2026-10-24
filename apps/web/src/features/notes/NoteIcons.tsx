@@ -123,3 +123,34 @@ export function CloseGlyph() {
     </Neon>
   );
 }
+
+/** A speech bubble holding a question mark: the prompts. */
+export function QuestionGlyph() {
+  return (
+    <Neon tone={MAGENTA}>
+      {(p) => (
+        <>
+          <path d="M12 3.4 C16.9 3.4 20.6 6.6 20.6 11 C20.6 15.4 16.9 18.6 12 18.6 C11 18.6 10.1 18.5 9.2 18.2 L5 20.6 L5.9 16.4 C4.4 15.1 3.4 13.2 3.4 11 C3.4 6.6 7.1 3.4 12 3.4 Z" {...line(p)} />
+          <path d="M9.9 9.4 C9.9 8.1 10.8 7.4 12 7.4 C13.2 7.4 14.1 8.1 14.1 9.2 C14.1 10.9 12 10.9 12 12.6" {...line(p, 1.6)} />
+          <circle cx="12" cy="15" r="0.95" fill={p} />
+        </>
+      )}
+    </Neon>
+  );
+}
+
+/** A camera with a spark on its lens. */
+export function CameraGlyph() {
+  return (
+    <Neon>
+      {(p) => (
+        <>
+          <path d="M3.6 8.6 C3.6 7.5 4.4 6.7 5.5 6.7 H7.6 L9 4.8 H15 L16.4 6.7 H18.5 C19.6 6.7 20.4 7.5 20.4 8.6 V17 C20.4 18.1 19.6 18.9 18.5 18.9 H5.5 C4.4 18.9 3.6 18.1 3.6 17 Z" {...line(p)} />
+          <circle cx="12" cy="12.8" r="3.6" {...line(p)} />
+          <path d={spark(12, 12.8, 1.7)} fill={p} />
+          <circle cx="17.6" cy="9.4" r="0.8" fill={p} />
+        </>
+      )}
+    </Neon>
+  );
+}

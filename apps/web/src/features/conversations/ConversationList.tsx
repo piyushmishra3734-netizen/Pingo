@@ -670,7 +670,7 @@ export function ConversationList({
                           origin,
                         })
                       }
-                      onCreate={() => setCreating(true)}
+                      onCreate={() => setChoosingCreate(true)}
                       onManageMine={() => setManagingStory(true)}
                       uploading={storyUploading > 0}
                       extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
@@ -900,6 +900,10 @@ export function ConversationList({
             setChoosingCreate(false);
             navigate('/live/setup');
           }}
+          onPickNote={() => {
+            setChoosingCreate(false);
+            setWritingNote(true);
+          }}
           onClose={() => setChoosingCreate(false)}
         />
       )}
@@ -911,6 +915,7 @@ export function ConversationList({
           avatarUrl={profile?.avatarUrl}
           userId={profile?.id}
           onClose={() => setWritingNote(false)}
+          onCamera={() => setCreating(true)}
         />
       )}
       {viewingNote && <NoteViewSheet note={viewingNote} onClose={() => setViewingNote(undefined)} />}

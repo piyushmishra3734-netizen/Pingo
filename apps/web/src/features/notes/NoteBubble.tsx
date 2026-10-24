@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { Music2, Plus } from 'lucide-react';
+import { Music2 } from 'lucide-react';
 
 import type { Note } from './notes.js';
 
@@ -26,23 +26,8 @@ export function NoteBubble({
   mine?: boolean;
   onClick: () => void;
 }) {
-  if (!note && !mine) return <span aria-hidden style={{ height: NOTE_SLOT }} className="block" />;
-
-  // Nothing written yet: Instagram's "Leave a note" is a small round + on the face's shoulder.
-  if (!note) {
-    return (
-      <span className="relative z-10 block w-full" style={{ height: NOTE_SLOT }}>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label="Leave a note"
-          className="focus-ring absolute bottom-[-17px] left-1/2 ml-[10px] grid size-[30px] place-items-center rounded-full bg-surface text-text-secondary shadow-[0_1px_7px_rgb(16_17_20/0.26)] transition-transform duration-150 active:scale-90"
-        >
-          <Plus size={17} strokeWidth={2.2} />
-        </button>
-      </span>
-    );
-  }
+  // Nothing to show: the space is kept so every face sits on one line. A note is started from the story `+`.
+  if (!note) return <span aria-hidden style={{ height: NOTE_SLOT }} className="block" />;
 
   return (
     // Above the ring (z-10): the bubble overlaps the face's top edge, as on Instagram.
@@ -54,7 +39,7 @@ export function NoteBubble({
         className={cn(
           // Wider than the face, never wider than its column (NOTE_COL), so neighbours never touch.
           'focus-ring absolute bottom-[-3px] left-1/2 w-max max-w-[90px] min-w-[52px] -translate-x-1/2 rounded-[22px] px-3 py-[7px] text-center',
-          'text-[11px] leading-[1.22] font-medium text-ink transition-transform duration-150 active:scale-95',
+          'font-note text-[11px] leading-[1.22] font-semibold text-ink transition-transform duration-150 active:scale-95',
           'bg-surface shadow-[0_1px_8px_rgb(16_17_20/0.24)]',
         )}
       >

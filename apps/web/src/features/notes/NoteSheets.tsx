@@ -8,10 +8,10 @@ import { Overlay } from '../../components/Overlay.js';
 import { Sheet } from '../../components/Sheet.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../music/ProfileSongCard.js';
-import { CloseFriendsGlyph, CloseGlyph, FriendsGlyph, MusicGlyph, SmileGlyph } from './NoteIcons.js';
+import { CameraGlyph, CloseGlyph, MusicGlyph, QuestionGlyph } from './NoteIcons.js';
 import { NOTE_MAX, clearNote, saveNote, type Note, type NoteAudience } from './notes.js';
 
-const QUICK_EMOJI = ['😊', '😂', '🥹', '😍', '😎', '🥳', '😴', '😩', '❤️', '🔥', '✨', '🎧', '🌧️', '☕', '🎲', '🙏'];
+const PROMPTS = ['Ask me anything', 'Hot take:', 'Song of the day:', 'Currently:', 'Unpopular opinion:', 'Need recs:'];
 
 /**
  * A tile under the face, as Instagram draws them: a dark rounded rectangle with a
@@ -25,7 +25,7 @@ function Tile({ label, active = false, onClick, children }: { label: string; act
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className="focus-ring grid h-[52px] w-[68px] place-items-center rounded-[17px] border bg-[#14161c] transition-transform duration-150 active:scale-90"
+      className="focus-ring grid h-[50px] w-[60px] place-items-center rounded-[16px] border bg-[#14161c] transition-transform duration-150 active:scale-90"
       style={{ borderColor: active ? '#ff2d92' : 'rgb(255 255 255 / 0.14)', boxShadow: active ? '0 0 0 1px #ff2d92 inset' : undefined }}
     >
       {children}
@@ -44,18 +44,21 @@ export function NoteComposeSheet({
   avatarUrl,
   userId,
   onClose,
+  onCamera,
 }: {
   mine: Note | undefined;
   name: string;
   avatarUrl: string | undefined;
   userId: string | undefined;
   onClose: () => void;
+  /** The camera tile: leaves for the story camera. */
+  onCamera?: () => void;
 }) {
   const [body, setBody] = useState(mine?.body ?? '');
   const [song, setSong] = useState<ProfileSong | undefined>(mine?.song);
   const [audience, setAudience] = useState<NoteAudience>(mine?.audience ?? 'friends');
   const [picking, setPicking] = useState(false);
-  const [emojis, setEmojis] = useState(false);
+  const [prompts, setPrompts] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -127,7 +130,7 @@ export function NoteComposeSheet({
                 onChange={(event) => setBody(event.target.value.replace(/\n/g, ' '))}
                 placeholder="Share a thought..."
                 aria-label="Note"
-                className="block w-full resize-none bg-transparent text-center text-[21px] leading-[1.25] text-ink outline-none placeholder:text-text-tertiary"
+                className="font-note block w-full resize-none bg-transparent text-center text-[21px] font-medium leading-[1.25] text-ink outline-none placeholder:text-text-tertiary"
               />
               {/* The foot: the bubble's lower-left corner runs a little lower and ends in a rounded point, as in the reference. */}
               <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px] text-surface">
@@ -139,32 +142,45 @@ export function NoteComposeSheet({
             </span>
           </div>
 
-          {/* Three tiles under the face: the song, who sees it, a quick emoji. */}
-          <div className="flex items-center gap-4">
+          {/* The three tiles under the face, as in the reference: the song, a prompt, the camera. */}
+          <div className="flex items-center gap-3.5">
             <Tile label={song ? 'Remove song' : 'Add a song'} onClick={() => (song ? setSong(undefined) : setPicking(true))}>
               {song ? <CloseGlyph /> : <MusicGlyph />}
             </Tile>
-            <Tile label={`Shared with ${who}`} onClick={() => setAudience((a) => (a === 'friends' ? 'close' : 'friends'))} active={audience === 'close'}>
-              {audience === 'close' ? <CloseFriendsGlyph /> : <FriendsGlyph />}
+            <Tile label="Add a prompt" onClick={() => setPrompts((v) => !v)} active={prompts}>
+              <QuestionGlyph />
             </Tile>
-            <Tile label="Add an emoji" onClick={() => setEmojis((v) => !v)} active={emojis}>
-              <SmileGlyph />
-            </Tile>
+            {onCamera && (
+              <Tile label="Open the camera" onClick={() => { onClose(); onCamera(); }}>
+                <CameraGlyph />
+              </Tile>
+            )}
           </div>
 
-          {emojis && (
-            <div className="-mt-3 flex max-w-[320px] flex-wrap justify-center gap-1">
-              {QUICK_EMOJI.map((e) => (
-                <button key={e} type="button" aria-label={`Add ${e}`} onClick={() => setBody((b) => (b + e).slice(0, NOTE_MAX))} className="focus-ring grid size-10 place-items-center rounded-xl text-[22px] active:scale-90">
-                  {e}
+          {prompts ? (
+            <div className="-mt-2 flex max-w-[330px] flex-wrap justify-center gap-2">
+              {PROMPTS.map((text) => (
+                <button key={text} type="button" onClick={() => { setBody((text + ' ').slice(0, NOTE_MAX)); setPrompts(false); }} className="font-note focus-ring h-9 rounded-full border border-line bg-surface px-3.5 text-[13px] font-semibold text-ink active:scale-95">
+                  {text}
                 </button>
               ))}
             </div>
+          ) : (
+            /* How much to write: a short line is the point, and the room left is always in view. */
+            <div className="font-note -mt-2 flex w-[min(260px,78vw)] flex-col items-center gap-2">
+              <span className="h-[3px] w-full overflow-hidden rounded-full bg-line">
+                <span className="block h-full rounded-full transition-[width,background-color] duration-150" style={{ width: `${Math.min(100, (body.length / NOTE_MAX) * 100)}%`, background: body.length >= NOTE_MAX - 8 ? '#ff3b5c' : 'linear-gradient(90deg, #ff3d71, #ff2d92)' }} />
+              </span>
+              <span className="text-[12.5px] text-text-tertiary">
+                {body.length === 0 ? 'A line or two is plenty.' : body.length >= NOTE_MAX ? 'That is the limit.' : `${NOTE_MAX - body.length} left`}
+              </span>
+            </div>
           )}
 
-          <p className="text-[13px] text-text-tertiary">
-            <span className="tabular-nums">{body.length}/{NOTE_MAX}</span> · Shared with {who} for 24 hours
-          </p>
+          <button type="button" onClick={() => setAudience((a) => (a === 'friends' ? 'close' : 'friends'))} className="font-note focus-ring -mt-2 flex items-center gap-1.5 text-[13px] font-semibold text-text-secondary">
+            Shared with {audience === 'friends' ? 'friends you follow back' : 'close friends'}
+            <span className="text-brand">Change</span>
+          </button>
           {error && <p role="alert" className="text-caption text-danger">{error}</p>}
 
           {mine && (
