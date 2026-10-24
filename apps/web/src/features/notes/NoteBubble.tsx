@@ -65,9 +65,9 @@ export function NoteBubble({
           </span>
         )}
         {note.body && <span className={cn('break-words', note.song ? 'line-clamp-1' : 'line-clamp-2')}>{note.body}</span>}
-        {/* The tail runs down and to the right, toward the face: a dot, then a smaller one, each clear of the other. */}
-        <span aria-hidden className="absolute -bottom-[6px] right-[18px] size-[9px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.22)]" />
-        <span aria-hidden className="absolute -bottom-[14px] right-[9px] size-[5px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.22)]" />
+        {/* The tail points at the face: a dot under the bubble, a smaller one lower and nearer the face's middle. */}
+        <span aria-hidden className="absolute -bottom-[6px] left-[60%] size-[9px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.22)]" />
+        <span aria-hidden className="absolute -bottom-[14px] left-[52%] size-[5px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.22)]" />
       </button>
     </span>
   );

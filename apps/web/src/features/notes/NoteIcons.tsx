@@ -2,16 +2,17 @@ import { useId } from 'react';
 
 /**
  * The icons under the face in the composer. Not from a set: each is drawn here
- * as a duotone glyph (a gradient line and a filled accent) with a small spark,
- * in the app's own gradient, so the three read as one family.
+ * as a neon glyph, a thin bright line over a wider, softer copy of itself, in a
+ * pink-to-violet gradient with a spark, so a row of three reads as one family
+ * sitting on dark glass.
  */
 
 function Gradient({ id }: { id: string }) {
   return (
     <defs>
-      <linearGradient id={id} x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
-        <stop offset="0" style={{ stopColor: 'var(--gradient-from, #8b5dff)' }} />
-        <stop offset="1" style={{ stopColor: 'var(--gradient-to, #e0559b)' }} />
+      <linearGradient id={id} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#ff6fb0" />
+        <stop offset="1" stopColor="#a477ff" />
       </linearGradient>
     </defs>
   );
@@ -19,81 +20,101 @@ function Gradient({ id }: { id: string }) {
 
 /** A four-point spark, centred on (x, y). */
 const spark = (x: number, y: number, r: number) =>
-  `M${x} ${y - r} L${x + r * 0.28} ${y - r * 0.28} L${x + r} ${y} L${x + r * 0.28} ${y + r * 0.28} L${x} ${y + r} L${x - r * 0.28} ${y + r * 0.28} L${x - r} ${y} L${x - r * 0.28} ${y - r * 0.28} Z`;
+  `M${x} ${y - r} L${x + r * 0.26} ${y - r * 0.26} L${x + r} ${y} L${x + r * 0.26} ${y + r * 0.26} L${x} ${y + r} L${x - r * 0.26} ${y + r * 0.26} L${x - r} ${y} L${x - r * 0.26} ${y - r * 0.26} Z`;
 
-const base = { width: 28, height: 28, viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true } as const;
-const line = { strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+function Neon({ children, glow = '#ff4d9a' }: { children: (paint: string) => React.ReactNode; glow?: string }) {
+  const g = useId();
+  const paint = `url(#${g})`;
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden style={{ filter: `drop-shadow(0 0 4px ${glow}aa) drop-shadow(0 0 10px ${glow}55)` }}>
+      <Gradient id={g} />
+      {children(paint)}
+    </svg>
+  );
+}
+
+const line = (paint: string, width = 1.7) => ({ stroke: paint, strokeWidth: width, strokeLinecap: 'round', strokeLinejoin: 'round' }) as const;
 
 export function MusicGlyph() {
-  const g = useId();
   return (
-    <svg {...base}>
-      <Gradient id={g} />
-      {/* The beam is the filled accent; stems and heads are the line. */}
-      <path d="M9.4 6.9 L19.4 4.8 V8.6 L9.4 10.7 Z" fill={`url(#${g})`} opacity="0.9" />
-      <path d="M9.4 18 V6.9 M19.4 16 V4.8" stroke={`url(#${g})`} {...line} />
-      <circle cx="6.9" cy="18.1" r="2.6" fill={`url(#${g})`} />
-      <circle cx="16.9" cy="16.1" r="2.6" fill={`url(#${g})`} />
-      <path d={spark(4.2, 6.2, 2)} fill={`url(#${g})`} />
-    </svg>
+    <Neon>
+      {(p) => (
+        <>
+          <path d="M9.2 6.8 L18 5 V8.4 L9.2 10.2 Z" fill={p} />
+          <path d="M9.2 17.4 V6.8 M18 15.4 V5" {...line(p)} />
+          <circle cx="6.9" cy="17.6" r="2.5" fill={p} />
+          <circle cx="15.7" cy="15.6" r="2.5" fill={p} />
+          {/* Sound leaving the note. */}
+          <path d="M20.4 9.2 C21.6 10.6 21.6 12.8 20.4 14.2" {...line(p, 1.4)} opacity="0.8" />
+          <path d="M22 7.6 C24 10 24 13.4 22 15.8" {...line(p, 1.2)} opacity="0.45" />
+          <path d={spark(4.4, 6.2, 2.3)} fill={p} />
+        </>
+      )}
+    </Neon>
   );
 }
 
 export function FriendsGlyph() {
-  const g = useId();
   return (
-    <svg {...base}>
-      <Gradient id={g} />
-      <circle cx="9" cy="8.6" r="3.2" stroke={`url(#${g})`} {...line} />
-      <path d="M3.4 19.4 C3.9 15.9 6.2 14 9 14 C11.8 14 14.1 15.9 14.6 19.4" stroke={`url(#${g})`} {...line} />
-      <circle cx="16.6" cy="9.6" r="2.5" fill={`url(#${g})`} opacity="0.55" />
-      <path d="M15.6 14.4 C18.2 14.1 20.2 15.6 20.7 18.8" stroke={`url(#${g})`} {...line} opacity="0.7" />
-      <path d={spark(19.6, 4.4, 2.2)} fill={`url(#${g})`} />
-    </svg>
+    <Neon>
+      {(p) => (
+        <>
+          <circle cx="8.6" cy="12.4" r="5.6" {...line(p)} />
+          <circle cx="15.4" cy="12.4" r="5.6" {...line(p)} opacity="0.8" />
+          <path d="M6.6 13.2 C7.6 14.8 9.8 14.8 10.8 13.2" {...line(p, 1.3)} />
+          <circle cx="7.4" cy="10.8" r="0.9" fill={p} />
+          <circle cx="10" cy="10.8" r="0.9" fill={p} />
+          {/* A heart where the two faces meet. */}
+          <path d="M12 8.4 C12 7.2 10.6 6.6 9.9 7.5 C9.2 6.6 7.8 7.2 7.8 8.4 C7.8 9.8 9.9 11 9.9 11 C9.9 11 12 9.8 12 8.4 Z" transform="translate(2.1 -3.9) scale(1)" fill={p} />
+          <path d={spark(20.6, 5.2, 2.2)} fill={p} />
+        </>
+      )}
+    </Neon>
   );
 }
 
-/** Close friends: the same pair, with the green ring's star in place of the spark. */
+/** Close friends: the green ring's star, lit. */
 export function CloseFriendsGlyph() {
-  const g = useId();
   return (
-    <svg {...base}>
-      <Gradient id={g} />
-      <circle cx="9" cy="8.6" r="3.2" stroke={`url(#${g})`} {...line} />
-      <path d="M3.4 19.4 C3.9 15.9 6.2 14 9 14 C11.8 14 14.1 15.9 14.6 19.4" stroke={`url(#${g})`} {...line} />
-      <path
-        d="M17.2 5.2 L18.3 7.6 L20.9 7.9 L19 9.7 L19.5 12.3 L17.2 11 L14.9 12.3 L15.4 9.7 L13.5 7.9 L16.1 7.6 Z"
-        fill="#2ecc71"
-        stroke="#2ecc71"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <Neon glow="#2ee283">
+      {() => (
+        <>
+          <path
+            d="M12 2.6 L14.7 8.5 L21.2 9.2 L16.4 13.6 L17.7 20 L12 16.8 L6.3 20 L7.6 13.6 L2.8 9.2 L9.3 8.5 Z"
+            fill="#2ee283"
+            stroke="#b8ffd9"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+          />
+          <path d="M12 7 L13.2 9.8" stroke="#eafff3" strokeWidth="1.2" strokeLinecap="round" opacity="0.8" />
+        </>
+      )}
+    </Neon>
   );
 }
 
 export function SmileGlyph() {
-  const g = useId();
   return (
-    <svg {...base}>
-      <Gradient id={g} />
-      <path d="M20.6 12.6 A8.6 8.6 0 1 1 11.4 3.4" stroke={`url(#${g})`} {...line} />
-      <circle cx="8.8" cy="10.4" r="1.25" fill={`url(#${g})`} />
-      <circle cx="15" cy="10.4" r="1.25" fill={`url(#${g})`} />
-      <path d="M7.8 14.4 C9.2 16.8 14.6 16.8 16 14.4" stroke={`url(#${g})`} {...line} />
-      <circle cx="6.4" cy="13.4" r="1.15" fill={`url(#${g})`} opacity="0.35" />
-      <circle cx="17.4" cy="13.4" r="1.15" fill={`url(#${g})`} opacity="0.35" />
-      <path d={spark(19, 5, 3)} fill={`url(#${g})`} />
-    </svg>
+    <Neon>
+      {(p) => (
+        <>
+          <path d="M20.8 12.8 A8.8 8.8 0 1 1 11.2 3.2" {...line(p)} />
+          {/* Star eyes. */}
+          <path d={spark(8.6, 10, 2)} fill={p} />
+          <path d={spark(15.2, 10, 2)} fill={p} />
+          {/* An open grin. */}
+          <path d="M7.6 14.2 C9 18 15 18 16.4 14.2 Z" fill={p} opacity="0.9" />
+          <path d={spark(19.6, 4.6, 3)} fill={p} />
+        </>
+      )}
+    </Neon>
   );
 }
 
 export function CloseGlyph() {
-  const g = useId();
   return (
-    <svg {...base}>
-      <Gradient id={g} />
-      <path d="M6 6 L18 18 M18 6 L6 18" stroke={`url(#${g})`} {...line} strokeWidth={2.2} />
-    </svg>
+    <Neon>
+      {(p) => <path d="M6.4 6.4 L17.6 17.6 M17.6 6.4 L6.4 17.6" {...line(p, 2.3)} />}
+    </Neon>
   );
 }
