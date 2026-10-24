@@ -101,6 +101,19 @@ import { presenceMark, usePresenceStatus } from '../features/presence/status.js'
 
 type Tab = 'posts' | 'media';
 
+/**
+ * What this session last saw of a profile, so going back to one paints at once
+ * and is corrected a moment later - the way a chat list does - instead of
+ * starting from skeletons every time. Per viewer (a private account shows
+ * different things to different people) and only for ten minutes: the signed
+ * links inside a post do not last longer than that anyway.
+ */
+const SEEN_MS = 10 * 60 * 1000;
+const seenProfiles = new Map<string, { stats?: ProfileStats; posts?: Post[]; at: number }>();
+function remember(key: string, patch: { stats?: ProfileStats; posts?: Post[] }): void {
+  seenProfiles.set(key, { ...seenProfiles.get(key), ...patch, at: Date.now() });
+}
+
 export function ProfileScreen() {
   const { handle } = useParams<{ handle: string }>();
   // `updateMine` rather than `profiles.update`: the provider holds the copy the
@@ -199,9 +212,17 @@ export function ProfileScreen() {
     let active = true;
     setPostsFailed(false);
 
+    // Last time's answer first, if there is a recent one; the fetches below correct it.
+    const seenKey = `${mine?.id ?? 'anon'}:${personId}`;
+    const seen = seenProfiles.get(seenKey);
+    if (seen && Date.now() - seen.at < SEEN_MS) {
+      if (seen.stats) setStats(seen.stats);
+      if (seen.posts) setPosts(seen.posts);
+    }
+
     void profiles
       .stats(personId)
-      .then((next) => { if (active) setStats(next); })
+      .then((next) => { remember(seenKey, { stats: next }); if (active) setStats(next); })
       .catch(() => undefined);
 
     /*
@@ -216,8 +237,8 @@ export function ProfileScreen() {
      */
     void profiles
       .listPosts(personId)
-      .then((next) => { if (active) setPosts(next); })
-      .catch(() => { if (active) setPostsFailed(true); });
+      .then((next) => { remember(seenKey, { posts: next }); if (active) setPosts(next); })
+      .catch(() => { if (active && !seen?.posts) setPostsFailed(true); });
 
     /*
      * Whether the posts are behind a follow. The database already withholds
@@ -267,7 +288,7 @@ export function ProfileScreen() {
     return () => {
       active = false;
     };
-  }, [profiles, personId, isSelf]);
+  }, [profiles, personId, isSelf, mine?.id]);
 
   const reload = useCallback(() => {
     if (!personId) return;
