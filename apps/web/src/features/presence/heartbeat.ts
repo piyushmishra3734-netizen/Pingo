@@ -31,6 +31,14 @@ import { activityStatusOn } from '../settings/privacy-flags.js';
 /** Fine enough that no phrasing built on it can be wrong. */
 const BEAT_MS = 60_000;
 
+/**
+ * What this build can do, reported with the build itself. `r2chat`: it can open
+ * chat media stored on R2, so a conversation may send its media there. A build
+ * without it is never counted as able to, which is how an old phone keeps its
+ * chats on Supabase Storage instead of seeing broken photos.
+ */
+const CAPS = ['r2chat'];
+
 let timer: ReturnType<typeof setInterval> | undefined;
 let running = false;
 
@@ -47,13 +55,17 @@ async function beat(): Promise<void> {
    * Checked per beat rather than at start, so the switch takes effect within a
    * minute instead of at the next launch.
    */
-  if (!activityStatusOn()) return;
+  // Hiding activity stops the clock, not the report of what this build can do.
+  const present = activityStatusOn();
 
   try {
     const identity = await deviceIdentity();
-    await getSupabaseClient()
-      .from('device_keys')
-      .update({ last_seen_at: new Date().toISOString(), build: BUILD_ID })
+    // `caps` is newer than the generated types, so the table is addressed loosely.
+    const table = getSupabaseClient().from('device_keys') as unknown as {
+      update(values: Record<string, unknown>): { eq(column: string, value: string): PromiseLike<unknown> };
+    };
+    await table
+      .update(present ? { last_seen_at: new Date().toISOString(), build: BUILD_ID, caps: CAPS } : { build: BUILD_ID, caps: CAPS })
       .eq('device_id', identity.deviceId);
   } catch {
     /*

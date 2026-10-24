@@ -4229,6 +4229,7 @@ export class SupabaseChatService implements ChatService {
     body: Blob,
     contentType: string,
     kind: MediaKind,
+    conversationId: ConversationId,
   ): Promise<string> {
     const complaint = mediaTooLarge(body.size, kind);
     if (complaint) throw new Error(complaint);
@@ -4246,7 +4247,7 @@ export class SupabaseChatService implements ChatService {
      * exactly as before.
      */
     const r2Kind = R2_KIND[bucket];
-    const onR2 = r2Kind && (await chatMediaOnR2()) ? await r2Upload(r2Kind, body, contentType) : null;
+    const onR2 = r2Kind && (await chatMediaOnR2(conversationId)) ? await r2Upload(r2Kind, body, contentType) : null;
     if (onR2) {
       await Promise.resolve(uploadClaims(this.#client).insert({ path: onR2.path, bucket, user_id: me })).then(
         undefined,
@@ -4289,7 +4290,7 @@ export class SupabaseChatService implements ChatService {
     );
   }
 
-  async #uploadSnap(image: Blob): Promise<string> {
+  async #uploadSnap(image: Blob, conversationId: ConversationId): Promise<string> {
     if (!image || image.size === 0) {
       throw new Error('No image to send.');
     }
@@ -4305,10 +4306,10 @@ export class SupabaseChatService implements ChatService {
       new File([image], 'snap', { type: image.type || 'image/jpeg' }),
     ).catch(() => new File([image], 'snap', { type: image.type || 'image/jpeg' }));
 
-    return this.#claimAndUpload(SNAP_BUCKET, path, sending, sending.type || 'image/jpeg', 'snap');
+    return this.#claimAndUpload(SNAP_BUCKET, path, sending, sending.type || 'image/jpeg', 'snap', conversationId);
   }
 
-  async #uploadPhoto(image: Blob): Promise<string> {
+  async #uploadPhoto(image: Blob, conversationId: ConversationId): Promise<string> {
     if (!image || image.size === 0) {
       throw new Error('No image to send.');
     }
@@ -4323,7 +4324,7 @@ export class SupabaseChatService implements ChatService {
      */
     const path = `${me}/${crypto.randomUUID()}.${imageExtension(image.type)}`;
 
-    return this.#claimAndUpload(PHOTO_BUCKET, path, image, image.type || 'image/jpeg', 'photo');
+    return this.#claimAndUpload(PHOTO_BUCKET, path, image, image.type || 'image/jpeg', 'photo', conversationId);
   }
 
   /**
@@ -4627,7 +4628,7 @@ export class SupabaseChatService implements ChatService {
     });
   }
 
-  async #uploadVoice(audio: Blob): Promise<string> {
+  async #uploadVoice(audio: Blob, conversationId: ConversationId): Promise<string> {
     const me = await this.#userId();
     // Prefer WAV always (recorder produces it). Fallback types for legacy callers.
     const type = (audio.type || 'audio/wav').split(';')[0]!.toLowerCase();
@@ -4661,10 +4662,10 @@ export class SupabaseChatService implements ChatService {
         ? new Blob([audio], { type: 'audio/wav' })
         : audio;
 
-    return this.#claimAndUpload(VOICE_BUCKET, path, body, contentType, 'voice');
+    return this.#claimAndUpload(VOICE_BUCKET, path, body, contentType, 'voice', conversationId);
   }
 
-  async #uploadDocument(file: File): Promise<string> {
+  async #uploadDocument(file: File, conversationId: ConversationId): Promise<string> {
     const me = await this.#userId();
     /*
      * The original name is kept in a column, not in the path. Filenames carry
@@ -4679,6 +4680,7 @@ export class SupabaseChatService implements ChatService {
       file,
       file.type || 'application/octet-stream',
       'file',
+      conversationId,
     );
   }
 
@@ -5040,14 +5042,14 @@ export class SupabaseChatService implements ChatService {
     const keptPing = draft.ping && draft.ping.views === null ? draft.ping : undefined;
     const ephemeralPing = draft.ping && draft.ping.views !== null ? draft.ping : undefined;
 
-    const snapPath = ephemeralPing ? await this.#uploadSnap(ephemeralPing.image) : undefined;
+    const snapPath = ephemeralPing ? await this.#uploadSnap(ephemeralPing.image, draft.conversationId) : undefined;
     const photoPath = draft.photo
-      ? await this.#uploadPhoto(draft.photo.image)
+      ? await this.#uploadPhoto(draft.photo.image, draft.conversationId)
       : keptPing
-        ? await this.#uploadPhoto(keptPing.image)
+        ? await this.#uploadPhoto(keptPing.image, draft.conversationId)
         : undefined;
-    const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio) : undefined;
-    const filePath = draft.document ? await this.#uploadDocument(draft.document.file) : undefined;
+    const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio, draft.conversationId) : undefined;
+    const filePath = draft.document ? await this.#uploadDocument(draft.document.file, draft.conversationId) : undefined;
     const snapExpiry = snapPath
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
