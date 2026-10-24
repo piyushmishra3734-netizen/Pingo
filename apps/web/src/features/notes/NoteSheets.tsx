@@ -14,9 +14,9 @@ import { NOTE_MAX, clearNote, saveNote, type Note, type NoteAudience } from './n
 const QUICK_EMOJI = ['😊', '😂', '🥹', '😍', '😎', '🥳', '😴', '😩', '❤️', '🔥', '✨', '🎧', '🌧️', '☕', '🎲', '🙏'];
 
 /**
- * A tile under the face: dark glass with a lit top edge and a hairline border,
- * the same in either theme so the neon glyph on it always glows. When it is on,
- * its border takes the glyph's gradient and the glow spreads under it.
+ * A tile under the face, as Instagram draws them: a dark rounded rectangle with a
+ * hairline border and a pink icon. The same dark in either theme; when it is on,
+ * the border takes the icon's colour.
  */
 function Tile({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -25,16 +25,8 @@ function Tile({ label, active = false, onClick, children }: { label: string; act
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className="focus-ring grid size-[64px] place-items-center rounded-[22px] transition-transform duration-150 active:scale-90"
-      style={{
-        background: active
-          ? 'linear-gradient(#17181f, #17181f) padding-box, linear-gradient(145deg, #ff6fb0, #a477ff) border-box'
-          : 'linear-gradient(160deg, #20212b, #101116) padding-box, linear-gradient(160deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.04)) border-box',
-        border: '1.5px solid transparent',
-        boxShadow: active
-          ? '0 10px 26px -8px rgb(255 77 154 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.12)'
-          : '0 10px 22px -12px rgb(16 17 20 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.1)',
-      }}
+      className="focus-ring grid h-[52px] w-[68px] place-items-center rounded-[17px] border bg-[#14161c] transition-transform duration-150 active:scale-90"
+      style={{ borderColor: active ? '#ff2d92' : 'rgb(255 255 255 / 0.14)', boxShadow: active ? '0 0 0 1px #ff2d92 inset' : undefined }}
     >
       {children}
     </button>
@@ -120,7 +112,7 @@ export function NoteComposeSheet({
               the top of the face and its tail points down into it, the way the
               reference draws it.
             */}
-            <div className="relative z-10 -mb-7 w-[min(260px,78vw)] rounded-[24px] rounded-bl-[10px] bg-surface px-5 py-4 text-center shadow-[0_2px_16px_rgb(16_17_20/0.22)]">
+            <div className="relative z-10 -mb-7 w-[min(260px,78vw)] rounded-[24px] rounded-bl-none bg-surface px-5 py-4 text-center shadow-[0_2px_16px_rgb(16_17_20/0.22)]">
               {song && (
                 <button type="button" onClick={() => setPicking(true)} className="mb-1.5 flex w-full items-center justify-center gap-1.5 text-[13px] text-text-secondary">
                   <Music2 size={14} className="shrink-0" />
@@ -137,9 +129,9 @@ export function NoteComposeSheet({
                 aria-label="Note"
                 className="block w-full resize-none bg-transparent text-center text-[21px] leading-[1.25] text-ink outline-none placeholder:text-text-tertiary"
               />
-              {/* The tail: the bubble's lower-left corner runs out and down to a point, toward the face, as in the reference. */}
-              <svg aria-hidden viewBox="0 0 22 20" className="absolute -bottom-[12px] -left-[5px] h-[20px] w-[22px] text-surface drop-shadow-[0_3px_3px_rgb(16_17_20/0.08)]">
-                <path d="M14 0 C14 9 9 16 0 19 C6 19.6 15 17 22 8 L22 0 Z" fill="currentColor" />
+              {/* The foot: the bubble's lower-left corner runs a little lower and ends in a rounded point, as in the reference. */}
+              <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px] text-surface">
+                <path d="M0 0 H18 C12.5 0 10 3.4 7 7.4 C5.2 9.8 1.6 9.8 0 6.4 Z" fill="currentColor" />
               </svg>
             </div>
             <span className="block size-[168px] overflow-hidden rounded-full ring-1 ring-line">
@@ -212,7 +204,7 @@ export function NoteViewSheet({ note, onClose }: { note: Note; onClose: () => vo
       <div className="flex flex-col items-center gap-4 pt-2 pb-1">
         <div className="relative max-w-[260px] rounded-[24px] bg-surface px-5 py-3 text-center text-[16px] leading-snug text-ink shadow-[0_2px_14px_rgb(16_17_20/0.2)]">
           {note.body || <span className="text-text-secondary">{note.song?.name}</span>}
-          <svg aria-hidden viewBox="0 0 22 20" className="absolute -bottom-[12px] -left-[5px] h-[20px] w-[22px] text-surface drop-shadow-[0_3px_3px_rgb(16_17_20/0.08)]"><path d="M14 0 C14 9 9 16 0 19 C6 19.6 15 17 22 8 L22 0 Z" fill="currentColor" /></svg>
+          <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px] text-surface"><path d="M0 0 H18 C12.5 0 10 3.4 7 7.4 C5.2 9.8 1.6 9.8 0 6.4 Z" fill="currentColor" /></svg>
         </div>
         <span className="block size-[88px] overflow-hidden rounded-full">
           {note.avatarUrl ? <img src={note.avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={note.name} id={note.userId} size="lg" className="!size-full" />}

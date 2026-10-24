@@ -53,7 +53,7 @@ export function NoteBubble({
         aria-label={mine ? `Your note: ${note.body}. Tap to change.` : `${note.name}'s note: ${note.body}`}
         className={cn(
           // Wider than the face, never wider than its column (NOTE_COL), so neighbours never touch.
-          'focus-ring absolute bottom-[-12px] left-1/2 w-max max-w-[90px] min-w-[52px] -translate-x-1/2 rounded-[22px] px-3 py-[7px] text-center',
+          'focus-ring absolute bottom-[-3px] left-1/2 w-max max-w-[90px] min-w-[52px] -translate-x-1/2 rounded-[22px] px-3 py-[7px] text-center',
           'text-[11px] leading-[1.22] font-medium text-ink transition-transform duration-150 active:scale-95',
           'bg-surface shadow-[0_1px_8px_rgb(16_17_20/0.24)]',
         )}
@@ -65,9 +65,11 @@ export function NoteBubble({
           </span>
         )}
         {note.body && <span className={cn('break-words', note.song ? 'line-clamp-1' : 'line-clamp-2')}>{note.body}</span>}
-        {/* The tail points at the face: a dot under the bubble, a smaller one lower and nearer the face's middle. */}
-        <span aria-hidden className="absolute -bottom-[6px] left-[60%] size-[9px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.22)]" />
-        <span aria-hidden className="absolute -bottom-[14px] left-[52%] size-[5px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.22)]" />
+        {/* Instagram's tail: a rounded nub on the underside of the bubble, and one small dot below it, toward the face. */}
+        <svg aria-hidden viewBox="0 0 20 6" className="absolute -bottom-[5px] left-[58%] h-[6px] w-[20px] text-surface drop-shadow-[0_2px_2px_rgb(16_17_20/0.1)]">
+          <path d="M0 0 C4 0 5 6 10 6 C15 6 16 0 20 0 Z" fill="currentColor" />
+        </svg>
+        <span aria-hidden className="absolute -bottom-[13px] left-[52%] size-[5px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.22)]" />
       </button>
     </span>
   );

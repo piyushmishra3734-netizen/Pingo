@@ -7,27 +7,32 @@ import { useId } from 'react';
  * sitting on dark glass.
  */
 
-function Gradient({ id }: { id: string }) {
+function Gradient({ id, from, to }: { id: string; from: string; to: string }) {
   return (
     <defs>
       <linearGradient id={id} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#ff6fb0" />
-        <stop offset="1" stopColor="#a477ff" />
+        <stop offset="0" stopColor={from} />
+        <stop offset="1" stopColor={to} />
       </linearGradient>
     </defs>
   );
 }
 
+/** Instagram's colours for these three: a hot pink for music, a magenta for the audience, the pink again for the rest. */
+const PINK = { from: '#ff3d71', to: '#ff2d92', glow: '#ff2d6f' };
+const MAGENTA = { from: '#e02ff0', to: '#b436f2', glow: '#d02be0' };
+
 /** A four-point spark, centred on (x, y). */
 const spark = (x: number, y: number, r: number) =>
   `M${x} ${y - r} L${x + r * 0.26} ${y - r * 0.26} L${x + r} ${y} L${x + r * 0.26} ${y + r * 0.26} L${x} ${y + r} L${x - r * 0.26} ${y + r * 0.26} L${x - r} ${y} L${x - r * 0.26} ${y - r * 0.26} Z`;
 
-function Neon({ children, glow = '#ff4d9a' }: { children: (paint: string) => React.ReactNode; glow?: string }) {
+function Neon({ children, tone = PINK }: { children: (paint: string) => React.ReactNode; tone?: { from: string; to: string; glow: string } }) {
+  const { glow } = tone;
   const g = useId();
   const paint = `url(#${g})`;
   return (
-    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden style={{ filter: `drop-shadow(0 0 4px ${glow}aa) drop-shadow(0 0 10px ${glow}55)` }}>
-      <Gradient id={g} />
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden style={{ filter: `drop-shadow(0 0 3px ${glow}66)` }}>
+      <Gradient id={g} from={tone.from} to={tone.to} />
       {children(paint)}
     </svg>
   );
@@ -56,7 +61,7 @@ export function MusicGlyph() {
 
 export function FriendsGlyph() {
   return (
-    <Neon>
+    <Neon tone={MAGENTA}>
       {(p) => (
         <>
           <circle cx="8.6" cy="12.4" r="5.6" {...line(p)} />
@@ -76,7 +81,7 @@ export function FriendsGlyph() {
 /** Close friends: the green ring's star, lit. */
 export function CloseFriendsGlyph() {
   return (
-    <Neon glow="#2ee283">
+    <Neon tone={{ from: '#2ee283', to: '#2ee283', glow: '#2ee283' }}>
       {() => (
         <>
           <path
