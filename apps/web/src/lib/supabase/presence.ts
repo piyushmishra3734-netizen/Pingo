@@ -49,6 +49,9 @@ import type { ChatActivity } from '@pingo/core';
 /** How long a typing signal stands before it is assumed stale. */
 const TYPING_TIMEOUT_MS = 4_000;
 
+/** No tick of the sweeper for this long means the app was suspended, and every socket with it. */
+const SUSPENDED_AFTER_MS = 15_000;
+
 /** Re-broadcast no faster than this while someone keeps typing. */
 const TYPING_THROTTLE_MS = 2_000;
 
@@ -71,6 +74,8 @@ export class PresenceHub {
   /** Per conversation: who is doing what, and when their signal expires. */
   #typists = new Map<string, Map<UserId, { until: number; kind: ChatActivity }>>();
   #sweeper: ReturnType<typeof setInterval> | undefined;
+  /** The last tick of the sweeper: it stops when the app is suspended, which is how a long absence shows. */
+  #lastTick = Date.now();
   #lastSent = new Map<string, number>();
   #userId: UserId | undefined;
 
@@ -206,6 +211,7 @@ export class PresenceHub {
   }
 
   #lastOnline = new Set<UserId>();
+  #rebuilding = false;
 
   // -- typing ---------------------------------------------------------------
 
@@ -312,6 +318,7 @@ export class PresenceHub {
   #startSweeper(): void {
     this.#sweeper ??= setInterval(() => {
       const now = Date.now();
+      this.#lastTick = now;
       for (const [conversationId, map] of this.#typists) {
         let changed = false;
         for (const [userId, entry] of map) {
@@ -340,14 +347,77 @@ export class PresenceHub {
     );
   }
 
-  stop(): void {
+  /**
+   * Coming back to the app, or the network coming back.
+   *
+   * This used to be `stop()` then `start()`, and that was two bugs. `stop()`
+   * forgets who was online, so the first `sync` after it had nothing to compare
+   * with: anybody who went away while this app was in the background was never
+   * turned off, and stayed green until a refresh. And it dropped every typing
+   * channel and only made one again when that thread's messages were read - so
+   * typing in the chat that was open simply stopped arriving. Each of those is
+   * "sometimes", which is why they looked like a flaky connection.
+   *
+   * Now: if the channels are alive, nothing is torn down - say "here" again and
+   * that is all, so nobody sees this account blink offline for switching tabs.
+   * If the app was suspended or a channel is dead, rebuild it, keeping what was
+   * known (`#lastOnline`) and putting every watched thread's typing channel
+   * back.
+   */
+  resume(userId: UserId): void {
+    this.#userId = userId;
+    // A second wake-up (focus, then the network) while the first is still rebuilding changes nothing.
+    if (this.#rebuilding) return;
+    if (!this.#presence) {
+      this.start(userId);
+      return;
+    }
+
+    const suspended = Date.now() - this.#lastTick > SUSPENDED_AFTER_MS;
+    const alive = (channel: { state: string }): boolean =>
+      !suspended && this.#client.realtime.isConnected() && channel.state === 'joined';
+
+    /*
+     * A new channel is made only once the old one with the same name is gone:
+     * `removeChannel` is not instant, and asking for a channel by a name that is
+     * still being torn down can hand back the dying one.
+     */
+    if (alive(this.#presence)) {
+      this.#publishPresence();
+    } else {
+      this.#rebuilding = true;
+      void this.#dropPresence().then(() => {
+        this.#rebuilding = false;
+        this.start(userId);
+      });
+    }
+
+    for (const [conversationId, channel] of [...this.#typing]) {
+      if (alive(channel)) continue;
+      this.#typing.delete(conversationId);
+      // Whatever it said is no longer being kept up to date; the sweeper expires it.
+      void this.#client.removeChannel(channel).then(
+        () => this.watchTyping(conversationId),
+        () => this.watchTyping(conversationId),
+      );
+    }
+    this.#lastTick = Date.now();
+  }
+
+  /** The presence half of `stop()`, which leaves what was known about who is online. */
+  #dropPresence(): Promise<unknown> {
     this.#stopListening?.();
     this.#stopListening = undefined;
     this.#stopWatching?.();
     this.#stopWatching = undefined;
     window.removeEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
-    if (this.#presence) void this.#client.removeChannel(this.#presence);
+    const gone = this.#presence ? this.#client.removeChannel(this.#presence) : Promise.resolve();
     this.#presence = undefined;
+    return gone.catch(() => undefined);
+  }
+
+  stop(): void {
+    void this.#dropPresence();
 
     for (const channel of this.#typing.values()) void this.#client.removeChannel(channel);
     this.#typing.clear();

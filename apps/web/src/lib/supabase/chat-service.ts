@@ -1131,8 +1131,8 @@ export class SupabaseChatService implements ChatService {
         this.#client.realtime.setAuth(current.session.access_token);
         this.#closeChannel();
         this.#openChannel();
-        this.#presenceHub.stop();
-        this.#presenceHub.start(current.session.user.id);
+        // Not stop-then-start: that forgets who was online and drops the typing channels.
+        this.#presenceHub.resume(current.session.user.id);
       });
     };
 
