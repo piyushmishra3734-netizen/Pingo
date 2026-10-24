@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { StoryAudioDraft, VideoEdit, VideoOverlayItem } from '@pingo/core';
 
-import { BrushRow, ColourRow, SizeSlider } from '../draw/DrawChrome.js';
+import { BrushRow, ColourRow, DrawDock, SizeSlider } from '../draw/DrawChrome.js';
 import { normalizeStroke, paintStrokes, type DrawStroke } from '../draw/brushes.js';
 import { useBrush } from '../draw/useBrush.js';
 import { VideoTrimSheet } from '../chat/VideoTrimSheet.js';
@@ -1115,10 +1115,14 @@ export function SnapEditor({
 
         {/* Belongs to the pen, so it goes when the pen does. */}
         {!untouchable && (
-        <div className="flex flex-col items-center gap-1">
-          {tool === 'draw' && <BrushRow brush={brush} onChange={setBrush} />}
+        tool === 'draw' ? (
+          <DrawDock brush={brush}>
+            <BrushRow brush={brush} onChange={setBrush} />
+            <ColourRow colour={colour} onChange={setColour} />
+          </DrawDock>
+        ) : (
           <ColourRow colour={colour} onChange={setColour} />
-        </div>
+        )
         )}
 
         {exportError && (

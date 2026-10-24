@@ -13,7 +13,7 @@ import { useBackStep } from '../navigation/useBackStep.js';
 import { cutToWav, decodeSound } from './story-audio.js';
 import { FONTS, STYLE_COUNT, StickerView, TEXT_ANIMS, TEXT_COLORS, TextSticker, stickerStyle, type TextData } from './stickers/StickerView.js';
 import './stickers/stickers.css';
-import { BrushRow, ColourRow, SizeSlider } from '../draw/DrawChrome.js';
+import { BrushRow, ColourRow, DrawDock, SizeSlider } from '../draw/DrawChrome.js';
 import { paintStrokes, type DrawStroke } from '../draw/brushes.js';
 import { useBrush } from '../draw/useBrush.js';
 import { SendTo, drawStickers, noteSends } from '../camera/snap/send-to.js';
@@ -685,12 +685,14 @@ export function DrawMode({ stage, strokes, setStrokes, onDone }: {
           <button type="button" aria-label="Undo" onClick={() => setStrokes((s) => { const last = s[s.length - 1]; if (last) setRedo((x) => [...x, last]); return s.slice(0, -1); })} disabled={!strokes.length} className={round}><Undo2 size={19} /></button>
           <button type="button" aria-label="Redo" onClick={() => { const next = redo[redo.length - 1]; if (!next) return; setRedo((x) => x.slice(0, -1)); setStrokes((s) => [...s, next]); }} disabled={!redo.length} className={round}><Redo2 size={19} /></button>
         </div>
-        <button type="button" onClick={onDone} className="rounded-full bg-white px-4 py-1.5 text-[15px] font-bold text-black">Done</button>
+        <button type="button" onClick={onDone} className="rounded-full bg-brand px-5 py-1.5 text-[15px] font-bold text-on-brand">Done</button>
       </div>
       <SizeSlider size={size} colour={color} brush={brush} frameHeight={r?.height ?? 600} onChange={setSize} />
-      <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-1 px-3">
-        <BrushRow brush={brush} onChange={setBrush} />
-        <ColourRow colour={color} onChange={setColor} />
+      <div className="absolute inset-x-0 bottom-4 z-10 px-3">
+        <DrawDock brush={brush}>
+          <BrushRow brush={brush} onChange={setBrush} />
+          <ColourRow colour={color} onChange={setColor} />
+        </DrawDock>
       </div>
     </div>
   );

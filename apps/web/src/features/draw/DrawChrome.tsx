@@ -17,6 +17,17 @@ const BRUSHES: { id: Brush; label: string; icon: ReactNode }[] = [
   { id: 'eraser', label: 'Eraser', icon: <Eraser size={18} strokeWidth={1.9} /> },
 ];
 
+/** One frosted tray holding the brushes and colours, with the active brush named above it. */
+export function DrawDock({ brush, children }: { brush: Brush; children: ReactNode }) {
+  const name = BRUSHES.find((item) => item.id === brush)?.label ?? '';
+  return (
+    <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-1 rounded-[26px] border border-white/12 bg-black/45 px-2 pt-1.5 pb-2 shadow-[0_10px_30px_-12px_rgb(0_0_0/0.7)] backdrop-blur-xl">
+      <span className="text-[11px] font-semibold tracking-[0.14em] text-brand uppercase">{name}</span>
+      {children}
+    </div>
+  );
+}
+
 export function BrushRow({ brush, onChange }: { brush: Brush; onChange: (brush: Brush) => void }) {
   return (
     <div role="radiogroup" aria-label="Brush" className="flex items-center justify-center gap-1">
@@ -29,9 +40,9 @@ export function BrushRow({ brush, onChange }: { brush: Brush; onChange: (brush: 
           aria-label={item.label}
           onClick={() => onChange(item.id)}
           className={cn(
-            'focus-ring flex size-10 items-center justify-center rounded-full',
+            'focus-ring flex size-10 items-center justify-center rounded-full active:scale-90',
             'transition-[background-color,color,transform] duration-150 ease-standard',
-            brush === item.id ? 'bg-white text-black' : 'text-white/75 hover:bg-white/10',
+            brush === item.id ? 'bg-brand text-on-brand shadow-[0_4px_14px_-4px_var(--color-brand)]' : 'text-white/70 hover:bg-white/10',
           )}
         >
           {item.icon}
@@ -139,11 +150,11 @@ export function SizeSlider({
       >
         {/* The taper: a wedge, wide at the top. */}
         <div
-          className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 bg-white/35"
+          className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 bg-white/40"
           style={{ clipPath: 'polygon(0 100%, 100% 100%, 100% 0%, 0 55%)', borderRadius: 6 }}
         />
         <div
-          className="absolute left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_8px_rgb(0_0_0/0.5)]"
+          className="absolute left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_2px_8px_rgb(0_0_0/0.5)] ring-[3px] ring-brand"
           style={{ top: `${(1 - position) * 100}%` }}
         />
       </div>
