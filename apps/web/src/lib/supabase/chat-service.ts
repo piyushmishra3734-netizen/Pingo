@@ -88,8 +88,10 @@ import {
   extendRun,
   localDelete,
   localGet,
+  localKeys,
   localSet,
   messageRowKey,
+  messageRowRange,
   type RowRun,
 } from '../local/db.js';
 import { enqueue, flush, pending } from '../local/outbox.js';
@@ -1690,7 +1692,32 @@ export class SupabaseChatService implements ChatService {
             conversation_id?: string;
             user_id?: string;
             last_read_at?: string;
+            cleared_at?: string | null;
+            deleted_at?: string | null;
           };
+          /*
+           * My own history being cleared from elsewhere - another device of mine,
+           * or the other person deleting the chat for everyone. Only a clear that
+           * has just happened: every read of a chat carries the old value too.
+           */
+          const clearedAt = row.cleared_at ? Date.parse(row.cleared_at) : 0;
+          if (
+            row.conversation_id &&
+            row.user_id &&
+            clearedAt > (this.#clearedSeen.get(row.conversation_id) ?? 0) &&
+            Date.now() - clearedAt < 60_000
+          ) {
+            // Noted at once, so the reads that follow (they carry the same value) are not mistaken for a new clear.
+            this.#clearedSeen.set(row.conversation_id, clearedAt);
+            void this.#userId().then(async (me) => {
+              if (row.user_id !== me) return;
+              await this.#forgetThread(row.conversation_id!);
+              await localSet(STORE.meta, `cleared:${row.conversation_id}`, await sealRecord(Date.parse(row.cleared_at!)));
+              if (row.deleted_at) this.#emit({ type: 'conversation:removed', conversationId: row.conversation_id! });
+              else void this.#refresh([row.conversation_id!]);
+            });
+            return;
+          }
           if (!row.conversation_id || !row.user_id || !row.last_read_at) return;
 
           void this.#userId().then((me) => {
@@ -2923,6 +2950,7 @@ export class SupabaseChatService implements ChatService {
     });
 
     for (const id of conversationIds) {
+      void this.#forgetThread(id);
       this.#emit({ type: 'conversation:removed', conversationId: id });
     }
   }
@@ -2932,6 +2960,7 @@ export class SupabaseChatService implements ChatService {
       const { error } = await this.#client.rpc('delete_chat_for_everyone', { p_conversation_id: id });
       if (error) throw new Error(error.message);
       // The server hid it from this person's list as well; the screen follows.
+      void this.#forgetThread(id);
       this.#emit({ type: 'conversation:removed', conversationId: id });
     }
   }
@@ -2943,6 +2972,7 @@ export class SupabaseChatService implements ChatService {
     await this.#writeMembership(conversationIds, me, {
       cleared_at: new Date().toISOString(),
     });
+    for (const id of conversationIds) void this.#forgetThread(id);
     await this.#refresh(conversationIds);
   }
 
@@ -3227,11 +3257,66 @@ export class SupabaseChatService implements ChatService {
     }
   }
 
+  /**
+   * Everything this device holds of a conversation's history: the page, the
+   * stored rows, the run and the sync cursor.
+   *
+   * A chat that was deleted or cleared has to come back empty, not from the
+   * disk. The server already stops returning the old messages (`messages_page`
+   * honours `cleared_at`), but this device kept a full copy and drew it the
+   * moment the chat was opened again - which is how a deleted chat returned with
+   * all of its history as soon as somebody wrote.
+   */
+  async #forgetThread(conversationId: ConversationId): Promise<void> {
+    this.#clearedSeen.set(conversationId, Math.max(this.#clearedSeen.get(conversationId) ?? 0, Date.now()));
+    try {
+      const keys = await localKeys(STORE.messageRows, messageRowRange(conversationId));
+      await Promise.all(keys.map((key) => localDelete(STORE.messageRows, key)));
+    } catch {
+      // The rows are a shadow copy; the page and cursor below are what get drawn.
+    }
+    await Promise.allSettled([
+      localDelete(STORE.messages, conversationId),
+      localDelete(STORE.meta, `rows:${conversationId}`),
+      localDelete(STORE.meta, `sync:${conversationId}`),
+      localDelete(STORE.meta, `retried:${conversationId}`),
+    ]);
+  }
+
+  /**
+   * A clear that happened somewhere else - another device, or the other person
+   * deleting the chat for everyone - has to empty the copy held here as well.
+   * One small question when a thread is opened; the answer is remembered, so a
+   * clear is acted on once.
+   */
+  async #honourClearedHistory(conversationId: ConversationId): Promise<void> {
+    try {
+      const me = await this.#userId();
+      const { data } = await this.#client
+        .from('conversation_members')
+        .select('cleared_at')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', me)
+        .maybeSingle();
+      const at = data?.cleared_at ? Date.parse(data.cleared_at) : 0;
+      if (!at) return;
+      const seen = (await openRecord<number>(await localGet<unknown>(STORE.meta, `cleared:${conversationId}`))) ?? 0;
+      if (at <= seen) return;
+      await this.#forgetThread(conversationId);
+      await localSet(STORE.meta, `cleared:${conversationId}`, await sealRecord(at));
+    } catch {
+      // Offline: the server still hides it on the next read, and this is asked again.
+    }
+  }
+
   async #listMessagesAll(
     conversationId: ConversationId,
     options?: { limit?: number; before?: MessageId; onEarly?: (messages: Message[]) => void },
   ): Promise<Message[]> {
     if (options?.before) return this.#listOlder(conversationId, options);
+
+    // Before any copy on this device is trusted: has the history been cleared since it was kept?
+    await this.#honourClearedHistory(conversationId);
 
     /*
      * Milestone 3: ask what changed, not for the page again.
@@ -3653,6 +3738,25 @@ export class SupabaseChatService implements ChatService {
     return data ?? [];
   }
 
+  /** The newest clear this session has already acted on, per conversation. */
+  #clearedSeen = new Map<string, number>();
+
+  /** When this reader last cleared the conversation, if they did. */
+  async #myClearedAt(conversationId: ConversationId): Promise<string | undefined> {
+    try {
+      const me = await this.#userId();
+      const { data } = await this.#client
+        .from('conversation_members')
+        .select('cleared_at')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', me)
+        .maybeSingle();
+      return data?.cleared_at ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async #fetchMessagePage(
     conversationId: ConversationId,
     options: { limit: number; before?: string; since?: string },
@@ -3676,6 +3780,10 @@ export class SupabaseChatService implements ChatService {
       .select('*')
       .eq('conversation_id', conversationId)
       .limit(options.limit);
+
+    // What this reader cleared stays cleared, as it does in `messages_page`.
+    const clearedAt = await this.#myClearedAt(conversationId);
+    if (clearedAt) query = query.gt('created_at', clearedAt);
 
     if (options.since) {
       query = query.gt('updated_at', options.since).order('updated_at', { ascending: true });
