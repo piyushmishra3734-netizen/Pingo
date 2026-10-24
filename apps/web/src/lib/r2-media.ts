@@ -64,31 +64,34 @@ export async function r2Upload(kind: R2Kind, blob: Blob, contentType: string): P
   }
 }
 
-let chatFlag: { value: boolean; until: number } | undefined;
+const chatFlags = new Map<string, { value: boolean; until: number }>();
 
 /**
- * Whether this person's uploads of chat media go to R2 (the `chat_media_r2`
- * switch in `app_flags`). A copy of PINGO that predates R2 chat media cannot
- * read an `r2:` path, so uploading is switched on only once most installed
- * apps can; reading never depends on it. Remembered for ten minutes, and any
- * doubt - the call fails, the database does not have the switch yet - is "off",
- * which is the old behaviour.
+ * Whether media sent in this conversation may go to R2 (`conversation_can_use_r2`).
+ *
+ * R2 chat media can only be opened by a build that knows how, so the database
+ * answers per conversation: the switch is on, and every device of every member
+ * has said it can. One person on an old phone keeps that chat on Supabase
+ * Storage; nobody else's chats are held back. Reading never depends on this.
+ * Remembered for ten minutes (a "no" for one, so an update is noticed soon), and
+ * any doubt - the call fails, the database does not have it yet - is "no", which
+ * is the old behaviour.
  */
-export async function chatMediaOnR2(): Promise<boolean> {
-  if (chatFlag && chatFlag.until > Date.now()) return chatFlag.value;
+export async function chatMediaOnR2(conversationId: string): Promise<boolean> {
+  const hit = chatFlags.get(conversationId);
+  if (hit && hit.until > Date.now()) return hit.value;
   let value = false;
   try {
     const rpc = getSupabaseClient().rpc as unknown as (
       name: string,
       args: Record<string, unknown>,
     ) => Promise<{ data: unknown; error: unknown }>;
-    const { data, error } = await rpc.call(getSupabaseClient(), 'app_flag', { p_key: 'chat_media_r2' });
+    const { data, error } = await rpc.call(getSupabaseClient(), 'conversation_can_use_r2', { p_conversation: conversationId });
     value = !error && data === true;
   } catch {
     value = false;
   }
-  // A failed ask is remembered only briefly, so a blip does not turn R2 off for ten minutes.
-  chatFlag = { value, until: Date.now() + (value ? 10 * 60 * 1000 : 60 * 1000) };
+  chatFlags.set(conversationId, { value, until: Date.now() + (value ? 10 * 60 * 1000 : 60 * 1000) });
   return value;
 }
 

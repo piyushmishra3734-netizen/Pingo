@@ -32,6 +32,7 @@ import { AtSign, Briefcase, Compass, Image as ImageGlyph, LayoutGrid, Lock, MapP
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
+import { keepAnswer, readKept } from '../lib/local/kept.js';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useCall } from '../features/calls/CallProvider.js';
@@ -111,7 +112,11 @@ type Tab = 'posts' | 'media';
 const SEEN_MS = 10 * 60 * 1000;
 const seenProfiles = new Map<string, { stats?: ProfileStats; posts?: Post[]; at: number }>();
 function remember(key: string, patch: { stats?: ProfileStats; posts?: Post[] }): void {
-  seenProfiles.set(key, { ...seenProfiles.get(key), ...patch, at: Date.now() });
+  const next = { ...seenProfiles.get(key), ...patch, at: Date.now() };
+  seenProfiles.set(key, next);
+  // Also on disk, so the next launch (or no connection) has it. The key is "viewer:person".
+  const [viewer, person] = key.split(':');
+  if (viewer && person && viewer !== 'anon') keepAnswer(viewer, `profile:${person}`, { stats: next.stats, posts: next.posts });
 }
 
 export function ProfileScreen() {
@@ -218,6 +223,13 @@ export function ProfileScreen() {
     if (seen && Date.now() - seen.at < SEEN_MS) {
       if (seen.stats) setStats(seen.stats);
       if (seen.posts) setPosts(seen.posts);
+    } else if (mine?.id) {
+      // Not seen this session: what the last session saw, from disk (offline, or after a restart).
+      void readKept<{ stats?: ProfileStats; posts?: Post[] }>(mine.id, `profile:${personId}`).then((kept) => {
+        if (!active || !kept) return;
+        if (kept.stats) setStats((current) => current ?? kept.stats);
+        if (kept.posts) setPosts((current) => current ?? kept.posts);
+      });
     }
 
     void profiles

@@ -19,6 +19,8 @@ import {
   cn,
 } from '@pingo/ui';
 import { useEffect, useMemo, useState } from 'react';
+
+import { keepAnswer, readKept } from '../lib/local/kept.js';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
@@ -143,6 +145,21 @@ export function NotificationsScreen() {
   const [version, setVersion] = useState(0);
   const [failed, setFailed] = useState(false);
 
+  // The feed as it was the last time the server answered, from disk: so it opens
+  // with something to read after a restart, or with no connection at all.
+  useEffect(() => {
+    if (items !== undefined || !profile?.id) return;
+    let active = true;
+    void readKept<AppNotification[]>(profile.id, 'feed').then((kept) => {
+      if (active && kept) setItems((current) => current ?? kept);
+    });
+    return () => {
+      active = false;
+    };
+    // Once per account: what is on screen after that is the server's answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
+
   /**
    * Who is *still* waiting on an answer.
    *
@@ -186,7 +203,10 @@ export function NotificationsScreen() {
       .then((list) => {
         // Kept even when the screen has already been left: on 2G the feed took
         // longer than people stayed, so the next visit waited all over again.
-        if (profile?.id) lastFeed = { userId: profile.id, items: list };
+        if (profile?.id) {
+          lastFeed = { userId: profile.id, items: list };
+          keepAnswer(profile.id, 'feed', list);
+        }
         if (!active) return;
         setItems(list);
         void service.markAllNotificationsRead();

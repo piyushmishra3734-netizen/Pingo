@@ -288,7 +288,15 @@ export default defineConfig({
               cacheName: 'pingo-media',
               fetchOptions: { mode: 'cors', credentials: 'omit' },
               cacheableResponse: { statuses: [200] },
-              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              /*
+               * Kept until the person clears the cache in Settings, not for thirty
+               * days: a face or a post that was seen once is there every time after,
+               * on any connection, the way a chat app behaves. Every path here ends
+               * in a uuid or a timestamp, so nothing kept can go stale. The count is
+               * the only limit, oldest first, and the browser may still drop the
+               * lot under real storage pressure (purgeOnQuotaError).
+               */
+              expiration: { maxEntries: 4000, purgeOnQuotaError: true },
               plugins: [
                 {
                   // The same file whether it was reached signed or public, with any token.
