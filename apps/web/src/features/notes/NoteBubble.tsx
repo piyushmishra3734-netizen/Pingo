@@ -12,7 +12,10 @@ import type { Note } from './notes.js';
  */
 
 /** The height every circle reserves above it, so faces stay on one line. */
-export const NOTE_SLOT = 44;
+export const NOTE_SLOT = 50;
+
+/** Circles that carry a note get a wider column than the 74px of a plain one, so bubbles have room. */
+export const NOTE_COL = 92;
 
 export function NoteBubble({
   note,
@@ -33,28 +36,29 @@ export function NoteBubble({
         onClick={onClick}
         aria-label={note ? (mine ? `Your note: ${note.body}. Tap to change.` : `${note.name}'s note: ${note.body}`) : 'Add a note'}
         className={cn(
-          // Never wider than its own column, so neighbours cannot touch.
-          'focus-ring absolute bottom-[-4px] left-1/2 w-max max-w-[72px] min-w-[44px] -translate-x-1/2 rounded-[14px] px-2 py-[5px] text-center',
-          'text-[10.5px] leading-[1.25] font-medium transition-transform duration-150 active:scale-95',
-          'bg-surface ring-1 ring-line shadow-[0_3px_10px_-4px_rgb(16_17_20/0.25)]',
+          // Fits the wider note column (NOTE_COL), so neighbours never touch.
+          'focus-ring absolute bottom-[-9px] left-1/2 w-max max-w-[88px] min-w-[56px] -translate-x-1/2 rounded-[20px] px-3 py-[7px] text-center',
+          'text-[11.5px] leading-[1.25] transition-transform duration-150 active:scale-95',
+          'bg-surface shadow-[0_1px_7px_rgb(16_17_20/0.24)]',
           note ? 'text-ink' : 'text-text-tertiary',
         )}
       >
         {note ? (
           <>
             {note.song && (
-              <span className="flex items-center justify-center gap-0.5 text-brand">
-                <Music2 size={9} className="shrink-0" />
+              <span className="flex items-center justify-center gap-0.5 text-text-secondary">
+                <Music2 size={10} className="shrink-0" />
                 <span className="truncate">{note.song.name}</span>
               </span>
             )}
-            {note.body && <span className="line-clamp-2 break-words">{note.body}</span>}
+            {note.body && <span className="line-clamp-3 break-words">{note.body}</span>}
           </>
         ) : (
           <span>Note...</span>
         )}
-        {/* A single quiet dot for the tail. */}
-        <span aria-hidden className="absolute -bottom-[4px] left-1/2 size-[6px] -translate-x-1/2 rounded-full bg-surface ring-1 ring-line" />
+        {/* Instagram's tail: a dot, and a smaller one trailing off the lower left. */}
+        <span aria-hidden className="absolute -bottom-[4px] left-[14px] size-[8px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
+        <span aria-hidden className="absolute -bottom-[10px] left-[8px] size-[4px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
       </button>
     </span>
   );
