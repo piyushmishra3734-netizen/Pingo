@@ -49,14 +49,6 @@ import java.util.concurrent.Executors;
 public class MusicService extends Service {
 
     static final String CHANNEL = "music";
-    /**
-     * Where a plain (non-media-style) player is posted. A channel's importance cannot be
-     * raised once it exists, and "music" is LOW, which sorts a notification into the
-     * silent section at the very bottom of the shade, under everything else. This one
-     * is HIGH without sound or vibration: the same quiet player, in the section of the
-     * shade that sorts first (a DEFAULT one was found, but under a stack of promotions).
-     */
-    static final String CHANNEL_NOW = "music_player";
     static final int NOTIFICATION_ID = 7301;
 
     static final String ACTION_UPDATE = "chat.pingo.app.music.UPDATE";
@@ -189,6 +181,15 @@ public class MusicService extends Service {
         });
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         session.setSessionActivity(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        /*
+         * Deprecated, ignored by the framework, and the reason this player showed on
+         * vivo phones at all. Measured on a vivo (OriginOS 7): with these two flags
+         * unset, SystemUI had the session (playing, with its title) and the
+         * foreground service, yet the shade drew no player for it - the phone's own
+         * media card reads the flags. With them set the shade shows the usual
+         * player card at the top: album art, a seek bar, previous, pause and next.
+         */
+        session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
         session.setActive(true);
     }
 
@@ -274,9 +275,9 @@ public class MusicService extends Service {
 
     private Notification.Builder baseBuilder() {
         Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-            ? new Notification.Builder(this, showsMediaStyle() ? CHANNEL : CHANNEL_NOW)
+            ? new Notification.Builder(this, CHANNEL)
             : new Notification.Builder(this);
-        return b.setSmallIcon(R.drawable.ic_notification).setShowWhen(false).setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC);
+        return b.setSmallIcon(R.drawable.ic_notification).setShowWhen(false).setVisibility(Notification.VISIBILITY_PUBLIC);
     }
 
     private Notification build(Info info) {
@@ -300,30 +301,9 @@ public class MusicService extends Service {
         if (info.hasNext) { b.addAction(new Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", control("next", 4)).build()); shown++; }
         compact = shown == 3 ? new int[] {0, 1, 2} : shown == 2 ? new int[] {0, 1} : new int[] {playIndex};
 
-        if (!showsMediaStyle()) {
-            // A plain ongoing notification with the same buttons; see showsMediaStyle().
-            return b.build();
-        }
         b.setCategory(Notification.CATEGORY_TRANSPORT);
         b.setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(compact));
         return b.build();
-    }
-
-    /**
-     * Whether this phone draws a media-style notification.
-     *
-     * Measured on a vivo phone running OriginOS 7: Android's SystemUI had the
-     * session (playing, with its title) and the foreground service, yet the shade
-     * showed no player and no notification for it, while every other ongoing
-     * notification was there. vivo's shade does not draw media-style notifications
-     * from other apps. A plain ongoing notification with the same Previous /
-     * Pause / Next buttons does show, so on vivo and iQOO that is what is posted;
-     * the media session behind it is unchanged, so headphones, the car and the
-     * lock screen still work. Every other phone gets the media notification.
-     */
-    private static boolean showsMediaStyle() {
-        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase(java.util.Locale.ROOT);
-        return !(maker.contains("vivo") || maker.contains("iqoo"));
     }
 
     private PendingIntent control(String what, int code) {
@@ -381,14 +361,9 @@ public class MusicService extends Service {
         channel.setDescription("The song playing in PINGO");
         channel.setShowBadge(false);
         manager().createNotificationChannel(channel);
-
-        NotificationChannel now = new NotificationChannel(CHANNEL_NOW, "Now playing", NotificationManager.IMPORTANCE_HIGH);
-        now.setDescription("The song playing in PINGO, with its controls");
-        now.setShowBadge(false);
-        now.setSound(null, null);
-        now.enableVibration(false);
-        now.enableLights(false);
-        manager().createNotificationChannel(now);
+        // Two channels tried while finding out why vivo hid the player; nothing posts to them any more.
+        manager().deleteNotificationChannel("music_now");
+        manager().deleteNotificationChannel("music_player");
     }
 
     @Override
