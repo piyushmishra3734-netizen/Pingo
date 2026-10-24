@@ -12,7 +12,7 @@ import type { Note } from './notes.js';
  */
 
 /** The height every circle reserves above it, so faces stay on one line. */
-export const NOTE_SLOT = 50;
+export const NOTE_SLOT = 40;
 
 /** Circles that carry a note get a wider column than the 74px of a plain one, so bubbles have room. */
 export const NOTE_COL = 92;
@@ -37,8 +37,8 @@ export function NoteBubble({
         aria-label={note ? (mine ? `Your note: ${note.body}. Tap to change.` : `${note.name}'s note: ${note.body}`) : 'Add a note'}
         className={cn(
           // Fits the wider note column (NOTE_COL), so neighbours never touch.
-          'focus-ring absolute bottom-[-9px] left-1/2 w-max max-w-[88px] min-w-[56px] -translate-x-1/2 rounded-[20px] px-3 py-[7px] text-center',
-          'text-[11.5px] leading-[1.25] transition-transform duration-150 active:scale-95',
+          'focus-ring absolute bottom-[-8px] left-1/2 w-max max-w-[92px] min-w-[48px] -translate-x-1/2 rounded-[18px] px-2.5 py-[5px] text-center',
+          'text-[11px] leading-[1.2] transition-transform duration-150 active:scale-95',
           'bg-surface shadow-[0_1px_7px_rgb(16_17_20/0.24)]',
           note ? 'text-ink' : 'text-text-tertiary',
         )}
@@ -51,7 +51,7 @@ export function NoteBubble({
                 <span className="truncate">{note.song.name}</span>
               </span>
             )}
-            {note.body && <span className={cn('break-words', note.song ? 'line-clamp-2' : 'line-clamp-3')}>{note.body}</span>}
+            {note.body && <span className={cn('break-words', note.song ? 'line-clamp-1' : 'line-clamp-2')}>{note.body}</span>}
           </>
         ) : (
           <span>Note...</span>

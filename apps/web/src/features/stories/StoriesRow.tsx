@@ -142,7 +142,7 @@ export function StoriesRow({
   return (
     <div>
       <h2 className="sr-only">Stories</h2>
-      <ul className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pt-6 pb-3" aria-label="Stories">
+      <ul className="scrollbar-none flex gap-3.5 overflow-x-auto overscroll-x-contain px-3 pt-4 pb-3" aria-label="Stories">
         {(myLive || liveOthers.length > 0) && <LiveHaloStyle />}
         {myLive && (
           <li key={`live-${myLive.id}`}>
