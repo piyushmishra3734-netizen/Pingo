@@ -125,6 +125,7 @@ export function SnapEditor({
    * photo (multi-slide stories). Absent for camera send / single-shot flows.
    */
   onAddAnother,
+  startDrawing = false,
   addAnotherLabel = 'Add another photo',
   untouchable,
   video = false,
@@ -141,6 +142,8 @@ export function SnapEditor({
   extras?: React.ReactNode;
   /** 'Next' from the camera, 'Send' when the picture is going straight out. */
   doneLabel?: string;
+  /** Open with the pen already in hand, for a blank sketch. */
+  startDrawing?: boolean;
   onAddAnother?: (blob: Blob) => void;
   addAnotherLabel?: string;
   /**
@@ -196,7 +199,7 @@ export function SnapEditor({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ratio, setRatio] = useState<number>();
 
-  const [tool, setTool] = useState<Tool>('none');
+  const [tool, setTool] = useState<Tool>(startDrawing ? 'draw' : 'none');
   const [colour, setColour] = useState(COLOURS[0]!);
   const { brush, size: brushSize, setBrush, setSize: setBrushSize } = useBrush();
   const [strokes, setStrokes] = useState<Stroke[]>(() =>

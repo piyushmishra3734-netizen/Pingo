@@ -56,6 +56,7 @@ export interface ComposerProps {
     location: () => void;
     contact: () => void;
     event: () => void;
+    draw?: () => void;
   };
   onSend: (body: string) => void | Promise<void>;
   /** Absent means the surface cannot take voice notes, and the mic is hidden. */
@@ -655,6 +656,7 @@ export function Composer({
             onLocation={attach.location}
             onContact={attach.contact}
             onEvent={attach.event}
+            {...(attach.draw ? { onDraw: attach.draw } : {})}
           />
         </span>
       )}

@@ -114,6 +114,7 @@ const AiSettingsPage = lazyNamed(() => import('../ai/room/AiSettingsPage.js'), '
 const AiDrawer = lazyNamed(() => import('../ai/room/AiDrawer.js'), 'AiDrawer');
 const GroupInfoSheet = lazyNamed(() => import('./GroupInfoSheet.js'), 'GroupInfoSheet');
 const ChatInfo = lazyNamed(() => import('./ChatInfo.js'), 'ChatInfo');
+const SketchPad = lazyNamed(() => import('./SketchPad.js'), 'SketchPad');
 const MediaSendSheet = lazyNamed(() => import('./MediaSendSheet.js'), 'MediaSendSheet');
 const SharedMediaSheet = lazySuspended(() => import('./SharedMediaSheet.js'), 'SharedMediaSheet');
 const AiOnboardingSheet = lazySuspended(() => import('../ai/AiOnboardingSheet.js'), 'AiOnboardingSheet');
@@ -417,7 +418,7 @@ export function ChatThread({
   const standardVideo = useCallback(async (file: File) => file, []);
   const documentRef = useRef<HTMLInputElement>(null);
   /** Which of the three small attach sheets is open, if any. */
-  const [sheet, setSheet] = useState<'location' | 'contact' | 'event'>();
+  const [sheet, setSheet] = useState<'location' | 'contact' | 'event' | 'draw'>();
   const mutuals = useMutuals();
 
   /**
@@ -2418,6 +2419,7 @@ export function ChatThread({
               location: () => setSheet('location'),
               contact: () => setSheet('contact'),
               event: () => setSheet('event'),
+              draw: () => setSheet('draw'),
             }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             onRecording={(recording) => void service.setRecording(conversation.id, recording)}
@@ -2523,6 +2525,21 @@ export function ChatThread({
             void service.sendMessage({ conversationId: conversation.id, body: '', contact });
           }}
         />
+      )}
+
+      {sheet === 'draw' && (
+        <Suspense fallback={null}>
+          <SketchPad
+            onCancel={() => setSheet(undefined)}
+            onDone={(file) => {
+              setSheet(undefined);
+              void (async () => {
+                const media = await vetMedia([file]);
+                if (media.length > 0) setPending(media);
+              })();
+            }}
+          />
+        </Suspense>
       )}
 
       {sheet === 'event' && (
