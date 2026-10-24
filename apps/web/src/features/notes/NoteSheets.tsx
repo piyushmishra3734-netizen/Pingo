@@ -1,6 +1,6 @@
 import { useChat, type ProfileSong } from '@pingo/core';
 import { Avatar, cn } from '@pingo/ui';
-import { Music2, Send, Smile, Star, Trash2, Users, X } from 'lucide-react';
+import { Music2, Send, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,11 +8,15 @@ import { Overlay } from '../../components/Overlay.js';
 import { Sheet } from '../../components/Sheet.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../music/ProfileSongCard.js';
+import { CloseFriendsGlyph, CloseGlyph, FriendsGlyph, MusicGlyph, SmileGlyph } from './NoteIcons.js';
 import { NOTE_MAX, clearNote, saveNote, type Note, type NoteAudience } from './notes.js';
 
 const QUICK_EMOJI = ['😊', '😂', '🥹', '😍', '😎', '🥳', '😴', '😩', '❤️', '🔥', '✨', '🎧', '🌧️', '☕', '🎲', '🙏'];
 
-/** A square outlined tile with a brand-coloured icon, as under the face in Instagram's composer. */
+/**
+ * A tile under the face. A gradient edge around a dark-or-light glass centre with
+ * a soft glow of the same gradient inside; pressed-in and tinted when it is on.
+ */
 function Tile({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -20,12 +24,19 @@ function Tile({ label, active = false, onClick, children }: { label: string; act
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={cn(
-        'focus-ring grid size-[56px] place-items-center rounded-[18px] border text-brand transition-transform active:scale-90',
-        active ? 'border-brand bg-brand-soft' : 'border-line bg-surface',
-      )}
+      className="focus-ring group rounded-[22px] p-[1.5px] shadow-[0_8px_20px_-10px_var(--gradient-from,#8b5dff)] transition-transform duration-150 active:scale-90"
+      style={{ background: 'linear-gradient(145deg, var(--gradient-from, #8b5dff), var(--gradient-to, #e0559b))' }}
     >
-      {children}
+      <span
+        className="grid size-[58px] place-items-center rounded-[20.5px] bg-surface"
+        style={{
+          backgroundImage: active
+            ? 'linear-gradient(145deg, color-mix(in srgb, var(--gradient-from, #8b5dff) 22%, transparent), color-mix(in srgb, var(--gradient-to, #e0559b) 22%, transparent))'
+            : 'radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--gradient-from, #8b5dff) 14%, transparent), transparent 70%)',
+        }}
+      >
+        {children}
+      </span>
     </button>
   );
 }
@@ -126,8 +137,10 @@ export function NoteComposeSheet({
                 aria-label="Note"
                 className="block w-full resize-none bg-transparent text-center text-[21px] leading-[1.25] text-ink outline-none placeholder:text-text-tertiary"
               />
-              {/* The flick at the lower left: a corner of the bubble running down to a point. */}
-              <span aria-hidden className="absolute -bottom-[9px] left-[22px] h-[14px] w-[16px] bg-surface" style={{ clipPath: 'polygon(0 100%, 100% 0, 100% 100%)', filter: 'drop-shadow(0 3px 3px rgb(16 17 20 / 0.08))' }} />
+              {/* The flick at the lower left, drawn as a curve running down to a point, as in the reference. */}
+              <svg aria-hidden viewBox="0 0 20 18" className="absolute -bottom-[15px] left-[14px] h-[18px] w-[20px] text-surface drop-shadow-[0_3px_3px_rgb(16_17_20/0.08)]">
+                <path d="M20 0 C20 8 14 15 2 17 C1.4 17.1 1.2 16.4 1.8 16.1 C5.6 13.4 6.6 9 6 0 Z" fill="currentColor" />
+              </svg>
             </div>
             <span className="block size-[168px] overflow-hidden rounded-full ring-1 ring-line">
               {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={name} id={userId} size="lg" className="!size-full" />}
@@ -137,13 +150,13 @@ export function NoteComposeSheet({
           {/* Three tiles under the face: the song, who sees it, a quick emoji. */}
           <div className="flex items-center gap-4">
             <Tile label={song ? 'Remove song' : 'Add a song'} onClick={() => (song ? setSong(undefined) : setPicking(true))}>
-              {song ? <X size={22} /> : <Music2 size={22} />}
+              {song ? <CloseGlyph /> : <MusicGlyph />}
             </Tile>
             <Tile label={`Shared with ${who}`} onClick={() => setAudience((a) => (a === 'friends' ? 'close' : 'friends'))} active={audience === 'close'}>
-              {audience === 'close' ? <Star size={22} fill="currentColor" /> : <Users size={22} />}
+              {audience === 'close' ? <CloseFriendsGlyph /> : <FriendsGlyph />}
             </Tile>
             <Tile label="Add an emoji" onClick={() => setEmojis((v) => !v)} active={emojis}>
-              <Smile size={22} />
+              <SmileGlyph />
             </Tile>
           </div>
 
@@ -199,8 +212,7 @@ export function NoteViewSheet({ note, onClose }: { note: Note; onClose: () => vo
       <div className="flex flex-col items-center gap-4 pt-2 pb-1">
         <div className="relative max-w-[260px] rounded-[24px] bg-surface px-5 py-3 text-center text-[16px] leading-snug text-ink shadow-[0_2px_14px_rgb(16_17_20/0.2)]">
           {note.body || <span className="text-text-secondary">{note.song?.name}</span>}
-          <span aria-hidden className="absolute -bottom-[4px] left-[26px] size-[11px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.2)]" />
-          <span aria-hidden className="absolute -bottom-[12px] left-[17px] size-[6px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.2)]" />
+          <svg aria-hidden viewBox="0 0 20 18" className="absolute -bottom-[15px] left-[14px] h-[18px] w-[20px] text-surface drop-shadow-[0_3px_3px_rgb(16_17_20/0.08)]"><path d="M20 0 C20 8 14 15 2 17 C1.4 17.1 1.2 16.4 1.8 16.1 C5.6 13.4 6.6 9 6 0 Z" fill="currentColor" /></svg>
         </div>
         <span className="block size-[88px] overflow-hidden rounded-full">
           {note.avatarUrl ? <img src={note.avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={note.name} id={note.userId} size="lg" className="!size-full" />}
