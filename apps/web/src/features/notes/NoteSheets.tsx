@@ -1,6 +1,6 @@
 import { useChat, type ProfileSong } from '@pingo/core';
 import { Avatar, cn } from '@pingo/ui';
-import { ChevronDown, Music2, Send, Trash2, X } from 'lucide-react';
+import { Music2, Send, Smile, Star, Trash2, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +9,26 @@ import { Sheet } from '../../components/Sheet.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../music/ProfileSongCard.js';
 import { NOTE_MAX, clearNote, saveNote, type Note, type NoteAudience } from './notes.js';
+
+const QUICK_EMOJI = ['😊', '😂', '🥹', '😍', '😎', '🥳', '😴', '😩', '❤️', '🔥', '✨', '🎧', '🌧️', '☕', '🎲', '🙏'];
+
+/** A square outlined tile with a brand-coloured icon, as under the face in Instagram's composer. */
+function Tile({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'focus-ring grid size-[56px] place-items-center rounded-[18px] border text-brand transition-transform active:scale-90',
+        active ? 'border-brand bg-brand-soft' : 'border-line bg-surface',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 /**
  * Writing your note, as Instagram's "New note" page: a full page, your face in
@@ -32,12 +52,12 @@ export function NoteComposeSheet({
   const [song, setSong] = useState<ProfileSong | undefined>(mine?.song);
   const [audience, setAudience] = useState<NoteAudience>(mine?.audience ?? 'friends');
   const [picking, setPicking] = useState(false);
-  const [choosing, setChoosing] = useState(false);
+  const [emojis, setEmojis] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   const can = (body.trim().length > 0 || song) && !busy;
-  const who = audience === 'friends' ? 'Friends you follow back' : 'Close friends';
+  const who = audience === 'friends' ? 'friends' : 'close friends';
 
   const share = async () => {
     if (!can) return;
@@ -82,12 +102,16 @@ export function NoteComposeSheet({
           </button>
         </header>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-16">
+        <div className="flex flex-1 flex-col items-center justify-center gap-7 px-6 pb-20">
           <div className="flex flex-col items-center">
-            {/* The bubble is the input: you type where it will be read. */}
-            <div className="relative mb-2 w-[min(250px,76vw)] rounded-[26px] bg-surface px-5 py-3.5 text-center shadow-[0_2px_14px_rgb(16_17_20/0.2)]">
+            {/*
+              The bubble is the input: you type where it will be read. It rests on
+              the top of the face and its tail points down into it, the way the
+              reference draws it.
+            */}
+            <div className="relative z-10 -mb-7 w-[min(260px,78vw)] rounded-[24px] bg-surface px-5 py-4 text-center shadow-[0_2px_16px_rgb(16_17_20/0.22)]">
               {song && (
-                <button type="button" onClick={() => setPicking(true)} className="mb-1 flex w-full items-center justify-center gap-1.5 text-[13px] text-text-secondary">
+                <button type="button" onClick={() => setPicking(true)} className="mb-1.5 flex w-full items-center justify-center gap-1.5 text-[13px] text-text-secondary">
                   <Music2 size={14} className="shrink-0" />
                   <span className="truncate">{song.name} · {song.artist}</span>
                 </button>
@@ -100,59 +124,50 @@ export function NoteComposeSheet({
                 onChange={(event) => setBody(event.target.value.replace(/\n/g, ' '))}
                 placeholder="Share a thought..."
                 aria-label="Note"
-                className="block w-full resize-none bg-transparent text-center text-[17px] leading-snug text-ink outline-none placeholder:text-text-tertiary"
+                className="block w-full resize-none bg-transparent text-center text-[21px] leading-[1.25] text-ink outline-none placeholder:text-text-tertiary"
               />
-              <span aria-hidden className="absolute -bottom-[4px] left-[28px] size-[12px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.2)]" />
-              <span aria-hidden className="absolute -bottom-[13px] left-[18px] size-[6px] rounded-full bg-surface shadow-[0_1px_4px_rgb(16_17_20/0.2)]" />
+              {/* The flick at the lower left: a corner of the bubble running down to a point. */}
+              <span aria-hidden className="absolute -bottom-[9px] left-[22px] h-[14px] w-[16px] bg-surface" style={{ clipPath: 'polygon(0 100%, 100% 0, 100% 100%)', filter: 'drop-shadow(0 3px 3px rgb(16 17 20 / 0.08))' }} />
             </div>
-            <span className="mt-3 block size-[104px] overflow-hidden rounded-full">
+            <span className="block size-[168px] overflow-hidden rounded-full ring-1 ring-line">
               {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={name} id={userId} size="lg" className="!size-full" />}
             </span>
           </div>
 
-          <p className="text-[13px] text-text-tertiary tabular-nums">{body.length}/{NOTE_MAX}</p>
+          {/* Three tiles under the face: the song, who sees it, a quick emoji. */}
+          <div className="flex items-center gap-4">
+            <Tile label={song ? 'Remove song' : 'Add a song'} onClick={() => (song ? setSong(undefined) : setPicking(true))}>
+              {song ? <X size={22} /> : <Music2 size={22} />}
+            </Tile>
+            <Tile label={`Shared with ${who}`} onClick={() => setAudience((a) => (a === 'friends' ? 'close' : 'friends'))} active={audience === 'close'}>
+              {audience === 'close' ? <Star size={22} fill="currentColor" /> : <Users size={22} />}
+            </Tile>
+            <Tile label="Add an emoji" onClick={() => setEmojis((v) => !v)} active={emojis}>
+              <Smile size={22} />
+            </Tile>
+          </div>
 
-          <button type="button" onClick={() => setChoosing((v) => !v)} className="focus-ring flex items-center gap-1 text-[14px] font-semibold text-text-secondary">
-            Shared with {who} <ChevronDown size={16} className={cn('transition-transform', choosing && 'rotate-180')} />
-          </button>
-          {choosing && (
-            <div role="radiogroup" aria-label="Who can see it" className="-mt-3 w-full max-w-[300px] overflow-hidden rounded-2xl bg-sunken">
-              {(['friends', 'close'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={audience === value}
-                  onClick={() => { setAudience(value); setChoosing(false); }}
-                  className="focus-ring flex h-12 w-full items-center justify-between px-4 text-[15px] text-ink"
-                >
-                  {value === 'friends' ? 'Friends you follow back' : 'Close friends'}
-                  <span className={cn('size-5 rounded-full border-2', audience === value ? 'border-brand bg-brand shadow-[inset_0_0_0_3px_var(--color-page)]' : 'border-text-tertiary')} />
+          {emojis && (
+            <div className="-mt-3 flex max-w-[320px] flex-wrap justify-center gap-1">
+              {QUICK_EMOJI.map((e) => (
+                <button key={e} type="button" aria-label={`Add ${e}`} onClick={() => setBody((b) => (b + e).slice(0, NOTE_MAX))} className="focus-ring grid size-10 place-items-center rounded-xl text-[22px] active:scale-90">
+                  {e}
                 </button>
               ))}
             </div>
           )}
 
+          <p className="text-[13px] text-text-tertiary">
+            <span className="tabular-nums">{body.length}/{NOTE_MAX}</span> · Shared with {who} for 24 hours
+          </p>
           {error && <p role="alert" className="text-caption text-danger">{error}</p>}
-        </div>
 
-        <footer className="flex shrink-0 flex-col items-center gap-3 pb-6">
-          <button
-            type="button"
-            onClick={() => (song ? setSong(undefined) : setPicking(true))}
-            className="focus-ring flex flex-col items-center gap-1.5"
-          >
-            <span className="grid size-14 place-items-center rounded-full bg-sunken text-ink">
-              {song ? <X size={24} /> : <Music2 size={24} />}
-            </span>
-            <span className="text-[12px] font-semibold text-text-secondary">{song ? 'Remove song' : 'Music'}</span>
-          </button>
           {mine && (
             <button type="button" onClick={() => { void clearNote(); onClose(); }} className="focus-ring flex items-center gap-1.5 text-[14px] font-semibold text-danger">
               <Trash2 size={16} /> Delete note
             </button>
           )}
-        </footer>
+        </div>
       </div>
     </Overlay>
   );

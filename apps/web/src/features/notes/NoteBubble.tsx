@@ -1,5 +1,5 @@
 import { cn } from '@pingo/ui';
-import { Music2 } from 'lucide-react';
+import { Music2, Plus } from 'lucide-react';
 
 import type { Note } from './notes.js';
 
@@ -28,37 +28,46 @@ export function NoteBubble({
 }) {
   if (!note && !mine) return <span aria-hidden style={{ height: NOTE_SLOT }} className="block" />;
 
+  // Nothing written yet: Instagram's "Leave a note" is a small round + on the face's shoulder.
+  if (!note) {
+    return (
+      <span className="relative z-10 block w-full" style={{ height: NOTE_SLOT }}>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label="Leave a note"
+          className="focus-ring absolute bottom-[-17px] left-1/2 ml-[10px] grid size-[30px] place-items-center rounded-full bg-surface text-text-secondary shadow-[0_1px_7px_rgb(16_17_20/0.26)] transition-transform duration-150 active:scale-90"
+        >
+          <Plus size={17} strokeWidth={2.2} />
+        </button>
+      </span>
+    );
+  }
+
   return (
     // Above the ring (z-10): the bubble overlaps the face's top edge, as on Instagram.
     <span className="relative z-10 flex w-full justify-center" style={{ height: NOTE_SLOT }}>
       <button
         type="button"
         onClick={onClick}
-        aria-label={note ? (mine ? `Your note: ${note.body}. Tap to change.` : `${note.name}'s note: ${note.body}`) : 'Add a note'}
+        aria-label={mine ? `Your note: ${note.body}. Tap to change.` : `${note.name}'s note: ${note.body}`}
         className={cn(
-          // Fits the wider note column (NOTE_COL), so neighbours never touch.
-          'focus-ring absolute bottom-[-8px] left-1/2 w-max max-w-[92px] min-w-[48px] -translate-x-1/2 rounded-[18px] px-2.5 py-[5px] text-center',
-          'text-[11px] leading-[1.2] transition-transform duration-150 active:scale-95',
-          'bg-surface shadow-[0_1px_7px_rgb(16_17_20/0.24)]',
-          note ? 'text-ink' : 'text-text-tertiary',
+          // Wider than the face, never wider than its column (NOTE_COL), so neighbours never touch.
+          'focus-ring absolute bottom-[-12px] left-1/2 w-max max-w-[90px] min-w-[52px] -translate-x-1/2 rounded-[22px] px-3 py-[7px] text-center',
+          'text-[11px] leading-[1.22] font-medium text-ink transition-transform duration-150 active:scale-95',
+          'bg-surface shadow-[0_1px_8px_rgb(16_17_20/0.24)]',
         )}
       >
-        {note ? (
-          <>
-            {note.song && (
-              <span className="flex items-center justify-center gap-0.5 text-text-secondary">
-                <Music2 size={10} className="shrink-0" />
-                <span className="truncate">{note.song.name}</span>
-              </span>
-            )}
-            {note.body && <span className={cn('break-words', note.song ? 'line-clamp-1' : 'line-clamp-2')}>{note.body}</span>}
-          </>
-        ) : (
-          <span>Note...</span>
+        {note.song && (
+          <span className="flex items-center justify-center gap-0.5 text-text-secondary">
+            <Music2 size={10} className="shrink-0" />
+            <span className="truncate">{note.song.name}</span>
+          </span>
         )}
-        {/* Instagram's tail: a dot, and a smaller one trailing off the lower left. */}
-        <span aria-hidden className="absolute -bottom-[4px] left-[14px] size-[8px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
-        <span aria-hidden className="absolute -bottom-[10px] left-[8px] size-[4px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
+        {note.body && <span className={cn('break-words', note.song ? 'line-clamp-1' : 'line-clamp-2')}>{note.body}</span>}
+        {/* The tail trails off the lower right, toward the face: a dot, then a smaller one. */}
+        <span aria-hidden className="absolute -bottom-[5px] right-[16px] size-[7px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
+        <span aria-hidden className="absolute -bottom-[11px] right-[11px] size-[4px] rounded-full bg-surface shadow-[0_1px_3px_rgb(16_17_20/0.2)]" />
       </button>
     </span>
   );
