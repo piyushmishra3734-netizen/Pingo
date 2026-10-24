@@ -49,6 +49,13 @@ import java.util.concurrent.Executors;
 public class MusicService extends Service {
 
     static final String CHANNEL = "music";
+    /**
+     * Where a plain (non-media-style) player is posted. A channel's importance cannot be
+     * raised once it exists, and "music" is LOW, which sorts a notification into the
+     * silent section at the very bottom of the shade, under everything else. This one
+     * is DEFAULT without sound or vibration: the same quiet player, near the top.
+     */
+    static final String CHANNEL_NOW = "music_now";
     static final int NOTIFICATION_ID = 7301;
 
     static final String ACTION_UPDATE = "chat.pingo.app.music.UPDATE";
@@ -266,9 +273,9 @@ public class MusicService extends Service {
 
     private Notification.Builder baseBuilder() {
         Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-            ? new Notification.Builder(this, CHANNEL)
+            ? new Notification.Builder(this, showsMediaStyle() ? CHANNEL : CHANNEL_NOW)
             : new Notification.Builder(this);
-        return b.setSmallIcon(R.drawable.ic_notification).setShowWhen(false).setVisibility(Notification.VISIBILITY_PUBLIC);
+        return b.setSmallIcon(R.drawable.ic_notification).setShowWhen(false).setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC);
     }
 
     private Notification build(Info info) {
@@ -373,6 +380,14 @@ public class MusicService extends Service {
         channel.setDescription("The song playing in PINGO");
         channel.setShowBadge(false);
         manager().createNotificationChannel(channel);
+
+        NotificationChannel now = new NotificationChannel(CHANNEL_NOW, "Now playing", NotificationManager.IMPORTANCE_DEFAULT);
+        now.setDescription("The song playing in PINGO, with its controls");
+        now.setShowBadge(false);
+        now.setSound(null, null);
+        now.enableVibration(false);
+        now.enableLights(false);
+        manager().createNotificationChannel(now);
     }
 
     @Override
