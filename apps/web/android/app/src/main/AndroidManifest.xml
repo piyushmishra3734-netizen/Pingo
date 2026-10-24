@@ -206,6 +206,8 @@
         screen in order to go and look at something else.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Keeps the CPU and Wi-Fi awake while a song plays with the screen off. See MusicService. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
