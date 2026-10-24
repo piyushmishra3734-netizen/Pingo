@@ -1,3 +1,4 @@
+import { resetNotes } from '../notes/notes.js';
 import { resetLocks } from '../lock/lock-store.js';
 import { useAuth } from '@pingo/core';
 import { useCallback } from 'react';
@@ -40,5 +41,6 @@ export function useSignOut(): () => Promise<void> {
     await signOut();
     clearBlocks();
     resetLocks();
+    resetNotes();
   }, [confirm, signOut]);
 }
