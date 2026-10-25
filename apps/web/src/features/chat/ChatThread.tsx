@@ -247,30 +247,29 @@ function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
   );
 }
 
-const SNAKE_PATH = 'M2 10 C6 3 11 3 15 10 S24 17 28 10 S35 3 38 9';
+/** One frame of the wave: a line across the box whose bends sit at `phase`, calmer at both ends. */
+function wavePath(phase: number): string {
+  const points: string[] = [];
+  for (let i = 0; i <= 24; i += 1) {
+    const t = i / 24;
+    const x = 2 + t * 24;
+    const y = 7 + Math.sin(t * Math.PI * 2.5 + phase) * 4.2 * Math.sin(t * Math.PI) ** 0.7;
+    points.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return points.join(' ');
+}
+const WAVE_FRAMES = [0, 1, 2, 3, 4].map((k) => wavePath((k * Math.PI * 2) / 4));
 
 /**
- * A snake slithering along a wave, for somebody with the sketch pad open.
- *
- * The body is a short dash travelling along the path and the head rides at the
- * dash's leading end, turned to face the way it is going, so the two stay
- * together by sharing one path and one clock. The path is measured as 100 and
- * the body is 22 long: the front reaches the end at 0.82 of the loop and the
- * rest is the tail catching up.
+ * A line being drawn, for somebody with the sketch pad open: it stays where it
+ * is and wriggles, the way a snake moves, the bends passing along it.
  */
 function SketchPulse({ size = 14 }: { size?: number }) {
   return (
-    <svg aria-hidden viewBox="0 0 40 20" width={size * 2} height={size} fill="none" className="text-brand">
-      <path d={SNAKE_PATH} pathLength={100} stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeDasharray="22 200" opacity="0.9">
-        <animate attributeName="stroke-dashoffset" values="22;-100" dur="1.5s" repeatCount="indefinite" />
+    <svg aria-hidden viewBox="0 0 28 14" width={size * 2} height={size} fill="none" className="text-brand">
+      <path d={WAVE_FRAMES[0]!} stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <animate attributeName="d" values={WAVE_FRAMES.join(';')} dur="1.1s" repeatCount="indefinite" />
       </path>
-      <g fill="currentColor">
-        <circle r="3" />
-        <circle cx="1.1" cy="-1.3" r="0.8" fill="#fff" />
-        <circle cx="1.1" cy="1.3" r="0.8" fill="#fff" />
-        <path d="M2.8 0 L5.2 -1 M2.8 0 L5.2 1" stroke="#e0364f" strokeWidth="0.6" strokeLinecap="round" />
-        <animateMotion path={SNAKE_PATH} rotate="auto" dur="1.5s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.82;1" calcMode="linear" />
-      </g>
     </svg>
   );
 }
