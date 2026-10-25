@@ -247,19 +247,30 @@ function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
   );
 }
 
-/** A line being drawn: a squiggle that keeps tracing itself, for somebody with the sketch pad open. */
+const SNAKE_PATH = 'M2 10 C6 3 11 3 15 10 S24 17 28 10 S35 3 38 9';
+
+/**
+ * A snake slithering along a wave, for somebody with the sketch pad open.
+ *
+ * The body is a short dash travelling along the path and the head rides at the
+ * dash's leading end, turned to face the way it is going, so the two stay
+ * together by sharing one path and one clock. The path is measured as 100 and
+ * the body is 22 long: the front reaches the end at 0.82 of the loop and the
+ * rest is the tail catching up.
+ */
 function SketchPulse({ size = 14 }: { size?: number }) {
   return (
-    <svg aria-hidden viewBox="0 0 24 24" width={size} height={size} fill="none" className="text-brand">
-      <path
-        d="M2.5 14 C5 6 8 6 10 12 C12 18 15 18 17 11 C18 8 20 8 21.5 10"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeDasharray="30"
-      >
-        <animate attributeName="stroke-dashoffset" values="30;0;0;-30" keyTimes="0;0.55;0.8;1" dur="1.6s" repeatCount="indefinite" />
+    <svg aria-hidden viewBox="0 0 40 20" width={size * 2} height={size} fill="none" className="text-brand">
+      <path d={SNAKE_PATH} pathLength={100} stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeDasharray="22 200" opacity="0.9">
+        <animate attributeName="stroke-dashoffset" values="22;-100" dur="1.5s" repeatCount="indefinite" />
       </path>
+      <g fill="currentColor">
+        <circle r="3" />
+        <circle cx="1.1" cy="-1.3" r="0.8" fill="#fff" />
+        <circle cx="1.1" cy="1.3" r="0.8" fill="#fff" />
+        <path d="M2.8 0 L5.2 -1 M2.8 0 L5.2 1" stroke="#e0364f" strokeWidth="0.6" strokeLinecap="round" />
+        <animateMotion path={SNAKE_PATH} rotate="auto" dur="1.5s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.82;1" calcMode="linear" />
+      </g>
     </svg>
   );
 }
@@ -1771,7 +1782,7 @@ export function ChatThread({
                 <AiActivity label={`${AI_STAGES[aiStage]}…`} />
               ) : (
                 <>
-                  {isRecording ? <RecordingPulse /> : isSketching ? <SketchPulse /> : <PingoDot state="typing" size={4} />}
+                  {isRecording ? <RecordingPulse /> : isSketching ? <SketchPulse size={16} /> : <PingoDot state="typing" size={4} />}
                   {typingLabel}
                 </>
               )}
@@ -2243,7 +2254,7 @@ export function ChatThread({
           })()}
           <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
             {isRecording ? <RecordingPulse size={18} />
-              : isSketching ? <SketchPulse size={20} />
+              : isSketching ? <SketchPulse size={28} />
               : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
           </div>
         </div>
