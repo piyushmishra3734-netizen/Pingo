@@ -16,56 +16,64 @@ import { useBrush } from '../draw/useBrush.js';
  * the page for both people (see `DrawingLayer`).
  */
 
+/** Sharp enough for a phone screen, and small: a drawing is lines, not a photograph. */
 const SCALE = 2;
+const MAX_SIDE = 1100;
 
+/**
+ * Only the part of the page the drawing covers is ever painted.
+ *
+ * It used to paint the whole screen at double size and then crop it, which for
+ * a doodle in one corner meant filling a few million transparent pixels, and
+ * encoding the crop as a PNG after that. The box is worked out from the points
+ * first, and a canvas the size of the box is all there is.
+ */
 function exportDrawing(strokes: DrawStroke[], w: number, h: number, content: HTMLElement | null): Promise<{ blob: Blob; anchor: DrawingAnchor } | null> {
-  const full = document.createElement('canvas');
-  full.width = Math.round(w * SCALE);
-  full.height = Math.round(h * SCALE);
-  const context = full.getContext('2d');
-  if (!context) return Promise.resolve(null);
-  paintStrokes(context, strokes, full.width, full.height);
+  if (!content || strokes.length === 0) return Promise.resolve(null);
 
+  // The box in CSS pixels, with room for the widest a stroke can paint: marker is wide, neon glows.
+  const unit = Math.min(w, h);
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  const unit = Math.min(full.width, full.height);
   for (const stroke of strokes) {
-    // Room for the widest a stroke can paint: marker is wide, neon glows.
-    const pad = stroke.size * unit * 3.2 + 8;
+    const pad = stroke.size * unit * 3.2 + 4;
     for (const point of stroke.points) {
-      minX = Math.min(minX, point.x * full.width - pad);
-      maxX = Math.max(maxX, point.x * full.width + pad);
-      minY = Math.min(minY, point.y * full.height - pad);
-      maxY = Math.max(maxY, point.y * full.height + pad);
+      minX = Math.min(minX, point.x * w - pad);
+      maxX = Math.max(maxX, point.x * w + pad);
+      minY = Math.min(minY, point.y * h - pad);
+      maxY = Math.max(maxY, point.y * h + pad);
     }
   }
   const x = Math.max(0, Math.floor(minX));
   const y = Math.max(0, Math.floor(minY));
-  const width = Math.min(full.width, Math.ceil(maxX)) - x;
-  const height = Math.min(full.height, Math.ceil(maxY)) - y;
-  if (width < 2 || height < 2) return Promise.resolve(null);
+  const boxW = Math.min(w, Math.ceil(maxX)) - x;
+  const boxH = Math.min(h, Math.ceil(maxY)) - y;
+  if (boxW < 1 || boxH < 1) return Promise.resolve(null);
 
+  const scale = Math.min(SCALE, MAX_SIDE / Math.max(boxW, boxH));
   const out = document.createElement('canvas');
-  out.width = width;
-  out.height = height;
-  out.getContext('2d')?.drawImage(full, x, y, width, height, 0, 0, width, height);
+  out.width = Math.max(1, Math.round(boxW * scale));
+  out.height = Math.max(1, Math.round(boxH * scale));
+  const context = out.getContext('2d');
+  if (!context) return Promise.resolve(null);
+  context.scale(scale, scale);
+  context.translate(-x, -y);
+  // The strokes are fractions of the whole page, so the page's size is what they are painted against.
+  paintStrokes(context, strokes, w, h);
 
   /*
    * Pinned to the message it sits beside: the last one that starts above the
    * drawing's top edge (or the first on the page, when it is above them all).
    * What is stored is the offset from that message, in thread widths.
    */
-  if (!content) return Promise.resolve(null);
   const base = content.getBoundingClientRect();
-  const left = x / SCALE;
-  const top = y / SCALE;
   let anchor: HTMLElement | undefined;
   let anchorTop = -Infinity;
   for (const element of content.querySelectorAll<HTMLElement>('[id^="message-"]')) {
     const t = element.getBoundingClientRect().top;
-    if (t <= top && t > anchorTop) {
+    if (t <= y && t > anchorTop) {
       anchor = element;
       anchorTop = t;
     }
@@ -74,9 +82,9 @@ function exportDrawing(strokes: DrawStroke[], w: number, h: number, content: HTM
   if (!anchor || base.width === 0) return Promise.resolve(null);
   const placement: DrawingAnchor = {
     messageId: anchor.id.slice('message-'.length),
-    x: (left - base.left) / base.width,
-    y: (top - anchor.getBoundingClientRect().top) / base.width,
-    w: width / SCALE / base.width,
+    x: (x - base.left) / base.width,
+    y: (y - anchor.getBoundingClientRect().top) / base.width,
+    w: boxW / base.width,
   };
   return new Promise((resolve) => out.toBlob((blob) => resolve(blob ? { blob, anchor: placement } : null), 'image/png'));
 }

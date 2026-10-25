@@ -1,5 +1,5 @@
 import type { Message } from '@pingo/core';
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 /**
  * Drawings lying on the conversation itself.
@@ -28,6 +28,42 @@ export function DrawingLayer({
 }) {
   const [placed, setPlaced] = useState<Placed[]>([]);
 
+  /*
+   * What each drawing is currently showing, kept until its replacement has loaded.
+   *
+   * A drawing you just sent is first drawn from the copy on your phone, then the
+   * message is confirmed and its address becomes the server's. Switching the
+   * image straight to the new address blanks it until that downloads, which is
+   * the flicker a sender sees. So the new address is fetched in the background
+   * and swapped in only once it is ready; the old picture stays on screen until then.
+   */
+  const shownUrls = useRef(new Map<string, string>());
+  const [, bump] = useState(0);
+  useEffect(() => {
+    let live = true;
+    for (const message of messages) {
+      const url = message.photo?.drawing ? message.photo.url : undefined;
+      if (!url) continue;
+      const have = shownUrls.current.get(message.id);
+      if (have === url) continue;
+      if (!have) {
+        shownUrls.current.set(message.id, url);
+        bump((n) => n + 1);
+        continue;
+      }
+      const image = new Image();
+      image.onload = image.onerror = () => {
+        if (!live) return;
+        shownUrls.current.set(message.id, url);
+        bump((n) => n + 1);
+      };
+      image.src = url;
+    }
+    return () => {
+      live = false;
+    };
+  }, [messages]);
+
   useLayoutEffect(() => {
     const content = contentRef.current;
     if (!content) return;
@@ -44,7 +80,7 @@ export function DrawingLayer({
         const rect = target.getBoundingClientRect();
         next.push({
           id: message.id,
-          url: message.photo!.url!,
+          url: shownUrls.current.get(message.id) ?? message.photo!.url!,
           left: anchor.x * base.width,
           top: rect.top - base.top + anchor.y * base.width,
           width: anchor.w * base.width,
@@ -66,7 +102,7 @@ export function DrawingLayer({
       observer.disconnect();
       content.removeEventListener('load', place, true);
     };
-  }, [messages, contentRef]);
+  }, [messages, contentRef, shownUrls.current.size]);
 
   if (placed.length === 0) return null;
   return (
