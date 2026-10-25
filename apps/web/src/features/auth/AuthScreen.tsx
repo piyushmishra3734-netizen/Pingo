@@ -58,6 +58,8 @@ export interface AuthScreenProps {
   alert?: ReactNode;
   onBack?: () => void;
   showBack?: boolean;
+  /** An illustration above the heading; the heading and subtitle then centre under it. */
+  art?: ReactNode;
 }
 
 export function AuthScreen({
@@ -70,6 +72,7 @@ export function AuthScreen({
   alert,
   onBack,
   showBack = true,
+  art,
 }: AuthScreenProps) {
   const navigate = useNavigate();
   const goBack = onBack ?? (() => navigate(-1));
@@ -119,6 +122,9 @@ export function AuthScreen({
             </div>
           )}
         </div>
+
+        {/* A picture above the heading, for the code screens. */}
+        {art && <div className="funnel-enter -mt-3 mb-3 flex justify-center">{art}</div>}
 
         <header className="funnel-enter">
           <h1 className="text-h1 text-ink">{title}</h1>

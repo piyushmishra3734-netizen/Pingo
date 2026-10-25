@@ -6,6 +6,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { CodeBoxes } from '../../features/auth/CodeBoxes.js';
+import { OtpArt } from '../../features/auth/Illustrations.js';
 import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
 import { PasswordField } from '../../features/auth/PasswordField.js';
 import {
@@ -140,6 +141,7 @@ export function RecoverCodeScreen() {
 
   return (
     <AuthScreen
+      art={<OtpArt />}
       title="Reset your password"
       subtitle={
         phase === 'sending'

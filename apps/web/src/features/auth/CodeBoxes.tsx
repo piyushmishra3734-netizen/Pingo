@@ -83,11 +83,12 @@ export function CodeBoxes({
             key={index}
             aria-hidden
             className={cn(
-              'relative grid h-14 min-w-0 max-w-12 flex-1 place-items-center rounded-xl border',
+              'relative grid h-14 min-w-0 max-w-12 flex-1 place-items-center rounded-[14px] border',
               'text-h2 font-semibold tabular-nums text-ink',
               'transition-[border-color,background-color,box-shadow,translate] duration-150 ease-standard',
-              digit ? 'border-brand/30 bg-surface' : 'border-line/40 bg-sunken',
-              active && '-translate-y-0.5 border-brand bg-surface ring-4 ring-brand/15',
+              // White boxes with a grey edge, a typed digit in bold; the one waiting is edged in ink, as in the reference.
+              'border-line-strong bg-surface',
+              active && 'border-ink',
               invalid && 'border-danger/50 bg-danger-soft/80 text-danger',
               complete && !invalid && 'motion-safe:animate-code-wave',
             )}

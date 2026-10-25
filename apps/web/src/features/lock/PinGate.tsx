@@ -1,9 +1,10 @@
 import { useProfile } from '@pingo/core';
-import { Avatar, cn } from '@pingo/ui';
-import { Delete, Lock, X } from 'lucide-react';
+import { cn } from '@pingo/ui';
+import { Delete, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { PadlockArt } from '../auth/Illustrations.js';
 import { ResetPin } from './ResetPin.js';
 import { checkPin, clearResetStarted, createPin, hasPin, PIN_LENGTH, pinWait, resetVerifiedByReturn, unlockSession } from './lock-store.js';
 
@@ -180,11 +181,6 @@ export function PinGate({
       aria-modal="true"
       aria-label={title}
       className={cn('fixed inset-0 flex flex-col bg-page motion-safe:animate-fade-in', mode === 'app' ? 'z-[2000]' : 'z-[450]')}
-      // Two quiet glows of the brand in opposite corners, so the pad is PINGO's and not a blank sheet.
-      style={{
-        backgroundImage:
-          'radial-gradient(60% 40% at 15% 0%, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent), radial-gradient(60% 40% at 90% 100%, color-mix(in srgb, #e0559b 11%, transparent), transparent)',
-      }}
     >
       <div className="flex min-h-11 items-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         {onCancel && (
@@ -204,46 +200,27 @@ export function PinGate({
           onBack={() => setPhase('verify')}
         />
       ) : (
-      <div className="relative mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {mode === 'app' && phase === 'verify' && !verifyHint ? (
-          /* Opening PINGO: your own face in the story ring, the way you see everybody else's. */
-          <span className="grid size-[84px] place-items-center rounded-full p-[3px]" style={{ background: 'var(--sweep-ring)' }}>
-            <span className="block size-full overflow-hidden rounded-full border-[3px] border-page bg-page">
-              {profile?.avatarUrl ? (
-                <img src={profile.avatarUrl} alt="" className="size-full object-cover" draggable={false} />
-              ) : (
-                <Avatar name={profile?.displayName ?? 'You'} id={profile?.id} size="lg" className="!size-full" />
-              )}
-            </span>
-          </span>
-        ) : (
-          <span className="grid size-[72px] place-items-center rounded-full bg-brand-soft text-brand ring-1 ring-brand/15">
-            <Lock size={28} strokeWidth={1.8} aria-hidden />
-          </span>
-        )}
-        <h2 className="mt-5 text-[22px] font-bold tracking-[-0.01em] text-ink">{heading}</h2>
-        <p className="mt-1 min-h-[2.5rem] text-center text-[14px] leading-snug text-text-secondary">{wait > 0 ? `Try again in ${wait}s` : sub}</p>
+      <div className="relative mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center px-6 pt-[4vh] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <PadlockArt size={92} />
+        <h2 className="mt-3 text-[21px] font-semibold tracking-[-0.01em] text-ink">{heading}</h2>
+        <p className="mt-1.5 min-h-[2.25rem] text-center text-[14px] leading-snug text-text-secondary">{wait > 0 ? `Try again in ${wait}s` : sub}</p>
 
-        <div className={cn('mt-6 flex h-4 items-center gap-4', shake && 'lock-shake')} aria-hidden>
+        <div className={cn('mt-5 flex h-3 items-center gap-3.5', shake && 'lock-shake')} aria-hidden>
           {Array.from({ length: PIN_LENGTH }, (_, i) => (
             <span
               key={i}
               className={cn(
-                'size-3.5 rounded-full border transition-all duration-150 ease-out',
-                i < digits.length
-                  ? error
-                    ? 'scale-110 border-danger bg-danger'
-                    : 'scale-110 border-transparent bg-brand-gradient shadow-[0_2px_8px_-2px_var(--color-brand)]'
-                  : 'border-line-strong bg-transparent',
+                'size-2.5 rounded-full border transition-all duration-150 ease-out',
+                i < digits.length ? (error ? 'border-danger bg-danger' : 'border-ink bg-ink') : 'border-ink/70 bg-transparent',
               )}
             />
           ))}
         </div>
-        <p role="alert" className="mt-3 h-5 text-[13px] text-danger">
+        <p role="alert" className="mt-2 h-5 text-[13px] text-danger">
           {error}
         </p>
 
-        <div className="mt-4 grid w-full grid-cols-3 gap-x-5 gap-y-3">
+        <div className="mt-3 grid w-full max-w-[18.5rem] grid-cols-3 gap-x-4 gap-y-3.5">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
             <Key key={d} onPress={() => press(d)} disabled={wait > 0}>
               {d}
@@ -257,15 +234,16 @@ export function PinGate({
             type="button"
             aria-label="Delete"
             onClick={back}
-            className="mx-auto grid size-[4.25rem] place-items-center rounded-full text-text-secondary transition-colors duration-instant ease-standard active:bg-hover focus-ring"
+            className="mx-auto grid size-[4.5rem] place-items-center rounded-full border border-[#d9d9de] text-ink transition-colors duration-instant ease-standard active:bg-[#e6e6ea] focus-ring dark:border-white/10"
           >
             <Delete size={22} aria-hidden />
           </button>
         </div>
 
+        <div className="min-h-4 flex-1" aria-hidden />
         {phase === 'verify' && (
-          <button type="button" onClick={() => setPhase('reset')} className="mt-5 rounded-full px-3 py-1.5 text-[14px] font-medium text-brand hover:bg-hover focus-ring">
-            Forgot PIN?
+          <button type="button" onClick={() => setPhase('reset')} className="rounded-full px-3 py-1.5 text-[14px] font-medium text-[#1a6ed8] underline underline-offset-2 focus-ring">
+            Forgot PIN code?
           </button>
         )}
       </div>
@@ -281,8 +259,8 @@ function Key({ children, onPress, disabled }: { children: string; onPress: () =>
       type="button"
       disabled={disabled}
       onClick={onPress}
-      // Soft glass keys that take the brand when pressed, not outlined circles.
-      className="mx-auto grid size-[4.25rem] place-items-center rounded-full bg-surface/75 text-[26px] font-semibold tabular-nums text-ink shadow-[0_1px_2px_rgb(16_17_20/0.06),0_6px_14px_-8px_rgb(16_17_20/0.18)] ring-1 ring-line transition-[background-color,transform,color] duration-instant ease-standard active:scale-95 active:bg-brand-soft active:text-brand focus-ring disabled:opacity-40"
+      // Light grey discs with a hairline edge and a soft drop shadow, as in the reference.
+      className="mx-auto grid size-[4.5rem] place-items-center rounded-full border border-[#d9d9de] bg-[#f1f1f3] text-[28px] font-normal tabular-nums text-ink shadow-[0_2px_5px_rgb(16_17_20/0.14)] transition-[background-color,transform] duration-instant ease-standard active:scale-95 active:bg-[#e6e6ea] focus-ring disabled:opacity-40 dark:border-white/10 dark:bg-white/10"
     >
       {children}
     </button>

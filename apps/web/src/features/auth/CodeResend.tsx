@@ -1,11 +1,10 @@
-import { MessageSquareText, Phone } from 'lucide-react';
-
 import { untilLabel, type OtpChannel, type OtpQuota } from './otp-quota.js';
 
 /**
- * Under the code boxes, as WhatsApp does it: two plain rows, "Resend SMS" and
- * "Call me", each with its own timer or what is left of it on the right. No
- * cards, no pills; the code boxes are the thing on this screen.
+ * Under the code boxes, as the reference has it: a quiet "Didn't receive code?"
+ * and, in blue underneath, the way to ask again. Two ways, a text and a call,
+ * each with its own timer or what is left of it beside it. No cards, no rows;
+ * the code boxes are the thing on this screen.
  */
 export function CodeResend({
   via: _via,
@@ -35,18 +34,17 @@ export function CodeResend({
   }
 
   return (
-    <div className="mt-7">
-      <p className="mb-1 text-caption text-text-tertiary">Didn’t receive the code?</p>
-      <div className="divide-y divide-line border-y border-line">
-        <Row icon={<MessageSquareText size={20} aria-hidden />} label="Resend SMS" channel="sms" quota={quota} waitFor={waitFor} busy={busy} onSend={onSend} />
-        <Row icon={<Phone size={20} aria-hidden />} label="Call me" channel="call" quota={quota} waitFor={waitFor} busy={busy} onSend={onSend} />
+    <div className="mt-8 text-center">
+      <p className="text-[14px] text-text-secondary">Didn’t receive Code?</p>
+      <div className="mt-2 flex items-center justify-center gap-6">
+        <Link label="Resend OTP" channel="sms" quota={quota} waitFor={waitFor} busy={busy} onSend={onSend} />
+        <Link label="Call me" channel="call" quota={quota} waitFor={waitFor} busy={busy} onSend={onSend} />
       </div>
     </div>
   );
 }
 
-function Row({
-  icon,
+function Link({
   label,
   channel,
   quota,
@@ -54,7 +52,6 @@ function Row({
   busy,
   onSend,
 }: {
-  icon: React.ReactNode;
   label: string;
   channel: OtpChannel;
   quota: OtpQuota | undefined;
@@ -66,24 +63,30 @@ function Row({
   const usedUp = left !== undefined && left <= 0;
   const freesAt = quota?.freesAt[channel];
   const disabled = usedUp || waitFor > 0 || Boolean(busy);
-  const side = busy === channel
-    ? channel === 'call' ? 'Calling…' : 'Sending…'
-    : usedUp
-      ? freesAt ? `in ${untilLabel(freesAt)}` : ''
-      : waitFor > 0
-        ? `0:${String(waitFor).padStart(2, '0')}`
-        : left !== undefined ? `${left} left` : '';
+  const side =
+    busy === channel
+      ? channel === 'call'
+        ? 'Calling…'
+        : 'Sending…'
+      : usedUp
+        ? freesAt
+          ? `in ${untilLabel(freesAt)}`
+          : ''
+        : waitFor > 0
+          ? `0:${String(waitFor).padStart(2, '0')}`
+          : left !== undefined
+            ? `${left} left`
+            : '';
 
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={() => onSend(channel)}
-      className="focus-ring flex h-12 w-full items-center gap-3.5 text-left text-brand disabled:text-text-tertiary"
+      className="focus-ring flex flex-col items-center gap-0.5 rounded-md px-1 py-1 text-[#1a8ae8] disabled:text-text-tertiary"
     >
-      {icon}
-      <span className="flex-1 text-[15px] font-medium">{label}</span>
-      <span className="text-[13px] tabular-nums text-text-tertiary">{side}</span>
+      <span className="text-[15px] font-medium">{label}</span>
+      {side && <span className="text-[12px] tabular-nums text-text-tertiary">{side}</span>}
     </button>
   );
 }

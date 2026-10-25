@@ -3,6 +3,7 @@ import { Loader2, MessageSquareText, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { CodeBoxes } from '../auth/CodeBoxes.js';
+import { OtpArt } from '../auth/Illustrations.js';
 import { CodeResend } from '../auth/CodeResend.js';
 import { OtpLimitError, type OtpChannel, type OtpQuota } from '../auth/otp-quota.js';
 import { recoveryErrorMessage, startRecovery, verifyRecovery } from '../auth/recovery.js';
@@ -95,9 +96,13 @@ export function ResetPin({ onVerified, onBack }: { onVerified: () => void; onBac
 
   return (
     <div className="mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <span className="grid size-16 place-items-center rounded-full bg-hover text-ink">
-        <ShieldCheck size={26} strokeWidth={1.7} aria-hidden />
-      </span>
+      {step === 'code' ? (
+        <OtpArt width={172} />
+      ) : (
+        <span className="grid size-16 place-items-center rounded-full bg-hover text-ink">
+          <ShieldCheck size={26} strokeWidth={1.7} aria-hidden />
+        </span>
+      )}
       <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.01em] text-ink">{step === 'code' ? 'Enter the code' : 'Reset your PIN'}</h2>
       <p className="mt-1 text-center text-[14px] leading-snug text-text-secondary">
         {step === 'code'

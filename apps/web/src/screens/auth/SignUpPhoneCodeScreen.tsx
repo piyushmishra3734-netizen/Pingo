@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { CodeBoxes } from '../../features/auth/CodeBoxes.js';
+import { OtpArt } from '../../features/auth/Illustrations.js';
 import { CodeResend } from '../../features/auth/CodeResend.js';
 import { OtpLimitError, otpStatus, type OtpChannel, type OtpQuota } from '../../features/auth/otp-quota.js';
 import { useIdentityFlow } from '../../features/auth/IdentityFlow.js';
@@ -146,6 +147,7 @@ export function SignUpPhoneCodeScreen() {
   return (
     <AuthScreen
       progress={SIGNUP_PROGRESS.code}
+      art={<OtpArt />}
       title={via === 'call' ? "Pick up, we're calling" : t('auth.codeTitle')}
       subtitle={via === 'call' ? `Pick up: a voice will read your code to ${identity.value}.` : t('auth.codeSubtitle', { number: identity.value })}
       onBack={() => navigate('/signup/phone')}
