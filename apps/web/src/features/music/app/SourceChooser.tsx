@@ -17,7 +17,7 @@ const OPTIONS: { v: MusicSource; title: string; note: string; icon: typeof Music
 ];
 
 export function SourceChooser() {
-  const [picked, setPicked] = useState<MusicSource>('saavn');
+  const [picked, setPicked] = useState<MusicSource>('ytm');
   return (
     <div role="dialog" aria-label="Choose where your music comes from" className="absolute inset-0 z-40 flex flex-col justify-end bg-black/45 animate-fadeIn">
       <div className="rounded-t-[28px] bg-page px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 shadow-2xl">

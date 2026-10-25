@@ -85,6 +85,17 @@ let pausedUntil = 0;
 /** True when YouTube Music is the choice, can run here, and is not resting. */
 export const ytmActive = (): boolean => chosen === 'ytm' && available() && Date.now() >= pausedUntil;
 
+/**
+ * YouTube Music is the choice and can run here, rest or no rest.
+ *
+ * For what a person reads, not for what is played. The pause above exists so a
+ * song that will not play does not slow every tap, but search is a different
+ * request from playing and kept working through it: it only quietly became
+ * JioSaavn's list, with its own instrumentals and edits in the first rows, for
+ * three minutes after any song failed. The list stays YouTube Music's.
+ */
+export const ytmChosen = (): boolean => chosen === 'ytm' && available();
+
 export function noteYtmFailure() {
   failures += 1;
   if (failures >= MAX_FAILURES) {

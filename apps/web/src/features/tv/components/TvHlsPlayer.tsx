@@ -4,6 +4,7 @@ import Hls from 'hls.js';
 import { Check, Settings2 } from 'lucide-react';
 
 import { cn } from '@pingo/ui';
+import { clearNowPlaying, showNowPlaying } from '../../native/media-controls.js';
 import type { StreamEntry, SubtitleOption } from '../sourceProbe.js';
 
 interface TvHlsPlayerProps {
@@ -150,6 +151,63 @@ export function TvHlsPlayer({
     video.addEventListener('playing', announce);
     return () => video.removeEventListener('playing', announce);
   }, []);
+
+  /*
+   * What is on, in the phone's own player.
+   *
+   * Songs have had this for a while: a card in the notification shade and on
+   * the lock screen with the title, the cover and play / pause. A film played
+   * from here had nothing, so leaving the app left no way to pause it. This
+   * hands the same card the film's name and poster, and the buttons go back to
+   * the `<video>` below. Only this player: a provider's iframe is another
+   * page, and nothing here can reach inside it to pause it.
+   */
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const push = () => {
+      showNowPlaying(
+        {
+          title,
+          artist: 'Pingo TV',
+          artwork: poster ?? '',
+          playing: !video.paused && !video.ended,
+          positionMs: Math.round((video.currentTime || 0) * 1000),
+          durationMs: Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : 0,
+          speed: video.playbackRate || 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+        (action, positionMs) => {
+          if (action === 'play') void video.play().catch(() => undefined);
+          else if (action === 'pause') video.pause();
+          else if (action === 'seek' && positionMs !== undefined) video.currentTime = positionMs / 1000;
+          else if (action === 'stop') {
+            video.pause();
+            clearNowPlaying();
+          }
+        },
+      );
+    };
+
+    // The position only needs refreshing now and then; the phone counts on from it.
+    let last = 0;
+    const tick = () => {
+      const now = Date.now();
+      if (now - last < 5000) return;
+      last = now;
+      push();
+    };
+    const events = ['play', 'pause', 'seeked', 'ended'] as const;
+    for (const e of events) video.addEventListener(e, push);
+    video.addEventListener('timeupdate', tick);
+    return () => {
+      for (const e of events) video.removeEventListener(e, push);
+      video.removeEventListener('timeupdate', tick);
+      clearNowPlaying();
+    };
+  }, [title, poster]);
 
   useEffect(() => {
     const video = videoRef.current;

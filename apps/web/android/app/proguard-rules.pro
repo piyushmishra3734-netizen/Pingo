@@ -27,3 +27,10 @@
 -keep class com.getcapacitor.** { *; }
 -keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
 -keep class chat.pingo.app.** { *; }
+
+# A Capacitor social-login plugin references the Facebook SDK, which this app
+# does not bundle. The code path is never taken, so R8 can ignore the gap.
+-dontwarn com.facebook.CallbackManager$Factory
+-dontwarn com.facebook.CallbackManager
+-dontwarn com.facebook.FacebookCallback
+-dontwarn com.facebook.login.LoginManager

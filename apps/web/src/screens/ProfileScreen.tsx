@@ -32,6 +32,7 @@ import { AtSign, Briefcase, Compass, Image as ImageGlyph, LayoutGrid, Lock, MapP
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { getRealtimeHub } from '../lib/supabase/realtime-hub.js';
+import { keepAnswer, readKept } from '../lib/local/kept.js';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useCall } from '../features/calls/CallProvider.js';
@@ -100,6 +101,23 @@ import { presenceMark, usePresenceStatus } from '../features/presence/status.js'
  */
 
 type Tab = 'posts' | 'media';
+
+/**
+ * What this session last saw of a profile, so going back to one paints at once
+ * and is corrected a moment later - the way a chat list does - instead of
+ * starting from skeletons every time. Per viewer (a private account shows
+ * different things to different people) and only for ten minutes: the signed
+ * links inside a post do not last longer than that anyway.
+ */
+const SEEN_MS = 10 * 60 * 1000;
+const seenProfiles = new Map<string, { stats?: ProfileStats; posts?: Post[]; at: number }>();
+function remember(key: string, patch: { stats?: ProfileStats; posts?: Post[] }): void {
+  const next = { ...seenProfiles.get(key), ...patch, at: Date.now() };
+  seenProfiles.set(key, next);
+  // Also on disk, so the next launch (or no connection) has it. The key is "viewer:person".
+  const [viewer, person] = key.split(':');
+  if (viewer && person && viewer !== 'anon') keepAnswer(viewer, `profile:${person}`, { stats: next.stats, posts: next.posts });
+}
 
 export function ProfileScreen() {
   const { handle } = useParams<{ handle: string }>();
@@ -199,9 +217,24 @@ export function ProfileScreen() {
     let active = true;
     setPostsFailed(false);
 
+    // Last time's answer first, if there is a recent one; the fetches below correct it.
+    const seenKey = `${mine?.id ?? 'anon'}:${personId}`;
+    const seen = seenProfiles.get(seenKey);
+    if (seen && Date.now() - seen.at < SEEN_MS) {
+      if (seen.stats) setStats(seen.stats);
+      if (seen.posts) setPosts(seen.posts);
+    } else if (mine?.id) {
+      // Not seen this session: what the last session saw, from disk (offline, or after a restart).
+      void readKept<{ stats?: ProfileStats; posts?: Post[] }>(mine.id, `profile:${personId}`).then((kept) => {
+        if (!active || !kept) return;
+        if (kept.stats) setStats((current) => current ?? kept.stats);
+        if (kept.posts) setPosts((current) => current ?? kept.posts);
+      });
+    }
+
     void profiles
       .stats(personId)
-      .then((next) => { if (active) setStats(next); })
+      .then((next) => { remember(seenKey, { stats: next }); if (active) setStats(next); })
       .catch(() => undefined);
 
     /*
@@ -216,8 +249,8 @@ export function ProfileScreen() {
      */
     void profiles
       .listPosts(personId)
-      .then((next) => { if (active) setPosts(next); })
-      .catch(() => { if (active) setPostsFailed(true); });
+      .then((next) => { remember(seenKey, { posts: next }); if (active) setPosts(next); })
+      .catch(() => { if (active && !seen?.posts) setPostsFailed(true); });
 
     /*
      * Whether the posts are behind a follow. The database already withholds
@@ -243,10 +276,7 @@ export function ProfileScreen() {
     }
 
     if (isSelf) {
-      void profiles
-        .listChatMedia()
-        .then((next) => { if (active) setMedia(next); })
-        .catch(() => { if (active) setMedia([]); });
+      // The Media tab's photos are read when that tab is opened (below), not on every visit.
     } else {
       void profiles
         .sharedWith(personId)
@@ -267,7 +297,24 @@ export function ProfileScreen() {
     return () => {
       active = false;
     };
-  }, [profiles, personId, isSelf]);
+  }, [profiles, personId, isSelf, mine?.id]);
+
+  /*
+   * Your shared photos: sixty of them to find and sign, for a tab most visits
+   * never open. They were read on every visit to this screen; now when the tab is
+   * opened, once.
+   */
+  useEffect(() => {
+    if (!isSelf || tab !== 'media' || media !== undefined) return;
+    let active = true;
+    void profiles
+      .listChatMedia()
+      .then((next) => { if (active) setMedia(next); })
+      .catch(() => { if (active) setMedia([]); });
+    return () => {
+      active = false;
+    };
+  }, [profiles, isSelf, tab, media]);
 
   const reload = useCallback(() => {
     if (!personId) return;

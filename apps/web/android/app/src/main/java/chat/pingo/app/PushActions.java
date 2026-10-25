@@ -2,6 +2,7 @@ package chat.pingo.app;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -67,14 +68,43 @@ public class PushActions extends Plugin {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("token", token).apply();
     }
 
-    /** Calls {@code push-action}. True when the server said ok. Never on the main thread. */
+    private static final String TAG = "PingoPushAction";
+
+    /**
+     * Calls {@code push-action}. True when the server said ok. Never on the main thread.
+     *
+     * Tries twice when the network drops the first request: a reply typed in a
+     * notification is gone once it is sent, so one flaky connection should not
+     * lose it. Every failure says why in the log (a status code, or what was
+     * missing), because a notification that quietly does nothing is otherwise
+     * impossible to tell apart from one that never ran.
+     */
     static boolean call(Context context, String action, String conversationId, String text) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String url = prefs.getString("url", null);
         String anonKey = prefs.getString("anonKey", null);
         String key = prefs.getString("key", null);
         String token = prefs.getString("token", null);
-        if (url == null || anonKey == null || key == null || token == null) return false;
+        if (url == null || anonKey == null || key == null || token == null) {
+            Log.w(TAG, action + ": not configured (url=" + (url != null) + " anonKey=" + (anonKey != null)
+                + " key=" + (key != null) + " token=" + (token != null) + "); open PINGO once to arm it");
+            return false;
+        }
+        long began = System.currentTimeMillis();
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            int code = post(url, anonKey, token, key, action, conversationId, text);
+            if (code == 200) return true;
+            Log.w(TAG, action + ": attempt " + attempt + " failed, " + (code < 0 ? "no answer" : "HTTP " + code));
+            // A refusal will not change on a second try; only a missing answer might.
+            if (code >= 0) return false;
+            // Past about four seconds there is no room left in the receiver's ten for another go.
+            if (System.currentTimeMillis() - began > 4000) return false;
+        }
+        return false;
+    }
+
+    /** One request. The HTTP status, or -1 when nothing answered. */
+    private static int post(String url, String anonKey, String token, String key, String action, String conversationId, String text) {
         HttpURLConnection connection = null;
         try {
             JSONObject body = new JSONObject();
@@ -85,8 +115,9 @@ public class PushActions extends Plugin {
             if (text != null) body.put("text", text);
             connection = (HttpURLConnection) new URL(url + "/functions/v1/push-action").openConnection();
             connection.setRequestMethod("POST");
-            connection.setConnectTimeout(8000);
-            connection.setReadTimeout(8000);
+            // A cold function can take a few seconds to wake; the receiver is allowed about ten in all.
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(5000);
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setRequestProperty("apikey", anonKey);
@@ -94,9 +125,10 @@ public class PushActions extends Plugin {
             try (OutputStream out = connection.getOutputStream()) {
                 out.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
-            return connection.getResponseCode() == 200;
+            return connection.getResponseCode();
         } catch (Exception e) {
-            return false;
+            Log.w(TAG, action + ": " + e.getClass().getSimpleName() + " " + e.getMessage());
+            return -1;
         } finally {
             if (connection != null) connection.disconnect();
         }

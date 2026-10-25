@@ -1,5 +1,5 @@
 import * as yt from '../ytm/innertube.js';
-import { noteYtmFailure, noteYtmOk, ytmActive } from '../ytm/source.js';
+import { noteYtmFailure, noteYtmOk, ytmActive, ytmChosen } from '../ytm/source.js';
 import type { ArtistPage, ChannelPage, Item, Lyrics, Module, Paged, Playlist, SearchAll, Song, Album, Artist, StationStart, Stream } from './types.js';
 
 /**
@@ -135,7 +135,7 @@ const saavnSearchSongs = (q: string, page = 1, signal?: AbortSignal) => get<Page
 
 /** YouTube Music's songs for a query, or undefined when it cannot answer (the caller uses JioSaavn's). */
 async function ytSearch(q: string): Promise<Song[] | undefined> {
-  if (!ytmActive()) return undefined;
+  if (!ytmChosen()) return undefined;
   try {
     const found = await yt.searchSongs(q.trim());
     noteYtmOk();
@@ -149,7 +149,7 @@ async function ytSearch(q: string): Promise<Song[] | undefined> {
 
 /** Songs from YouTube Music when it is the choice; albums, artists and playlists stay JioSaavn's. */
 export async function searchAll(q: string, signal?: AbortSignal): Promise<SearchAll> {
-  const [fromYt, fromSaavn] = await Promise.all([ytSearch(q), saavnSearchAll(q, signal).catch((e) => (ytmActive() ? undefined : Promise.reject(e)))]);
+  const [fromYt, fromSaavn] = await Promise.all([ytSearch(q), saavnSearchAll(q, signal).catch((e) => (ytmChosen() ? undefined : Promise.reject(e)))]);
   if (!fromYt) {
     if (!fromSaavn) throw new MusicError('Nothing found');
     return fromSaavn;
@@ -180,7 +180,17 @@ function remember(s: Song) {
   if (seen.size > 500) seen.delete(seen.keys().next().value!);
 }
 
-const norm = (t: string) => t.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+/** A title for comparing: a film credit in brackets ("From ...", "Original Motion Picture ...") is dropped, nothing else is. */
+const sameTitle = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/[(\[]\s*(from|original|official|motion picture|film|movie)\b[^)\]]*[)\]]/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+/** Which edits a title says it is: an instrumental and the original are different recordings. */
+const VERSION_WORDS = /\b(instrumental|karaoke|slowed|reverb|sped\s*up|speed\s*up|nightcore|8d|bass|lo-?fi|remix|cover|mashup|reprise|unplugged|acoustic|live|flute|piano|guitar|violin|jhankar|lyrical|version|mix|edit)\b/gi;
+const versionsOf = (t: string): Set<string> => new Set((t.toLowerCase().match(VERSION_WORDS) ?? []).map((w) => w.replace(/\s+/g, '').replace('-', '')));
 
 /**
  * The same song on JioSaavn, for when YouTube Music cannot play it.
@@ -192,8 +202,27 @@ const norm = (t: string) => t.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, ' ').rep
 export async function equivalent(name: string, artist: string): Promise<Song | undefined> {
   try {
     const found = await saavnSearchSongs(`${name} ${artist}`.trim(), 1);
-    const want = norm(name);
-    const pick = found.items.find((s) => norm(s.name) === want) ?? found.items.find((s) => norm(s.name).includes(want) || want.includes(norm(s.name)));
+    const want = sameTitle(name);
+    const wantVersions = versionsOf(name);
+    const wantArtists = artist.toLowerCase().split(/[,&]/).map((a) => a.trim()).filter(Boolean);
+    /*
+     * The same recording, not a lookalike.
+     *
+     * This used to drop everything in brackets and then accept a title that merely
+     * contained the other, so "Jeene Laga Hoon" found "Jeene Laga Hoon (Instrumental)"
+     * and played that, under the original's name and cover. Now the title must be
+     * the same apart from a film credit, it must carry the same version words
+     * (instrumental, slowed, remix, ...) in both directions, and where both sides
+     * name artists, one must be shared. No match is better than the wrong version:
+     * the song is then skipped, as a song that cannot be played always was.
+     */
+    const pick = found.items.find((s) => {
+      if (sameTitle(s.name) !== want) return false;
+      const got = versionsOf(s.name);
+      if (got.size !== wantVersions.size || [...got].some((v) => !wantVersions.has(v))) return false;
+      const gotArtists = s.artists.map((a) => a.name.toLowerCase());
+      return !wantArtists.length || !gotArtists.length || wantArtists.some((w) => gotArtists.some((g) => g.includes(w) || w.includes(g)));
+    });
     if (!pick) return undefined;
     return (await saavnSongs([pick.id]))[0] ?? pick;
   } catch {
@@ -225,6 +254,23 @@ export async function songs(ids: string[]): Promise<Song[]> {
   return ids.map((i) => out.get(i)).filter((s): s is Song => Boolean(s));
 }
 export const song = async (id: string) => (await songs([id]))[0];
+
+/**
+ * A YouTube Music song's address, looked up ahead of its turn.
+ *
+ * `resolveStream` keeps what it finds for an hour, so when the queue reaches
+ * the song the answer is already there and "next" does not wait on a round
+ * trip. Undefined for anything else, or when YouTube cannot answer: the song is
+ * then resolved at its turn as before.
+ */
+export async function warmStream(id: string, prefer: 'auto' | 'high' | 'normal' | 'saver' = 'auto'): Promise<string | undefined> {
+  if (!yt.isYtId(id) || !ytmActive()) return undefined;
+  try {
+    return streamUrl({ stream: await yt.resolveStream(yt.videoIdOf(id)) }, prefer);
+  } catch {
+    return undefined;
+  }
+}
 export const lyrics = (id: string) => get<Lyrics>(`/songs/${enc(id)}/lyrics`);
 export const album = (id: string) => get<Album>(`/albums/${enc(id)}`);
 export const playlist = (id: string, page = 1, n = 50) => get<Playlist & { page: number; more: boolean }>(`/playlists/${enc(id)}${qs({ page, n })}`);

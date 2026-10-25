@@ -33,6 +33,7 @@ interface Loose {
   from: (table: string) => {
     select: (cols: string) => {
       eq: (col: string, value: string) => { maybeSingle: () => Reply<unknown> };
+      in: (col: string, values: string[]) => Reply<unknown>;
       order: (col: string, o: { ascending: boolean }) => { limit: (n: number) => Reply<unknown> };
       maybeSingle?: never;
     };
@@ -65,9 +66,43 @@ export async function configure(next: MasterSettings): Promise<void> {
   if (error) throw new Error(sayError(error.message));
 }
 
-export async function loadAction(id: string): Promise<MasterAction | null> {
-  const { data } = await db().from('ai_actions').select(COLUMNS).eq('id', id).maybeSingle();
-  return (data as MasterAction | null) ?? null;
+/**
+ * One action, by id - but asked together with every other card on the screen.
+ *
+ * Each action card loads its own row when it appears, and a thread with the
+ * assistant shows several at once: nine cards were nine identical-looking
+ * requests the moment the chat opened. Everything asked for within a few
+ * milliseconds now goes out as a single `in (...)` query.
+ */
+let waiting = new Map<string, Array<(row: MasterAction | null) => void>>();
+let flushing = false;
+
+async function flushActions(): Promise<void> {
+  const batch = waiting;
+  waiting = new Map();
+  flushing = false;
+  const settle = (rows: MasterAction[]) => {
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    for (const [id, callbacks] of batch) for (const done of callbacks) done(byId.get(id) ?? null);
+  };
+  try {
+    const { data } = await db().from('ai_actions').select(COLUMNS).in('id', [...batch.keys()]);
+    settle((data as MasterAction[] | null) ?? []);
+  } catch {
+    settle([]);
+  }
+}
+
+export function loadAction(id: string): Promise<MasterAction | null> {
+  return new Promise((resolve) => {
+    const callbacks = waiting.get(id) ?? [];
+    callbacks.push(resolve);
+    waiting.set(id, callbacks);
+    if (!flushing) {
+      flushing = true;
+      setTimeout(() => void flushActions(), 20);
+    }
+  });
 }
 
 export async function loadLog(limit = 30): Promise<MasterAction[]> {

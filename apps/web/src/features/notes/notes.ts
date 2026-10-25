@@ -10,8 +10,38 @@ import { demoOn } from '../../screens/dev/demo-services.js';
  * (20261112000000_notes); these are thin calls.
  */
 
-export const NOTE_MAX = 60;
+export const NOTE_MAX = 100;
 export type NoteAudience = 'friends' | 'close';
+
+/**
+ * The few looks a note's bubble can have. The database stores only the id (and
+ * refuses any other); what each one looks like is decided here. Quiet on
+ * purpose: a tint of one colour over the app's dark surface, never a gradient.
+ * `default` is no tint at all: the bubble as the theme draws it.
+ */
+export type NoteBg = 'default' | 'rose' | 'ocean' | 'forest' | 'amber' | 'violet';
+export const NOTE_BGS: { id: NoteBg; label: string; bg: string; ink: string }[] = [
+  { id: 'default', label: 'Plain', bg: '', ink: '' },
+  { id: 'rose', label: 'Rose', bg: '#3a1b2c', ink: '#ffd9ea' },
+  { id: 'ocean', label: 'Ocean', bg: '#16293a', ink: '#d6ecff' },
+  { id: 'forest', label: 'Forest', bg: '#16301f', ink: '#d9f5df' },
+  { id: 'amber', label: 'Amber', bg: '#3a2d14', ink: '#ffeccb' },
+  { id: 'violet', label: 'Violet', bg: '#271f3d', ink: '#e6dcff' },
+];
+export const noteBg = (id: string | undefined) => NOTE_BGS.find((b) => b.id === id) ?? NOTE_BGS[0]!;
+
+/** "21h left", "40m left", "ending now": what is left of a note's 24 hours. */
+export function timeLeft(expiresAt: number, now = Date.now()): string {
+  const ms = expiresAt - now;
+  if (ms <= 60_000) return 'ending now';
+  const minutes = Math.round(ms / 60_000);
+  return minutes >= 90 ? `${Math.round(minutes / 60)}h left` : `${minutes}m left`;
+}
+
+/** Characters as a person counts them: an emoji is one, not the two units a string says. */
+export const noteLength = (text: string): number => Array.from(text).length;
+/** At most NOTE_MAX characters, never cutting an emoji in half. */
+export const clampNote = (text: string): string => Array.from(text).slice(0, NOTE_MAX).join('');
 
 export interface Note {
   userId: string;
@@ -21,6 +51,7 @@ export interface Note {
   body: string;
   song: ProfileSong | undefined;
   audience: NoteAudience;
+  bg: NoteBg;
   createdAt: number;
   expiresAt: number;
 }
@@ -33,6 +64,7 @@ interface Row {
   body: string;
   song: ProfileSong | null;
   audience: NoteAudience;
+  bg?: string | null;
   created_at: string;
   expires_at: string;
 }
@@ -54,6 +86,7 @@ const toNote = (row: Row): Note => ({
   body: row.body,
   song: row.song ?? undefined,
   audience: row.audience,
+  bg: noteBg(row.bg ?? undefined).id,
   createdAt: Date.parse(row.created_at),
   expiresAt: Date.parse(row.expires_at),
 });
@@ -71,11 +104,17 @@ const publish = (next: State) => {
 
 /** The demo has no server: a couple of notes, and yours kept in memory. */
 const DEMO_FEED: Note[] = [
-  { userId: 'u-baani', username: 'baani', name: 'Baani', avatarUrl: undefined, body: 'chai > coffee, fight me', song: undefined, audience: 'friends', createdAt: Date.now() - 3_600_000, expiresAt: Date.now() + 20 * 3_600_000 },
-  { userId: 'u-rohit', username: 'rohit', name: 'Rohit', avatarUrl: undefined, body: 'Sunday reset, long walk, no phone, only chai', song: { name: 'Raataan Lambiyan', artist: 'Jubin Nautiyal', img: '', url: '', secs: 230 }, audience: 'friends', createdAt: Date.now() - 7_200_000, expiresAt: Date.now() + 18 * 3_600_000 },
+  { userId: 'u-baani', username: 'baani', name: 'Baani', avatarUrl: undefined, body: 'chai > coffee, fight me', song: undefined, audience: 'friends', bg: 'default', createdAt: Date.now() - 3_600_000, expiresAt: Date.now() + 20 * 3_600_000 },
+  { userId: 'u-rohit', username: 'rohit', name: 'Rohit', avatarUrl: undefined, body: 'Sunday reset, long walk, no phone, only chai', song: { name: 'Raataan Lambiyan', artist: 'Jubin Nautiyal', img: '', url: '', secs: 230 }, audience: 'friends', bg: 'default', createdAt: Date.now() - 7_200_000, expiresAt: Date.now() + 18 * 3_600_000 },
 ];
 
-export async function refreshNotes(): Promise<void> {
+/** Notes change slowly; going back to Chats must not ask for them again every time. */
+const FRESH_MS = 30_000;
+let refreshedAt = 0;
+
+export async function refreshNotes(force = false): Promise<void> {
+  if (!force && Date.now() - refreshedAt < FRESH_MS) return;
+  refreshedAt = Date.now();
   if (demoOn()) {
     if (state.feed.length === 0) publish({ ...state, feed: DEMO_FEED });
     return;
@@ -92,18 +131,18 @@ export async function refreshNotes(): Promise<void> {
   }
 }
 
-export async function saveNote(input: { body: string; song: ProfileSong | undefined; audience: NoteAudience }): Promise<string | undefined> {
-  const body = input.body.trim().slice(0, NOTE_MAX);
+export async function saveNote(input: { body: string; song: ProfileSong | undefined; audience: NoteAudience; bg: NoteBg }): Promise<string | undefined> {
+  const body = clampNote(input.body.trim());
   if (demoOn()) {
     publish({
       ...state,
-      mine: { userId: 'u-me', username: 'me', name: 'You', avatarUrl: undefined, body, song: input.song, audience: input.audience, createdAt: Date.now(), expiresAt: Date.now() + 24 * 3_600_000 },
+      mine: { userId: 'u-me', username: 'me', name: 'You', avatarUrl: undefined, body, song: input.song, audience: input.audience, bg: input.bg, createdAt: Date.now(), expiresAt: Date.now() + 24 * 3_600_000 },
     });
     return undefined;
   }
-  const { error } = await db().rpc('note_set', { p_body: body, p_song: input.song ?? null, p_audience: input.audience });
+  const { error } = await db().rpc('note_set', { p_body: body, p_song: input.song ?? null, p_audience: input.audience, p_bg: input.bg });
   if (error) return error.message;
-  await refreshNotes();
+  await refreshNotes(true);
   return undefined;
 }
 
@@ -125,12 +164,26 @@ export function useNotes(): State {
       if (document.visibilityState === 'visible') void refreshNotes();
     };
     document.addEventListener('visibilitychange', back);
-    return () => document.removeEventListener('visibilitychange', back);
+    // A note ends at 24 hours whether or not anybody reopens the app: drop it from the screen when it does.
+    const sweep = setInterval(dropExpired, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      clearInterval(sweep);
+    };
   }, []);
   return useSyncExternalStore(subscribe, () => state);
 }
 
+/** Takes notes whose 24 hours are up off the screen without asking the server. */
+export function dropExpired(): void {
+  const now = Date.now();
+  const mine = state.mine && state.mine.expiresAt > now ? state.mine : undefined;
+  const feed = state.feed.filter((n) => n.expiresAt > now);
+  if (mine !== state.mine || feed.length !== state.feed.length) publish({ mine, feed });
+}
+
 /** Signing out must not leave the last person's notes on screen. */
 export function resetNotes(): void {
+  refreshedAt = 0;
   publish({ mine: undefined, feed: [] });
 }

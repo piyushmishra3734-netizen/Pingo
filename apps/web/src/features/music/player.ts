@@ -50,6 +50,8 @@ export function setQueueControls(controls: QueueControls | undefined) {
 }
 const listeners = new Set<() => void>();
 let audio: HTMLAudioElement | undefined;
+/** The next song's start, read ahead. See `musicPlayer.preload`. */
+let warm: HTMLAudioElement | undefined;
 
 function set(changes: Partial<PlayerState>) {
   state = { ...state, ...changes };
@@ -78,7 +80,20 @@ function element(): HTMLAudioElement {
     syncPhone();
   });
   a.addEventListener('waiting', () => set({ loading: true }));
-  a.addEventListener('pause', () => { set({ playing: false }); syncPhone(); });
+  a.addEventListener('pause', () => {
+    /*
+     * A song that ran to its end fires `pause` just before `ended`. With a queue
+     * behind it that is not somebody pausing, it is the gap before the next song,
+     * and reporting "paused" here was what stopped the music with the screen off:
+     * the phone took the player out of the foreground (and a browser drops its
+     * media player) at the one moment the next song had not started yet, then
+     * could not bring it back from the background. The queue says what happens
+     * next; a real pause has `ended` false.
+     */
+    if (a.ended && queue) return;
+    set({ playing: false });
+    syncPhone();
+  });
   a.addEventListener('seeked', syncPhone);
   a.addEventListener('ratechange', syncPhone);
   a.addEventListener('ended', () => {
@@ -86,7 +101,11 @@ function element(): HTMLAudioElement {
     a.currentTime = 0;
     set({ playing: false, at: 0 });
   });
-  a.addEventListener('error', () => { if (a.src) set({ playing: false, loading: false, failed: true }); });
+  a.addEventListener('error', () => {
+    if (!a.src) return;
+    set({ playing: false, loading: false, failed: true });
+    syncPhone();
+  });
   audio = a;
   return a;
 }
@@ -207,6 +226,12 @@ export const musicPlayer = {
   },
   pause() {
     audio?.pause();
+    // An element that has already ended fires no `pause`, and the queue may be asking
+    // for exactly that (the end of the queue, a sleep timer): say it ourselves.
+    if (state.playing) {
+      set({ playing: false });
+      syncPhone();
+    }
   },
   toggle(song: SharedSong) {
     if (state.song?.url === song.url && state.playing) musicPlayer.pause();
@@ -222,8 +247,27 @@ export const musicPlayer = {
     if (audio) audio.playbackRate = speed;
     set({ speed });
   },
+  /**
+   * Gets the start of the next song ready, without playing it.
+   *
+   * A second element that only reads the header and the first moments, so
+   * "next" has bytes waiting instead of starting a fresh request. It is not the
+   * playing element, never makes a sound, and holds one song at a time: asking
+   * for another drops the one before, so a long queue never piles up downloads.
+   */
+  preload(url: string) {
+    if (typeof Audio === 'undefined' || state.song?.url === url) return;
+    if (!warm) {
+      warm = new Audio();
+      warm.preload = 'metadata';
+      warm.muted = true;
+    }
+    if (warm.src === url) return;
+    warm.src = url;
+  },
   /** Stops and forgets the song - the bar at the top goes with it. */
   close() {
+    if (warm) { warm.removeAttribute('src'); warm.load(); }
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
     set({ song: undefined, playing: false, loading: false, failed: false, at: 0, length: 0 });
     if (typeof navigator !== 'undefined' && navigator.mediaSession) {

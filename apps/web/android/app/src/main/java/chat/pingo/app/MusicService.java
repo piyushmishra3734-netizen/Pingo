@@ -17,6 +17,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.net.wifi.WifiManager;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -82,6 +84,62 @@ public class MusicService extends Service {
     private Bitmap artwork;
     private boolean foreground;
 
+    /**
+     * How long the service stays in the foreground after the song stops.
+     *
+     * Between two songs the player reports "not playing" for as long as the next
+     * one takes to start (a lookup and a download on a poor connection). Leaving the
+     * foreground at that moment is what stopped the music with the screen off:
+     * Android lets a backgrounded app freeze, and does not let it climb back into
+     * the foreground. So the service waits; a song that starts again cancels it, and
+     * a pause that stays a pause leaves the foreground (and can be swiped away)
+     * after this.
+     */
+    private static final long LINGER_MS = 25_000;
+    private final Runnable leaveForeground = new Runnable() {
+        @Override public void run() {
+            Info info = latest;
+            if (info != null && info.playing) return;
+            if (foreground) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_DETACH);
+                else stopForeground(false);
+                foreground = false;
+            }
+            releaseLocks();
+            if (info != null && session != null) manager().notify(NOTIFICATION_ID, build(info));
+        }
+    };
+
+    /** Keep the CPU and the Wi-Fi radio awake while music plays with the screen off. */
+    private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
+
+    private void holdLocks() {
+        try {
+            if (wakeLock == null) {
+                PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (power != null) wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pingo:music");
+            }
+            if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(6 * 60 * 60 * 1000L);
+            if (wifiLock == null) {
+                WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wifi != null) wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "pingo:music");
+            }
+            if (wifiLock != null && !wifiLock.isHeld()) wifiLock.acquire();
+        } catch (RuntimeException ignored) {
+            // A phone that refuses the lock still plays; it may just sleep sooner.
+        }
+    }
+
+    private void releaseLocks() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+            if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
+        } catch (RuntimeException ignored) {
+            // Already gone.
+        }
+    }
+
     /** Shows or refreshes the player. Starts the service the first time. */
     static void show(Context context, Info info) {
         latest = info;
@@ -123,6 +181,15 @@ public class MusicService extends Service {
         });
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         session.setSessionActivity(PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        /*
+         * Deprecated, ignored by the framework, and the reason this player showed on
+         * vivo phones at all. Measured on a vivo (OriginOS 7): with these two flags
+         * unset, SystemUI had the session (playing, with its title) and the
+         * foreground service, yet the shade drew no player for it - the phone's own
+         * media card reads the flags. With them set the shade shows the usual
+         * player card at the top: album art, a seek bar, previous, pause and next.
+         */
+        session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
         session.setActive(true);
     }
 
@@ -179,14 +246,14 @@ public class MusicService extends Service {
 
         Notification notification = build(info);
         if (info.playing) {
+            main.removeCallbacks(leaveForeground);
+            holdLocks();
             startAsForeground(notification);
         } else {
-            if (foreground) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_DETACH);
-                else stopForeground(false);
-                foreground = false;
-            }
+            // Updated in place, still foreground: it leaves only if nothing starts within LINGER_MS.
             manager().notify(NOTIFICATION_ID, notification);
+            main.removeCallbacks(leaveForeground);
+            main.postDelayed(leaveForeground, LINGER_MS);
         }
 
         if (!info.artwork.isEmpty() && !info.artwork.equals(artworkUrl)) loadArtwork(info.artwork);
@@ -234,6 +301,7 @@ public class MusicService extends Service {
         if (info.hasNext) { b.addAction(new Notification.Action.Builder(android.R.drawable.ic_media_next, "Next", control("next", 4)).build()); shown++; }
         compact = shown == 3 ? new int[] {0, 1, 2} : shown == 2 ? new int[] {0, 1} : new int[] {playIndex};
 
+        b.setCategory(Notification.CATEGORY_TRANSPORT);
         b.setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(compact));
         return b.build();
     }
@@ -274,6 +342,8 @@ public class MusicService extends Service {
     }
 
     private void stopEverything() {
+        main.removeCallbacks(leaveForeground);
+        releaseLocks();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE);
         else stopForeground(true);
         foreground = false;
@@ -291,11 +361,16 @@ public class MusicService extends Service {
         channel.setDescription("The song playing in PINGO");
         channel.setShowBadge(false);
         manager().createNotificationChannel(channel);
+        // Two channels tried while finding out why vivo hid the player; nothing posts to them any more.
+        manager().deleteNotificationChannel("music_now");
+        manager().deleteNotificationChannel("music_player");
     }
 
     @Override
     public void onDestroy() {
         instance = null;
+        main.removeCallbacks(leaveForeground);
+        releaseLocks();
         if (session != null) { session.setActive(false); session.release(); session = null; }
         loader.shutdownNow();
         super.onDestroy();

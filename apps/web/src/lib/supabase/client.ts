@@ -26,6 +26,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import { resilient } from './resilient-fetch.js';
+
 import type { Database } from './types.js';
 
 /** A Supabase client typed against our schema. */
@@ -122,6 +124,8 @@ export function getSupabaseClient(): PingoSupabaseClient {
     global: {
       // Identifies our traffic in Supabase logs without carrying user data.
       headers: { 'x-pingo-client': 'web' },
+      // Reads give up on a dead socket and try again; writes are left alone. See resilient-fetch.ts.
+      fetch: resilient((input, init) => fetch(input, init)),
     },
   });
 

@@ -7,8 +7,14 @@ set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false) \gset
 \echo 1 set a note with a song: ok
 select note_set('hello', '{"name":"x","artist":"y","img":"","url":"u","secs":10}', 'friends');
-\echo 2 61 chars refused
-select note_set(repeat('a',61), null, 'friends');
+\echo 2 101 chars refused, 100 is fine
+select note_set(repeat('a',101), null, 'friends');
+select note_set(repeat('a',100), null, 'friends');
+select note_set(repeat('😀',100), null, 'friends');
+echo 2b an unknown background is refused, a known one is kept
+select note_set('x', null, 'friends', 'neon');
+select note_set('x', null, 'friends', 'rose');
+select bg from notes;
 \echo 3 empty note and no song refused
 select note_set('   ', null, 'friends');
 \echo 4 song only is fine

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { keepAnswer, readKept } from '../../lib/local/kept.js';
 import { getRealtimeHub } from '../../lib/supabase/realtime-hub.js';
 import { isBlocked, onBlocksChange } from '../safety/blocks.js';
 import { announceStoryPosted } from './story-mentions.js';
@@ -102,6 +103,25 @@ export function StoryProvider({
   const [mutedAuthors, setMutedAuthors] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // The rail as the server last drew it, from disk: with no connection (or before
+  // it answers) the circles are there, minus any story whose day has ended.
+  useEffect(() => {
+    if (!signedIn || !meId) return;
+    let active = true;
+    void readKept<StoryGroup[]>(meId, 'story-groups').then((kept) => {
+      if (!active || !kept) return;
+      const now = Date.now();
+      const live = kept
+        .map((group) => ({ ...group, stories: group.stories.filter((story) => story.expiresAt > now) }))
+        .filter((group) => group.stories.length > 0);
+      setRaw((current) => (current.length > 0 ? current : live));
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [signedIn, meId]);
+
   const refresh = useCallback(async () => {
     if (!signedIn) {
       setRaw([]);
@@ -117,14 +137,15 @@ export function StoryProvider({
       // Nobody this account has blocked (features/safety/blocks.ts).
       setRaw(groups.filter((g) => !isBlocked(g.authorId)));
       setMutedAuthors(muted);
+      keepAnswer(meId, 'story-groups', groups);
     } catch {
-      // An empty rail is the right failure: the screen below it still works,
-      // and stories are not what the user came to Home for.
-      setRaw([]);
+      // A failed read leaves the rail as it was. It used to empty it, so a weak
+      // connection took everybody's story circles away until it came back; and
+      // the screen below it still works either way.
     } finally {
       setLoading(false);
     }
-  }, [service, signedIn]);
+  }, [service, signedIn, meId]);
 
   useEffect(() => {
     void refresh();

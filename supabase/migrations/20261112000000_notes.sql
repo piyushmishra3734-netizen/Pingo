@@ -1,5 +1,5 @@
--- PINGO Notes: a short line, and optionally a song, that sits on your circle in
--- the story tray for 24 hours - Instagram's notes, in PINGO's tray.
+-- PINGO Notes: a short line (up to 100 characters), optionally a song and a
+-- background, that sits on your circle in the story tray for 24 hours - Instagram's notes, in PINGO's tray.
 --
 -- One live note per person: writing a new one replaces the old. Who sees it
 -- follows the story rule - friends are mutual follows, close friends are the
@@ -16,10 +16,13 @@ create table if not exists public.notes (
   -- Same few fields the profile song stores; small and object-shaped.
   song jsonb,
   audience text not null default 'friends',
+  -- One of a few fixed looks for the bubble; the app owns what each one is.
+  bg text not null default 'default',
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default (now() + interval '24 hours'),
   constraint notes_audience check (audience in ('friends', 'close')),
-  constraint notes_body_length check (char_length(body) <= 60),
+  constraint notes_body_length check (char_length(body) <= 100),
+  constraint notes_bg check (bg in ('default', 'rose', 'ocean', 'forest', 'amber', 'violet')),
   constraint notes_song_shape check (
     song is null
     or (jsonb_typeof(song) = 'object' and octet_length(song::text) <= 2048)
@@ -37,7 +40,12 @@ create policy "see my own note"
 revoke all on public.notes from anon, authenticated;
 grant select on public.notes to authenticated;
 
-create or replace function public.note_set(p_body text, p_song jsonb, p_audience text default 'friends')
+create or replace function public.note_set(
+  p_body text,
+  p_song jsonb,
+  p_audience text default 'friends',
+  p_bg text default 'default'
+)
 returns void
 language plpgsql
 security definer
@@ -53,8 +61,11 @@ begin
   if p_audience not in ('friends', 'close') then
     raise exception 'bad audience' using errcode = '22023';
   end if;
-  if char_length(clean) > 60 then
-    raise exception 'a note is at most 60 characters' using errcode = '22023';
+  if coalesce(p_bg, 'default') not in ('default', 'rose', 'ocean', 'forest', 'amber', 'violet') then
+    raise exception 'bad background' using errcode = '22023';
+  end if;
+  if char_length(clean) > 100 then
+    raise exception 'a note is at most 100 characters' using errcode = '22023';
   end if;
   if clean = '' and p_song is null then
     raise exception 'a note needs words or a song' using errcode = '22023';
@@ -63,12 +74,13 @@ begin
     raise exception 'bad song' using errcode = '22023';
   end if;
 
-  insert into public.notes (user_id, body, song, audience, created_at, expires_at)
-  values (me, clean, p_song, p_audience, now(), now() + interval '24 hours')
+  insert into public.notes (user_id, body, song, audience, bg, created_at, expires_at)
+  values (me, clean, p_song, p_audience, coalesce(p_bg, 'default'), now(), now() + interval '24 hours')
   on conflict (user_id) do update
     set body = excluded.body,
         song = excluded.song,
         audience = excluded.audience,
+        bg = excluded.bg,
         created_at = excluded.created_at,
         expires_at = excluded.expires_at;
 end;
@@ -92,6 +104,7 @@ returns table (
   body text,
   song jsonb,
   audience text,
+  bg text,
   created_at timestamptz,
   expires_at timestamptz
 )
@@ -101,7 +114,7 @@ set search_path = public
 stable
 as $$
   select n.user_id, p.username, p.display_name, p.avatar_url,
-         n.body, n.song, n.audience, n.created_at, n.expires_at
+         n.body, n.song, n.audience, n.bg, n.created_at, n.expires_at
   from public.notes n
   join public.profiles p on p.id = n.user_id
   where auth.uid() is not null
@@ -121,10 +134,10 @@ as $$
   limit 100;
 $$;
 
-revoke all on function public.note_set(text, jsonb, text) from public, anon;
+revoke all on function public.note_set(text, jsonb, text, text) from public, anon;
 revoke all on function public.note_clear() from public, anon;
 revoke all on function public.notes_feed() from public, anon;
-grant execute on function public.note_set(text, jsonb, text) to authenticated;
+grant execute on function public.note_set(text, jsonb, text, text) to authenticated;
 grant execute on function public.note_clear() to authenticated;
 grant execute on function public.notes_feed() to authenticated;
 
