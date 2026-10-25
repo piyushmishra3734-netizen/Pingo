@@ -127,7 +127,16 @@ export function AuthScreen({
         {art && <div className="funnel-enter -mt-3 mb-3 flex justify-center">{art}</div>}
 
         <header className="funnel-enter">
-          <h1 className="text-h1 text-ink">{title}</h1>
+          <h1 className="text-h1 text-ink">
+            {/* With a picture above it the heading is set as in the reference: all but the last word bold, the last one regular. */}
+            {art && title.includes(' ') ? (
+              <>
+                {title.slice(0, title.lastIndexOf(' '))} <span className="font-normal">{title.slice(title.lastIndexOf(' ') + 1)}</span>
+              </>
+            ) : (
+              title
+            )}
+          </h1>
           {subtitle && <p className="mt-2 text-body text-text-secondary">{subtitle}</p>}
         </header>
 

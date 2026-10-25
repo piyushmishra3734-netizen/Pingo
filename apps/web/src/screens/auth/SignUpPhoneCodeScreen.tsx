@@ -179,50 +179,21 @@ export function SignUpPhoneCodeScreen() {
         invalid={Boolean(error)}
       />
 
-      <CodeClock left={left} />
-
       <CodeResend via={via} quota={quota} waitFor={expired ? 0 : waitFor} busy={busy} onSend={(c) => void resend(c)} />
+
+      <CodeClock left={left} />
     </AuthScreen>
   );
 }
 
-/** The code's remaining life, as a ring and a sentence. */
+/** The code's remaining life, as one quiet line under the resend links. */
 function CodeClock({ left }: { left: number }) {
-  const r = 20;
-  const c = 2 * Math.PI * r;
   const seconds = Math.ceil(left / 1000);
   const label = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const expired = left === 0;
   return (
-    <div className="mt-6 flex items-center gap-3.5" role="timer" aria-live="off">
-      <div className="relative size-12 shrink-0">
-        <svg viewBox="0 0 48 48" className="size-12 -rotate-90" aria-hidden>
-          <circle cx="24" cy="24" r={r} fill="none" stroke="currentColor" strokeWidth="4" className="text-line" />
-          <circle
-            cx="24"
-            cy="24"
-            r={r}
-            fill="none"
-            stroke="#e0559b"
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={c * (1 - left / CODE_LIFETIME_MS)}
-          />
-        </svg>
-        <span className="absolute inset-0 grid place-items-center text-[12px] font-bold tabular-nums text-ink">{label}</span>
-      </div>
-      <p className="text-caption leading-snug text-text-secondary">
-        {expired ? (
-          <>
-            <span className="font-semibold text-danger">This code expired.</span> Ask for a new call below.
-          </>
-        ) : (
-          <>
-            <span className="font-semibold text-ink">Code works for 5 min.</span> After that, ask for a new call.
-          </>
-        )}
-      </p>
-    </div>
+    <p className="mt-5 text-center text-[13px] text-text-tertiary" role="timer" aria-live="off">
+      {expired ? <span className="font-medium text-danger">This code expired. Ask for a new one above.</span> : <>Code expires in <span className="font-medium tabular-nums text-text-secondary">{label}</span></>}
+    </p>
   );
 }
