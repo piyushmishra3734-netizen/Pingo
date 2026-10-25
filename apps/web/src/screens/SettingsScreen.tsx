@@ -31,6 +31,7 @@ import { resolveLanguage } from '../features/i18n/catalog.js';
 import { useT } from '../features/i18n/useT.js';
 import { useAppearance } from '../features/settings/SettingsContext.js';
 import { SettingsRow } from '../features/settings/SettingsRow.js';
+import { useAppLock } from '../features/lock/app-lock.js';
 import { useSignOut } from '../features/settings/useSignOut.js';
 import { beginAddingAccount } from '../features/auth/adding-account.js';
 import { SwitchAccountSheet } from '../features/settings/SwitchAccountSheet.js';
@@ -80,7 +81,8 @@ export function SettingsScreen() {
   const { appearance, resolvedTheme, preferences } = useAppearance();
   const t = useT();
   const language = resolveLanguage(preferences.language);
-  const languageValue = language === 'en-genz' ? 'Chronically online' : language === 'hi' ? 'हिन्दी' : 'English';
+  const appLockValue = useAppLock(auth.session?.user.id).on ? 'On' : 'Off';
+  const languageValue =language === 'en-genz' ? 'Chronically online' : language === 'hi' ? 'हिन्दी' : 'English';
 
   const app = useAppVersion();
   const [query, setQuery] = useState('');
@@ -170,6 +172,7 @@ export function SettingsScreen() {
             <Group title="Account">
               <SettingsRow tone="blue" icon={<UserRound size={18} />} label={t('settings.account')} to="/settings/account" />
               <SettingsRow tone="indigo" icon={<Lock size={18} />} label={t('settings.privacy')} to="/settings/privacy" />
+              <SettingsRow tone="red" icon={<ShieldCheck size={18} />} label="PINGO lock" to="/settings/app-lock" value={appLockValue} />
               {/*
                 With the account rather than under Privacy: a device list is
                 something you go and look at, and Privacy is a page of switches.

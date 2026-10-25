@@ -1,4 +1,5 @@
-import { cn } from '@pingo/ui';
+import { useProfile } from '@pingo/core';
+import { Avatar, cn } from '@pingo/ui';
 import { Delete, Lock, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -19,7 +20,23 @@ import { checkPin, clearResetStarted, createPin, hasPin, PIN_LENGTH, pinWait, re
 
 type Phase = 'checking' | 'verify' | 'reset' | 'create' | 'confirm';
 
-export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+/**
+ * `mode` says what the PIN is for. 'chats' opens the locked chats and can be
+ * closed; 'app' is the PINGO lock, which sits above everything, cannot be
+ * closed (no `onCancel`), and does not open the locked chats behind it.
+ */
+export function PinGate({
+  onSuccess,
+  onCancel,
+  mode = 'chats',
+  verifyHint,
+}: {
+  onSuccess: () => void;
+  onCancel?: () => void;
+  mode?: 'chats' | 'app';
+  /** What the PIN is being asked for, when it is asked to confirm a change rather than to open something. */
+  verifyHint?: string;
+}) {
   const [phase, setPhase] = useState<Phase>('checking');
   const [digits, setDigits] = useState('');
   const [first, setFirst] = useState('');
@@ -85,13 +102,13 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
           }
           await createPin(pin);
           void clearResetStarted();
-          unlockSession();
+          if (mode === 'chats') unlockSession();
           onSuccess();
           return;
         }
         const result = await checkPin(pin);
         if (result.ok) {
-          unlockSession();
+          if (mode === 'chats') unlockSession();
           onSuccess();
           return;
         }
@@ -101,7 +118,7 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
         busy.current = false;
       }
     },
-    [phase, first, onSuccess, wrong],
+    [phase, first, onSuccess, wrong, mode],
   );
 
   const press = useCallback(
@@ -124,12 +141,12 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (phase === 'reset') {
-        if (e.key === 'Escape') onCancel();
+        if (e.key === 'Escape') onCancel?.();
         return;
       }
       if (/^\d$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') back();
-      else if (e.key === 'Escape') onCancel();
+      else if (e.key === 'Escape') onCancel?.();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -139,18 +156,42 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
   const sub =
     phase === 'create'
       ? resetting
-        ? 'You are verified. Your locked chats are still locked.'
-        : 'This PIN opens your locked chats on this device.'
+        ? mode === 'app'
+          ? 'You are verified. Choose a new PIN to open PINGO.'
+          : 'You are verified. Your locked chats are still locked.'
+        : mode === 'app'
+          ? 'This PIN opens PINGO on this device.'
+          : 'This PIN opens your locked chats on this device.'
       : phase === 'confirm'
         ? 'Type it once more.'
-        : 'To open your locked chats.';
+        : verifyHint
+          ? verifyHint
+          : mode === 'app'
+            ? 'PINGO is locked.'
+            : 'To open your locked chats.';
+
+  const { profile } = useProfile();
+  // Opening PINGO greets by name; every other step keeps the plain title.
+  const heading = mode === 'app' && phase === 'verify' && !verifyHint ? `Welcome back${profile?.displayName ? `, ${profile.displayName.split(' ')[0]}` : ''}` : title;
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[450] flex flex-col bg-page motion-safe:animate-fade-in">
-      <div className="flex items-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button type="button" aria-label="Close" onClick={onCancel} className="grid size-11 place-items-center rounded-full text-ink transition-colors duration-instant ease-standard hover:bg-hover focus-ring">
-          <X size={22} aria-hidden />
-        </button>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className={cn('fixed inset-0 flex flex-col bg-page motion-safe:animate-fade-in', mode === 'app' ? 'z-[2000]' : 'z-[450]')}
+      // Two quiet glows of the brand in opposite corners, so the pad is PINGO's and not a blank sheet.
+      style={{
+        backgroundImage:
+          'radial-gradient(60% 40% at 15% 0%, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent), radial-gradient(60% 40% at 90% 100%, color-mix(in srgb, #e0559b 11%, transparent), transparent)',
+      }}
+    >
+      <div className="flex min-h-11 items-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        {onCancel && (
+          <button type="button" aria-label="Close" onClick={onCancel} className="grid size-11 place-items-center rounded-full text-ink transition-colors duration-instant ease-standard hover:bg-hover focus-ring">
+            <X size={22} aria-hidden />
+          </button>
+        )}
       </div>
 
       {phase === 'reset' ? (
@@ -163,20 +204,37 @@ export function PinGate({ onSuccess, onCancel }: { onSuccess: () => void; onCanc
           onBack={() => setPhase('verify')}
         />
       ) : (
-      <div className="mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <span className="grid size-16 place-items-center rounded-full bg-hover text-ink">
-          <Lock size={26} strokeWidth={1.8} aria-hidden />
-        </span>
-        <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
+      <div className="relative mx-auto flex w-full max-w-[22rem] flex-1 flex-col items-center justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {mode === 'app' && phase === 'verify' && !verifyHint ? (
+          /* Opening PINGO: your own face in the story ring, the way you see everybody else's. */
+          <span className="grid size-[84px] place-items-center rounded-full p-[3px]" style={{ background: 'var(--sweep-ring)' }}>
+            <span className="block size-full overflow-hidden rounded-full border-[3px] border-page bg-page">
+              {profile?.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="" className="size-full object-cover" draggable={false} />
+              ) : (
+                <Avatar name={profile?.displayName ?? 'You'} id={profile?.id} size="lg" className="!size-full" />
+              )}
+            </span>
+          </span>
+        ) : (
+          <span className="grid size-[72px] place-items-center rounded-full bg-brand-soft text-brand ring-1 ring-brand/15">
+            <Lock size={28} strokeWidth={1.8} aria-hidden />
+          </span>
+        )}
+        <h2 className="mt-5 text-[22px] font-bold tracking-[-0.01em] text-ink">{heading}</h2>
         <p className="mt-1 min-h-[2.5rem] text-center text-[14px] leading-snug text-text-secondary">{wait > 0 ? `Try again in ${wait}s` : sub}</p>
 
-        <div className={cn('mt-7 flex h-4 items-center gap-4', shake && 'lock-shake')} aria-hidden>
+        <div className={cn('mt-6 flex h-4 items-center gap-4', shake && 'lock-shake')} aria-hidden>
           {Array.from({ length: PIN_LENGTH }, (_, i) => (
             <span
               key={i}
               className={cn(
                 'size-3.5 rounded-full border transition-all duration-150 ease-out',
-                i < digits.length ? (error ? 'scale-110 border-danger bg-danger' : 'scale-110 border-ink bg-ink') : 'border-line-strong bg-transparent',
+                i < digits.length
+                  ? error
+                    ? 'scale-110 border-danger bg-danger'
+                    : 'scale-110 border-transparent bg-brand-gradient shadow-[0_2px_8px_-2px_var(--color-brand)]'
+                  : 'border-line-strong bg-transparent',
               )}
             />
           ))}
@@ -223,7 +281,8 @@ function Key({ children, onPress, disabled }: { children: string; onPress: () =>
       type="button"
       disabled={disabled}
       onClick={onPress}
-      className="mx-auto grid size-[4.25rem] place-items-center rounded-full border border-line text-[26px] font-medium tabular-nums text-ink transition-[background-color,transform] duration-instant ease-standard active:scale-95 active:bg-hover focus-ring disabled:opacity-40"
+      // Soft glass keys that take the brand when pressed, not outlined circles.
+      className="mx-auto grid size-[4.25rem] place-items-center rounded-full bg-surface/75 text-[26px] font-semibold tabular-nums text-ink shadow-[0_1px_2px_rgb(16_17_20/0.06),0_6px_14px_-8px_rgb(16_17_20/0.18)] ring-1 ring-line transition-[background-color,transform,color] duration-instant ease-standard active:scale-95 active:bg-brand-soft active:text-brand focus-ring disabled:opacity-40"
     >
       {children}
     </button>

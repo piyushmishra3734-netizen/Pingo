@@ -109,6 +109,7 @@ const HelpScreen = lazyScreen(() => import('./screens/settings/HelpScreen.js'), 
 const LanguageScreen = lazyScreen(() => import('./screens/settings/LanguageScreen.js'), 'LanguageScreen');
 const NotificationsScreen = lazyScreen(() => import('./screens/settings/NotificationsScreen.js'), 'NotificationsScreen');
 const PrivacyScreen = lazyScreen(() => import('./screens/settings/PrivacyScreen.js'), 'PrivacyScreen');
+const AppLockScreen = lazyScreen(() => import('./screens/settings/AppLockScreen.js'), 'AppLockScreen');
 const PushDebugScreen = lazyScreen(() => import('./screens/settings/PushDebugScreen.js'), 'PushDebugScreen');
 const DevicesScreen = lazyScreen(() => import('./screens/settings/DevicesScreen.js'), 'DevicesScreen');
 const RestoreHistoryScreen = lazyScreen(() => import('./screens/settings/RestoreHistoryScreen.js'), 'RestoreHistoryScreen');
@@ -590,6 +591,7 @@ export function App() {
                   <Route path="/settings/notifications" element={<NotificationsScreen />} />
                   <Route path="/settings/notifications/debug" element={<PushDebugScreen />} />
                   <Route path="/settings/privacy" element={<PrivacyScreen />} />
+                  <Route path="/settings/app-lock" element={<AppLockScreen />} />
                   <Route path="/settings/chats" element={<ChatsSettingsScreen />} />
                   <Route path="/settings/wallpaper" element={<WallpaperScreen />} />
                   <Route path="/settings/camera-snaps" element={<CameraSettingsScreen />} />
