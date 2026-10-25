@@ -343,7 +343,11 @@ export class PresenceHub {
        * are happening — somebody holding a microphone is further along than
        * somebody who has touched a key.
        */
-      [...(map?.values() ?? [])].some((entry) => entry.kind === 'recording') ? 'recording' : 'typing',
+      (() => {
+        const kinds = [...(map?.values() ?? [])].map((entry) => entry.kind);
+        // The most specific thing wins: a pad open is further along than a microphone, which is further along than a key.
+        return kinds.includes('sketching') ? 'sketching' : kinds.includes('recording') ? 'recording' : 'typing';
+      })(),
     );
   }
 

@@ -89,7 +89,7 @@ function exportDrawing(strokes: DrawStroke[], w: number, h: number, content: HTM
   return new Promise((resolve) => out.toBlob((blob) => resolve(blob ? { blob, anchor: placement } : null), 'image/png'));
 }
 
-export function SketchPad({ content, onCancel, onDone }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void }) {
+export function SketchPad({ content, onCancel, onDone, onActivity }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void; /** Told true while the pad is open, so the other person sees "is drawing". */ onActivity?: (on: boolean) => void }) {
   const { brush, size, setBrush, setSize } = useBrush();
   // Not white: it lands on the other person's wallpaper, light or dark.
   const [colour, setColour] = useState('#ff3b5c');
@@ -100,6 +100,24 @@ export function SketchPad({ content, onCancel, onDone }: { content: HTMLElement 
   const canvas = useRef<HTMLCanvasElement>(null);
   const current = useRef<DrawStroke | undefined>(undefined);
   const [box, setBox] = useState({ w: 0, h: 0 });
+
+  /*
+   * "Is drawing", for as long as the pad is open.
+   *
+   * The signal lives a few seconds on the other side, so it is repeated a little
+   * faster than that, and a stop is sent the moment the pad closes. If the app
+   * dies instead, the other side's own expiry takes it down.
+   */
+  const activity = useRef(onActivity);
+  activity.current = onActivity;
+  useEffect(() => {
+    activity.current?.(true);
+    const timer = window.setInterval(() => activity.current?.(true), 2500);
+    return () => {
+      window.clearInterval(timer);
+      activity.current?.(false);
+    };
+  }, []);
 
   useEffect(() => {
     const measure = () => {

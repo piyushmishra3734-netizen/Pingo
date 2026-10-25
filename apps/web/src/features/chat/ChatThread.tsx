@@ -247,6 +247,23 @@ function AiActivity({ label = 'drawing your picture' }: { label?: string }) {
   );
 }
 
+/** A line being drawn: a squiggle that keeps tracing itself, for somebody with the sketch pad open. */
+function SketchPulse({ size = 14 }: { size?: number }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" width={size} height={size} fill="none" className="text-brand">
+      <path
+        d="M2.5 14 C5 6 8 6 10 12 C12 18 15 18 17 11 C18 8 20 8 21.5 10"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeDasharray="30"
+      >
+        <animate attributeName="stroke-dashoffset" values="30;0;0;-30" keyTimes="0;0.55;0.8;1" dur="1.6s" repeatCount="indefinite" />
+      </path>
+    </svg>
+  );
+}
+
 function RecordingPulse({ size = 12 }: { size?: number }) {
   return (
     <span
@@ -987,6 +1004,8 @@ export function ChatThread({
   const members = users.filter((u) => conversation.participantIds.includes(u.id));
   const isTyping = conversation.typingUserIds.length > 0;
   const isRecording = isTyping && conversation.typingActivity === 'recording';
+  /** The other person has the sketch pad open over this chat. */
+  const isSketching = isTyping && conversation.typingActivity === 'sketching';
   /*
    * Everything the assistant reports about itself, as opposed to the two
    * things a person can be doing. One list, so adding a stage is one edit.
@@ -1752,7 +1771,7 @@ export function ChatThread({
                 <AiActivity label={`${AI_STAGES[aiStage]}…`} />
               ) : (
                 <>
-                  {isRecording ? <RecordingPulse /> : <PingoDot state="typing" size={4} />}
+                  {isRecording ? <RecordingPulse /> : isSketching ? <SketchPulse /> : <PingoDot state="typing" size={4} />}
                   {typingLabel}
                 </>
               )}
@@ -2224,6 +2243,7 @@ export function ChatThread({
           })()}
           <div className="lq-glass-water lq-read flex h-9 items-center rounded-[18px] px-3.5 text-caption">
             {isRecording ? <RecordingPulse size={18} />
+              : isSketching ? <SketchPulse size={20} />
               : <span className="ig-typing" aria-label={typingLabel || 'typing'}><i /><i /><i /></span>}
           </div>
         </div>
@@ -2538,6 +2558,7 @@ export function ChatThread({
       {sheet === 'draw' && (
         <Suspense fallback={null}>
           <SketchPad
+            onActivity={(on) => void service.setSketching(conversation.id, on)}
             onCancel={() => setSheet(undefined)}
             content={contentRef.current}
             onDone={(file, anchor) => {

@@ -6581,6 +6581,11 @@ export class SupabaseChatService implements ChatService {
     await this.#presenceHub.setTyping(conversationId, recording, 'recording');
   }
 
+  /** Somebody has the sketch pad open over this thread: the other side sees "is drawing". */
+  async setSketching(conversationId: ConversationId, sketching: boolean): Promise<void> {
+    await this.#presenceHub.setTyping(conversationId, sketching, 'sketching');
+  }
+
   /**
    * Optimistic, then confirmed. docs/13 § 8.
    *

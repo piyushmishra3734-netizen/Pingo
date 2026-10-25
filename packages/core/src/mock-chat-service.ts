@@ -908,6 +908,12 @@ export class MockChatService implements ChatService {
     void recording;
   }
 
+  /** Same again: nobody else to tell. */
+  async setSketching(conversationId: ConversationId, sketching: boolean): Promise<void> {
+    void conversationId;
+    void sketching;
+  }
+
   async toggleReaction(messageId: MessageId, emoji: string): Promise<Message> {
     const message = this.#findMessage(messageId);
     if (!message) throw new Error(`No such message: ${messageId}`);

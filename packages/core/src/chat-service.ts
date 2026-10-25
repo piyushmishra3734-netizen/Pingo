@@ -292,6 +292,8 @@ export interface MessageReceipt {
 export type ChatActivity =
   | 'typing'
   | 'recording'
+  // A person with the sketch pad open over this thread. Not 'drawing', which is the assistant making a picture.
+  | 'sketching'
   /*
    * The rest are the assistant reporting on itself, streamed from the Edge
    * Function as each stage is reached rather than guessed from a timer here.
@@ -592,6 +594,14 @@ export interface ChatService {
    * recorder that dies mid-note has its indicator swept rather than left up.
    */
   setRecording(conversationId: ConversationId, recording: boolean): Promise<void>;
+
+  /**
+   * Announces that this user is drawing over the thread.
+   *
+   * Same channel, same expiry as typing: true for seconds, wrong forever after,
+   * so a pad that is closed by a dying app has its indicator swept.
+   */
+  setSketching(conversationId: ConversationId, sketching: boolean): Promise<void>;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;
 
   // -- message actions -----------------------------------------------------
