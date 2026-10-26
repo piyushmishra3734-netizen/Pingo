@@ -15,6 +15,7 @@ import { useDailyMissions } from '../features/journey/daily-missions.js';
 import { DUMMY_DAILY_NOTE } from '../features/journey/dummy-journey.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { lazyNamed } from '../lib/lazy-named.js';
+import { PrivateChatGate } from '../features/private/PrivateChatGate.js';
 
 /*
  * The thread arrives after the list. Launching opens the list, and on a slow
@@ -102,9 +103,11 @@ export function ChatsScreen() {
       lockedOut ? (
         <PinGate onSuccess={() => undefined} onCancel={() => navigate('/chats', { replace: true })} />
       ) : (
-        <Suspense fallback={<ThreadPending />}>
-          <ChatThread conversation={conversation} showBack />
-        </Suspense>
+        <PrivateChatGate conversation={conversation}>
+          <Suspense fallback={<ThreadPending />}>
+            <ChatThread conversation={conversation} showBack />
+          </Suspense>
+        </PrivateChatGate>
       )
     ) : (
       <>
@@ -147,9 +150,11 @@ export function ChatsScreen() {
           lockedOut ? (
             <PinGate onSuccess={() => undefined} onCancel={() => navigate('/chats', { replace: true })} />
           ) : (
-            <Suspense fallback={<ThreadPending />}>
-              <ChatThread conversation={conversation} />
-            </Suspense>
+            <PrivateChatGate conversation={conversation}>
+              <Suspense fallback={<ThreadPending />}>
+                <ChatThread conversation={conversation} />
+              </Suspense>
+            </PrivateChatGate>
           )
         ) : (
           <div className="grid h-full place-items-center bg-page">
