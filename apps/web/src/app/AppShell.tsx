@@ -16,6 +16,7 @@ import { restoreListenAlong } from '../features/music/listen-along.js';
 import { MusicSheetHost } from '../features/music/app/MusicSheetHost.js';
 import { BackgroundPrompt } from '../features/native/BackgroundPrompt.js';
 import { StoryMentionRelay } from '../features/stories/StoryMentionRelay.js';
+import { PrivateHost } from '../features/private/PrivateHost.js';
 import { useT } from '../features/i18n/useT.js';
 import { useIsDesktop } from '../hooks/useMediaQuery.js';
 import { useIncomingShare } from '../features/share/useIncomingShare.js';
@@ -299,6 +300,7 @@ export function AppShell() {
 
       {!fullscreen && <Dock />}
       <StoryMentionRelay />
+      <PrivateHost />
       <ScrollArrows />
       <TvMiniPlayer />
     </div>
