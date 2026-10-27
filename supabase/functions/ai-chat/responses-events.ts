@@ -380,7 +380,9 @@ export function relaxRequest(body: Record<string, Json>, detail: string): string
 export const MOODS = ['default', 'happy', 'excited', 'thinking', 'surprised', 'sleepy', 'confused', 'sad', 'angry', 'listening', 'talking'] as const;
 export type Mood = (typeof MOODS)[number];
 
-const MOOD_TAG = /\[\[\s*mood\s*:\s*([a-z]*)\s*\]\]/gi;
+/** The tag as asked for, `[[mood:happy]]`, or the bare `[[happy]]` the model sometimes writes instead. */
+const BARE_MOOD = MOODS.join('|');
+const MOOD_TAG = new RegExp(`\\[\\[\\s*(?:mood\\s*:\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'gi');
 /**
  * A side chat's name, asked for on its first turn only: `[[title:Learning tennis basics]]`.
  * Hidden exactly like the mood tag, and taken out by the same two functions.
@@ -388,6 +390,7 @@ const MOOD_TAG = /\[\[\s*mood\s*:\s*([a-z]*)\s*\]\]/gi;
 const TITLE_TAG = /\[\[\s*title\s*:\s*([^\]\n]{0,120})\]\]/gi;
 /** Everything a tag could be before its last character has arrived. */
 const MOOD_PREFIX = /^\[(?:\[(?:\s*(?:m(?:o(?:o(?:d(?:\s*(?::\s*[a-z]*\s*\]?)?)?)?)?)?)?)?)?$/i;
+const BARE_PREFIX = /^\[\[\s*[a-z]{0,10}\s*\]?$/i;
 const TITLE_PREFIX = /^\[\[\s*(?:t(?:i(?:t(?:l(?:e(?:\s*(?::[^\]\n]{0,120}\]?)?)?)?)?)?)?)$/i;
 
 export function asMood(word: string | undefined, fallback: Mood = 'happy'): Mood {
@@ -403,8 +406,8 @@ export function takeMood(text: string): { text: string; mood: Mood | undefined; 
   let mood: Mood | undefined;
   let title: string | undefined;
   const clean = text
-    .replace(MOOD_TAG, (_all, word: string) => {
-      mood = asMood(word, mood ?? 'happy');
+    .replace(MOOD_TAG, (_all, word: string | undefined, bare: string | undefined) => {
+      mood = asMood(word ?? bare, mood ?? 'happy');
       return '';
     })
     .replace(TITLE_TAG, (_all, words: string) => {
@@ -437,9 +440,9 @@ export class MoodFilter {
       }
       out += this.#held.slice(0, i);
       this.#held = this.#held.slice(i);
-      const tag = /^\[\[\s*mood\s*:\s*([a-z]*)\s*\]\]/i.exec(this.#held);
+      const tag = new RegExp(`^\\[\\[\\s*(?:mood\\s*:\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'i').exec(this.#held);
       if (tag) {
-        this.mood = asMood(tag[1], this.mood ?? 'happy');
+        this.mood = asMood(tag[1] ?? tag[2], this.mood ?? 'happy');
         this.#held = this.#held.slice(tag[0].length);
         continue;
       }
@@ -449,7 +452,7 @@ export class MoodFilter {
         this.#held = this.#held.slice(titled[0].length);
         continue;
       }
-      if (MOOD_PREFIX.test(this.#held) || TITLE_PREFIX.test(this.#held)) return out;
+      if (MOOD_PREFIX.test(this.#held) || BARE_PREFIX.test(this.#held) || TITLE_PREFIX.test(this.#held)) return out;
       // Not a tag after all: the bracket is text.
       out += '[';
       this.#held = this.#held.slice(1);

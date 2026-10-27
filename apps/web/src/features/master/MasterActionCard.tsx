@@ -1,6 +1,6 @@
 import { useChat } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { CalendarClock, Check, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
+import { BellOff, BellRing, CalendarClock, Check, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAppLanguage } from '../i18n/useT.js';
@@ -16,6 +16,13 @@ import { approve, cancel, decline, loadAction, sayError, whenLabel, type MasterA
  * session to the database, so no sentence anyone writes in a chat can press it.
  * What runs is the row that was approved, not a fresh request from the model.
  */
+
+/** "Unmuted for 2 hours, then muted again", in the words the person would use. */
+function describeMute(mode: 'mute' | 'unmute' | undefined, minutes = 0): string {
+  const span = minutes % 1440 === 0 && minutes >= 1440 ? `${minutes / 1440} day${minutes === 1440 ? '' : 's'}` : minutes % 60 === 0 && minutes >= 60 ? `${minutes / 60} hour${minutes === 60 ? '' : 's'}` : `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  if (mode === 'unmute') return minutes > 0 ? `Unmuted for ${span}, then muted again` : 'Unmuted';
+  return minutes > 0 ? `Muted for ${span}` : 'Muted until you unmute it';
+}
 
 export function MasterActionCard({ id }: { id: string }) {
   const [action, setAction] = useState<MasterAction | null | undefined>();
@@ -66,9 +73,22 @@ export function MasterActionCard({ id }: { id: string }) {
   if (action === null) return null;
 
   const isMessage = action.kind === 'send_message';
-  const chat = isMessage ? conversations.find((c) => c.id === action.params.conversation_id) : undefined;
-  const title = isMessage ? `Message ${chat ? chat.title : 'a chat'}` : 'Change a setting';
-  const Icon = isMessage ? (action.run_at ? CalendarClock : MessageSquareShare) : SlidersHorizontal;
+  const isMute = action.kind === 'mute_chat';
+  const chat = isMessage || isMute ? conversations.find((c) => c.id === action.params.conversation_id) : undefined;
+  const title = isMute
+    ? `${action.params.mode === 'unmute' ? 'Unmute' : 'Mute'} ${chat ? chat.title : 'a chat'}`
+    : isMessage
+      ? `Message ${chat ? chat.title : 'a chat'}`
+      : 'Change a setting';
+  const Icon = isMute
+    ? action.params.mode === 'unmute'
+      ? BellRing
+      : BellOff
+    : isMessage
+      ? action.run_at
+        ? CalendarClock
+        : MessageSquareShare
+      : SlidersHorizontal;
   const pending = action.status === 'pending' && new Date(action.expires_at) > new Date();
 
   const state =
@@ -100,7 +120,7 @@ export function MasterActionCard({ id }: { id: string }) {
       </div>
 
       <p className="whitespace-pre-wrap break-words rounded-xl bg-hover px-3 py-2 text-[14.5px] leading-snug">
-        {isMessage ? action.params.text : describeSetting(action.params.key, action.params.value)}
+        {isMute ? describeMute(action.params.mode, action.params.minutes) : isMessage ? action.params.text : describeSetting(action.params.key, action.params.value)}
       </p>
 
       {pending && (

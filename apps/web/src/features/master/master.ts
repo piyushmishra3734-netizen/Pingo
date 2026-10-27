@@ -6,7 +6,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
  * these are thin calls, and a refusal comes back as the sentence to show.
  */
 
-export type MasterKind = 'send_message' | 'set_setting';
+export type MasterKind = 'send_message' | 'set_setting' | 'mute_chat';
 export type MasterStatus = 'pending' | 'scheduled' | 'done' | 'failed' | 'cancelled' | 'declined' | 'expired';
 
 export interface MasterSettings {
@@ -18,7 +18,7 @@ export interface MasterSettings {
 export interface MasterAction {
   id: string;
   kind: MasterKind;
-  params: { conversation_id?: string; text?: string; key?: string; value?: string };
+  params: { conversation_id?: string; text?: string; key?: string; value?: string; mode?: 'mute' | 'unmute'; minutes?: number };
   status: MasterStatus;
   run_at: string | null;
   credits: number;
