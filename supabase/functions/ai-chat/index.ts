@@ -158,11 +158,14 @@ async function runTurn(
       global: { headers: { Authorization: authorization } },
     });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser();
+    // Once more before giving up: a busy group sends a burst of turns at the auth service at once.
+    let { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      ({ data: { user }, error: userError } = await userClient.auth.getUser());
+    }
+    if (userError || !user) {
+      console.error('[ai-chat] sign-in check failed', userError?.message ?? 'no user');
       return json(request, { error: 'Sign in required.' }, 401);
     }
 
@@ -1177,6 +1180,8 @@ Deno.serve(async (request) => {
 });
 
 function json(request: Request, body: unknown, status = 200) {
+  // The stream wraps every answer in a 200, so without this a refusal leaves nothing in the logs.
+  if (status >= 400) console.error('[ai-chat] answered', status, (body as { error?: string } | null)?.error ?? '');
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders(request), 'Content-Type': 'application/json' },

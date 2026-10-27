@@ -382,14 +382,14 @@ export type Mood = (typeof MOODS)[number];
 
 /** The tag as asked for, `[[mood:happy]]`, or the bare `[[happy]]` the model sometimes writes instead. */
 const BARE_MOOD = MOODS.join('|');
-const MOOD_TAG = new RegExp(`\\[\\[\\s*(?:mood\\s*:\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'gi');
+const MOOD_TAG = new RegExp(`\\[\\[\\s*(?:mood\\s*[:=]\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'gi');
 /**
  * A side chat's name, asked for on its first turn only: `[[title:Learning tennis basics]]`.
  * Hidden exactly like the mood tag, and taken out by the same two functions.
  */
 const TITLE_TAG = /\[\[\s*title\s*:\s*([^\]\n]{0,120})\]\]/gi;
 /** Everything a tag could be before its last character has arrived. */
-const MOOD_PREFIX = /^\[(?:\[(?:\s*(?:m(?:o(?:o(?:d(?:\s*(?::\s*[a-z]*\s*\]?)?)?)?)?)?)?)?)?$/i;
+const MOOD_PREFIX = /^\[(?:\[(?:\s*(?:m(?:o(?:o(?:d(?:\s*(?:[:=]\s*[a-z]*\s*\]?)?)?)?)?)?)?)?)?$/i;
 const BARE_PREFIX = /^\[\[\s*[a-z]{0,10}\s*\]?$/i;
 const TITLE_PREFIX = /^\[\[\s*(?:t(?:i(?:t(?:l(?:e(?:\s*(?::[^\]\n]{0,120}\]?)?)?)?)?)?)?)$/i;
 
@@ -440,7 +440,7 @@ export class MoodFilter {
       }
       out += this.#held.slice(0, i);
       this.#held = this.#held.slice(i);
-      const tag = new RegExp(`^\\[\\[\\s*(?:mood\\s*:\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'i').exec(this.#held);
+      const tag = new RegExp(`^\\[\\[\\s*(?:mood\\s*[:=]\\s*([a-z]*)|(${BARE_MOOD}))\\s*\\]\\]`, 'i').exec(this.#held);
       if (tag) {
         this.mood = asMood(tag[1] ?? tag[2], this.mood ?? 'happy');
         this.#held = this.#held.slice(tag[0].length);

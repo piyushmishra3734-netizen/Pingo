@@ -77,7 +77,37 @@ export interface StreamResult {
 /** Each refusal gets one retry with less; past this many the error stands. */
 const MAX_RELAX = 5;
 
+/**
+ * How long a turn may sit with nothing coming back before it is given up on.
+ * Most answers start within two or three seconds; the odd request stalls for a
+ * minute, and a second try almost always starts at once. Only the wait before
+ * the first piece of output is timed, so a long search or drawing is not cut.
+ */
+const FIRST_OUTPUT_MS = 20_000;
+export const STALLED = 'OpenAI stalled before replying';
+
 export async function streamResponse(o: StreamOptions): Promise<StreamResult> {
+  const guard = new AbortController();
+  let stalled = false;
+  const relay = () => guard.abort();
+  if (o.signal?.aborted) guard.abort();
+  else o.signal?.addEventListener('abort', relay, { once: true });
+  const timer = setTimeout(() => {
+    stalled = true;
+    guard.abort();
+  }, FIRST_OUTPUT_MS);
+  try {
+    return await streamResponseOnce({ ...o, signal: guard.signal }, () => clearTimeout(timer));
+  } catch (err) {
+    if (stalled && !o.signal?.aborted) throw new Error(STALLED);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    o.signal?.removeEventListener('abort', relay);
+  }
+}
+
+async function streamResponseOnce(o: StreamOptions, started: () => void): Promise<StreamResult> {
   const body: Record<string, unknown> = {
     model: o.model,
     input: o.input,
@@ -121,7 +151,11 @@ export async function streamResponse(o: StreamOptions): Promise<StreamResult> {
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    for (const event of sse.push(value)) stream.feed(event);
+    for (const event of sse.push(value)) {
+      const type = (event as { type?: string } | null)?.type ?? '';
+      if (type.startsWith('response.output_') || type.startsWith('response.function_call')) started();
+      stream.feed(event);
+    }
   }
   for (const event of sse.end()) stream.feed(event);
 

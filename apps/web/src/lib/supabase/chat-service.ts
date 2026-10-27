@@ -5694,6 +5694,40 @@ export class SupabaseChatService implements ChatService {
         return;
       }
 
+      /*
+       * Before apologising, look and try once more.
+       *
+       * A stream that drops (a phone changing network, an expired token, a busy
+       * moment) often leaves the answer already written, and writing "glitched"
+       * beside a good reply is the one thing worse than the glitch. If nothing
+       * landed, the plain call runs once on a refreshed session; only when that
+       * fails too does the apology go out.
+       */
+      try {
+        const announce = async () => {
+          const fresh = await this.listMessages(conversationId, { limit: 8 });
+          const mine = fresh.filter((msg) => msg.authorId === PINGO_AI_USER_ID && msg.createdAt >= startedAt);
+          for (const msg of mine) this.#emit({ type: 'message:new', message: msg });
+          return mine.length > 0;
+        };
+        if (await announce()) return;
+        await this.#client.auth.refreshSession().catch(() => undefined);
+        await this.#invokeAiChat(conversationId, userMessage.slice(0, 4000), spoken, command);
+        if (await announce()) return;
+      } catch (again) {
+        console.error('[pingo-ai] retry', again);
+        try {
+          const fresh = await this.listMessages(conversationId, { limit: 8 });
+          const mine = fresh.filter((msg) => msg.authorId === PINGO_AI_USER_ID && msg.createdAt >= startedAt);
+          if (mine.length) {
+            for (const msg of mine) this.#emit({ type: 'message:new', message: msg });
+            return;
+          }
+        } catch {
+          /* fall through to the apology */
+        }
+      }
+
       // Last resort only - do not spam this if post_ai_reply already wrote one.
       try {
         await this.#client.rpc('post_ai_reply', {

@@ -698,7 +698,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
   }
   if (t.master && !t.isGroup && !t.spoken) now.push(masterNote());
-  if (!t.spoken && (profile as { reactions_enabled?: boolean } | null)?.reactions_enabled !== false) now.push(REACT_NOTE);
+  if (!t.spoken && !t.isGroup && (profile as { reactions_enabled?: boolean } | null)?.reactions_enabled !== false) now.push(REACT_NOTE);
   const command = t.command ? COMMANDS[t.command] : undefined;
   if (command) now.push(command(lang));
   if (needsTitle) now.push(TITLE_NOTE);
@@ -790,7 +790,8 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     ...(memoryOn ? TOOLS : TOOLS.filter((x) => x.name === 'search_chat')),
     ...(t.isGroup ? [] : GOAL_TOOLS),
     ...(t.master && !t.isGroup && !t.spoken ? [...MASTER_TOOLS, ...WORLD_TOOLS] : []),
-    ...(reactionsOn ? [REACT_TOOL] : []),
+    // Each tool call is a second round trip to the model, and in a busy group nearly every reply paid it for a reaction.
+    ...(reactionsOn && !t.isGroup ? [REACT_TOOL] : []),
     ...builtinTools(t, p),
   ];
   const imageOffered = tools.some((x) => x.type === 'image_generation');
@@ -808,8 +809,11 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const images: DrawnImage[] = [];
   const picture = t.command === 'image' ? t.live.trim() || undefined : d.imagePrompt(t.live);
   try {
+    let stalledOnce = false;
     for (;;) {
-      const res = await streamResponse({
+      let res: Awaited<ReturnType<typeof streamResponse>>;
+      try {
+        res = await streamResponse({
         apiKey: t.apiKey,
         base: t.base,
         model: t.model,
@@ -828,7 +832,16 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
           for (const s of all) if (!sources.some((x) => x.url === s.url)) sources.push(s);
           t.emitSources?.([...sources]);
         },
-      });
+        });
+      } catch (err) {
+        // A request that stalled before saying anything: ask once more, it almost always starts at once.
+        if (err instanceof Error && err.message === STALLED && !stalledOnce && !t.signal?.aborted) {
+          stalledOnce = true;
+          console.warn('[luna] stalled before replying, trying once more');
+          continue;
+        }
+        throw err;
+      }
       for (const gave of res.dropped) {
         if (gave === 'web_search' || gave === 'image_generation' || gave === 'image_generation.model') refused.add(gave);
         if (gave === 'image_generation') imageDropped = true;
