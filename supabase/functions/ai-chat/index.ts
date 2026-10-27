@@ -305,7 +305,7 @@ async function runTurn(
           // /think is the one turn that reasons (5 credits); every other turn answers straight away.
           reasoningEffort: command === 'think'
             ? 'low'
-            : ((spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? Deno.env.get('OPENAI_REASONING_EFFORT') ?? 'low'),
+            : ((spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? 'none'),
           webSearch: Deno.env.get('OPENAI_WEB_SEARCH') !== 'off' && canSpend,
           images: imagesOn,
           creditsLeft,
