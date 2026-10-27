@@ -1,0 +1,24 @@
+create schema if not exists auth; create table auth.users (id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
+do $$ begin if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if; if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if; end $$;
+grant usage on schema public, auth to authenticated, anon;
+create table public.profiles (id uuid primary key references auth.users(id), username text, display_name text, bio text, work text, location text, song jsonb, is_private boolean default false);
+create table public.follows (follower_id uuid, followee_id uuid, status text);
+create table public.blocks (blocker_id uuid, blocked_id uuid);
+create table public.posts (id uuid primary key default gen_random_uuid(), author_id uuid, caption text, created_at timestamptz default now());
+create table public.post_likes (post_id uuid, user_id uuid);
+create table public.conversations (id uuid primary key default gen_random_uuid(), kind text, title text, description text, last_message_at timestamptz default now());
+create table public.conversation_members (conversation_id uuid, user_id uuid, role text, joined_at timestamptz default now(), deleted_at timestamptz);
+-- RLS as the app has it, in miniature.
+alter table public.profiles enable row level security; create policy p on public.profiles for select to authenticated using (true);
+alter table public.follows enable row level security; create policy f on public.follows for select to authenticated using (follower_id = auth.uid() or followee_id = auth.uid());
+alter table public.blocks enable row level security; create policy b on public.blocks for select to authenticated using (blocker_id = auth.uid());
+alter table public.posts enable row level security;
+create function public.mutual_with(a uuid) returns boolean language sql security definer as $$ select exists(select 1 from follows x where x.follower_id=auth.uid() and x.followee_id=a and x.status='accepted') $$;
+create policy po on public.posts for select to authenticated using (author_id = auth.uid() or not (select is_private from profiles where id = author_id) or public.mutual_with(author_id));
+alter table public.post_likes enable row level security; create policy l on public.post_likes for select to authenticated using (true);
+alter table public.conversations enable row level security; create policy c on public.conversations for select to authenticated using (exists (select 1 from conversation_members m where m.conversation_id = id and m.user_id = auth.uid()));
+alter table public.conversation_members enable row level security;
+create function public.is_member(c uuid) returns boolean language sql security definer as $$ select exists(select 1 from conversation_members m where m.conversation_id=c and m.user_id=auth.uid()) $$;
+create policy cm on public.conversation_members for select to authenticated using (public.is_member(conversation_id));
+grant select on all tables in schema public to authenticated;
