@@ -106,6 +106,7 @@ import { mediaTooLarge, type DrawingAnchor, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
+import { getRealtimeHub } from './realtime-hub.js';
 import { startHeartbeat } from '../../features/presence/heartbeat.js';
 import { PresenceHub, type ChatActivity } from './presence.js';
 import { clearFriendsListening, setFriendListening } from '../../features/music/listening.js';
@@ -1385,9 +1386,47 @@ export class SupabaseChatService implements ChatService {
    * is exactly when the list badge needs to move.
    */
   #closeChannel(): void {
+    this.#notificationsDetach?.();
+    this.#notificationsDetach = undefined;
     if (!this.#channel) return;
     void this.#client.removeChannel(this.#channel);
     this.#channel = undefined;
+  }
+
+  /**
+   * Notifications, live.
+   *
+   * From the realtime hub's private `notifications:{userId}` topic rather than
+   * this channel: the table left `postgres_changes`, and only the owner can read
+   * the topic, so there is still no client-side filter to get wrong. Without it
+   * the badge only ever showed what was true when the app loaded.
+   */
+  #notificationsDetach: (() => void) | undefined;
+
+  #listenForNotifications(): void {
+    this.#notificationsDetach ??= getRealtimeHub().on('notifications', ({ row }) => {
+      const notification = row as {
+        id: string;
+        kind: string;
+        actor_id: string | null;
+        subject_id: string | null;
+        created_at: string;
+      };
+      const actor = notification.actor_id ? this.#people.get(notification.actor_id) : undefined;
+      this.#emit({
+        type: 'notification:new',
+        notification: {
+          id: notification.id,
+          kind: notification.kind as AppNotification['kind'],
+          title: actor?.name ?? 'Someone',
+          body: NOTIFICATION_COPY[notification.kind]?.body ?? 'Something happened.',
+          createdAt: Date.parse(notification.created_at),
+          read: false,
+          ...(notification.subject_id ? { conversationId: notification.subject_id } : {}),
+          ...(notification.actor_id ? { actorId: notification.actor_id } : {}),
+        },
+      });
+    });
   }
 
   /**
@@ -1409,6 +1448,7 @@ export class SupabaseChatService implements ChatService {
     // the socket down every hour would drop messages during the gap.
     if (this.#channel) return;
 
+    this.#listenForNotifications();
     this.#channel = this.#client
       .channel('pingo:messages')
       .on(
@@ -1560,40 +1600,6 @@ export class SupabaseChatService implements ChatService {
               if (conversation) this.#emit({ type: 'conversation:updated', conversation });
             });
           }
-        },
-      )
-      /*
-       * Notifications, live.
-       *
-       * RLS filters this stream to rows whose user_id is mine, so there is no
-       * client-side filter to get wrong and no other feed to observe. Without
-       * it the badge only ever showed what was true when the app loaded.
-       */
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          const row = payload.new as {
-            id: string;
-            kind: string;
-            actor_id: string | null;
-            subject_id: string | null;
-            created_at: string;
-          };
-          const actor = row.actor_id ? this.#people.get(row.actor_id) : undefined;
-          this.#emit({
-            type: 'notification:new',
-            notification: {
-              id: row.id,
-              kind: row.kind as AppNotification['kind'],
-              title: actor?.name ?? 'Someone',
-              body: NOTIFICATION_COPY[row.kind]?.body ?? 'Something happened.',
-              createdAt: Date.parse(row.created_at),
-              read: false,
-              ...(row.subject_id ? { conversationId: row.subject_id } : {}),
-              ...(row.actor_id ? { actorId: row.actor_id } : {}),
-            },
-          });
         },
       )
       /*
@@ -2065,6 +2071,20 @@ export class SupabaseChatService implements ChatService {
   /** A last-seen line somebody wrote themselves (the operator only, by rule). */
   #customSeenById = new Map<UserId, string>();
 
+  /**
+   * A per-chat RPC, answered for the chats being hydrated rather than all of them.
+   *
+   * Both functions answered for the whole account - 10.8 kB of previews to
+   * refresh one chat of fifty. The `only_ids` overload
+   * (20261117000001_previews_and_streaks_for_named_chats.sql) scopes them; a
+   * database without it answers the old way, so this falls back rather than
+   * leaving the list without previews.
+   */
+  async #forNamedChats<Name extends 'conversation_previews' | 'my_streaks'>(name: Name, ids: string[]) {
+    const scoped = await this.#client.rpc(name, { only_ids: ids });
+    return scoped.error ? this.#client.rpc(name) : scoped;
+  }
+
   /** Builds the view-model conversations for a set of rows the user belongs to. */
   async #hydrate(
     rows: ConversationRow[],
@@ -2098,13 +2118,13 @@ export class SupabaseChatService implements ChatService {
        * says "No messages yet" about a conversation full of messages. The
        * unread count came from the same truncated set and went to zero with it.
        */
-      this.#client.rpc('conversation_previews'),
+      this.#forNamedChats('conversation_previews', ids),
       /*
        * One call for every conversation's streak, not one per row. The function
        * computes them from `messages`, so the number can never drift from the
        * conversation it describes.
        */
-      this.#client.rpc('my_streaks'),
+      this.#forNamedChats('my_streaks', ids),
       /*
        * Which lists each conversation is filed under.
        *

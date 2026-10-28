@@ -69,6 +69,8 @@ interface PushRequest {
   isGroup?: boolean;
   /** Set by the worker. Only changes what gets logged, never what is sent. */
   retry?: boolean;
+  /** When the notification row was written, for the latency metric. Sent by the trigger. */
+  createdAt?: string;
 }
 
 /**
@@ -196,6 +198,9 @@ async function accessToken(account: ServiceAccount): Promise<string> {
  */
 /** Kinds that are a chat: shown as a conversation, one tray entry per chat, cleared when read. */
 const CHAT_KINDS = new Set(['message', 'voice', 'snap', 'mention', 'ai']);
+
+/** How often a live token's `last_seen_at` is written: daily is all pruning needs. */
+const LAST_SEEN_STAMP_MS = 20 * 60 * 60 * 1000;
 
 /** One line for a message, the way a chat list would say it. */
 function messageLine(request: PushRequest): string {
@@ -384,10 +389,18 @@ Deno.serve(async (request) => {
      * can still be in flight when a retry starts. Checking the ledger here -
      * where both paths meet - is what makes that safe. One query for the whole
      * batch rather than one per recipient.
+     *
+     * Only a retry can find its notification already delivered. A first attempt
+     * comes from the trigger the moment the row is written, and the retry queue
+     * is filled by this function after a failure, never before - so asking the
+     * ledger for every first attempt was one read per message for an answer
+     * that is always "no" (647 a day).
      */
     const notificationIds = batch
+      .filter((r) => r.retry)
       .map((r) => r.notificationId)
       .filter((id): id is string => Boolean(id));
+    const anyRetry = batch.some((r) => r.retry);
 
     const delivered = new Set<string>();
     if (notificationIds.length > 0) {
@@ -404,8 +417,18 @@ Deno.serve(async (request) => {
     const userIds = [...new Set(batch.map((r) => r.userId))];
     const { data: tokenRows } = await admin
       .from('device_tokens')
-      .select('token,user_id,platform,action_key_hash')
+      .select('token,user_id,platform,action_key_hash,last_seen_at')
       .in('user_id', userIds);
+
+    /*
+     * `last_seen_at` is for pruning tokens that went quiet for weeks, so it needs
+     * to be right to the day, not to the message. Stamped at most this often.
+     */
+    const seenRecently = new Set(
+      ((tokenRows ?? []) as { token: string; last_seen_at: string | null }[])
+        .filter((row) => row.last_seen_at && Date.now() - Date.parse(row.last_seen_at) < LAST_SEEN_STAMP_MS)
+        .map((row) => row.token),
+    );
 
     const devicesFor = new Map<string, string[]>();
     /*
@@ -435,7 +458,8 @@ Deno.serve(async (request) => {
       return false;
     });
 
-    if (dropped.length > 0) {
+    // Only a retry has a queue entry to remove; a first attempt never wrote one.
+    if (dropped.length > 0 && anyRetry) {
       await admin.from('push_failures').delete().in('notification_id', dropped);
     }
 
@@ -581,11 +605,12 @@ Deno.serve(async (request) => {
     );
 
     /* One statement per table, whatever the size of the batch. */
-    if (alive.length > 0) {
+    const stale = alive.filter((deviceToken) => !seenRecently.has(deviceToken));
+    if (stale.length > 0) {
       await admin
         .from('device_tokens')
         .update({ last_seen_at: new Date().toISOString() })
-        .in('token', alive);
+        .in('token', stale);
     }
 
     if (dead.length > 0) {
@@ -615,15 +640,23 @@ Deno.serve(async (request) => {
     );
 
     if (sentRows.length > 0) {
-      /* Created-at for every delivered notification, in one read, for latency. */
-      const { data: rows } = await admin
-        .from('notifications')
-        .select('id,created_at')
-        .in('id', sentRows.map((t) => t.notificationId!));
-
+      /*
+       * Created-at for every delivered notification, for latency. The trigger
+       * sends it in the payload; only a retry, which does not, is read back.
+       */
       const createdAt = new Map(
-        ((rows ?? []) as { id: string; created_at: string }[]).map((r) => [r.id, r.created_at]),
+        sentRows.filter((t) => t.createdAt).map((t) => [t.notificationId!, t.createdAt!]),
       );
+      const unknown = sentRows.filter((t) => !t.createdAt).map((t) => t.notificationId!);
+      if (unknown.length > 0) {
+        const { data: rows } = await admin
+          .from('notifications')
+          .select('id,created_at')
+          .in('id', unknown);
+        for (const row of (rows ?? []) as { id: string; created_at: string }[]) {
+          createdAt.set(row.id, row.created_at);
+        }
+      }
 
       // Upsert, not insert: an overlapping attempt may have got here first, and
       // the unique key is the whole point.
@@ -665,7 +698,8 @@ Deno.serve(async (request) => {
     }
 
     /* Delivered, or every device permanently dead. Neither is worth retrying. */
-    const settled = [...sentRows, ...exhausted].map((t) => t.notificationId!);
+    // As above: only a retry has a queue entry to settle.
+    const settled = [...sentRows, ...exhausted].filter((t) => t.retry).map((t) => t.notificationId!);
     if (settled.length > 0) {
       await admin.from('push_failures').delete().in('notification_id', settled);
     }

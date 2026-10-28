@@ -1335,7 +1335,8 @@ export type Database = {
       };
       /** Newest message and unread count per conversation, for this user only. */
       conversation_previews: {
-        Args: Record<string, never>;
+        /** `only_ids` names the chats to answer for; omitted means all of mine. */
+        Args: Record<string, never> | { only_ids: string[] };
         Returns: {
           conversation_id: string;
           last_message_id: string | null;
@@ -1462,7 +1463,8 @@ export type Database = {
         Returns: { id: string; status: string }[];
       };
       my_streaks: {
-        Args: Record<string, never>;
+        /** `only_ids` names the chats to answer for; omitted means all of mine. */
+        Args: Record<string, never> | { only_ids: string[] };
         Returns: { conversation_id: string; streak: number }[];
       };
       /**
