@@ -503,7 +503,7 @@ export class SupabaseProfileService implements ProfileService {
    * and they read the same, but they clean up different columns - which is the
    * one thing that must not be shared between them.
    */
-  async uploadCover(file: Blob): Promise<string> {
+  async uploadCover(file: Blob, onProgress?: (fraction: number) => void): Promise<string> {
     const userId = await this.requireUserId();
 
     const previous = await this.client
@@ -512,7 +512,7 @@ export class SupabaseProfileService implements ProfileService {
       .eq('id', userId)
       .maybeSingle();
 
-    const onR2 = await r2Upload('cover', file, file.type || 'image/jpeg');
+    const onR2 = await r2Upload('cover', file, file.type || 'image/jpeg', onProgress);
     if (onR2?.url) {
       void this.#deleteOwnStorageObject(previous.data?.banner_url ?? undefined, userId);
       return onR2.url;

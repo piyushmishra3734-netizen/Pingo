@@ -328,8 +328,10 @@ export interface ProfileService {
   /**
    * Stores a cover and returns its public URL. Setting it is a separate
    * `update({ bannerUrl })`, the same way an avatar works.
+   *
+   * `onProgress` is told how much has gone up, 0 to 1, when the store can say.
    */
-  uploadCover(file: Blob): Promise<string>;
+  uploadCover(file: Blob, onProgress?: (fraction: number) => void): Promise<string>;
 
   /*
    * `listRecentPeople` was here: everybody else on PINGO, newest first. It fed

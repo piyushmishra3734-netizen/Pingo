@@ -37,26 +37,68 @@ async function bearer(): Promise<string | null> {
 }
 
 /**
+ * `fetch` cannot report how much of an upload has gone, and `XMLHttpRequest`
+ * can. Used only when a caller wants the number to show.
+ */
+function sendWithProgress(
+  url: string,
+  token: string,
+  blob: Blob,
+  contentType: string,
+  onProgress: (fraction: number) => void,
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', url);
+    request.setRequestHeader('authorization', `Bearer ${token}`);
+    request.setRequestHeader('content-type', contentType);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(Math.min(1, event.loaded / event.total));
+    };
+    request.onload = () => resolve({ status: request.status, text: request.responseText });
+    request.onerror = () => reject(new Error('upload failed'));
+    request.onabort = () => reject(new Error('upload aborted'));
+    request.send(blob);
+  });
+}
+
+/**
  * Puts a file on R2. Resolves to its stored path (and, for a face or cover,
  * its permanent link), or `null` when the Worker cannot take it, in which case
  * the caller uses Supabase.
+ *
+ * `onProgress` gets 0 to 1 as the bytes go up, for a screen that wants to show it.
  */
-export async function r2Upload(kind: R2Kind, blob: Blob, contentType: string): Promise<{ path: string; url?: string } | null> {
+export async function r2Upload(
+  kind: R2Kind,
+  blob: Blob,
+  contentType: string,
+  onProgress?: (fraction: number) => void,
+): Promise<{ path: string; url?: string } | null> {
   if (Date.now() < unreachableUntil) return null;
   const token = await bearer();
   if (!token) return null;
   try {
-    const res = await fetch(`${ENDPOINT}/upload?kind=${kind}&type=${encodeURIComponent(contentType)}`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': contentType },
-      body: blob,
-    });
-    if (!res.ok) {
+    const target = `${ENDPOINT}/upload?kind=${kind}&type=${encodeURIComponent(contentType)}`;
+    let status: number;
+    let text: string;
+    if (onProgress) {
+      ({ status, text } = await sendWithProgress(target, token, blob, contentType, onProgress));
+    } else {
+      const res = await fetch(target, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': contentType },
+        body: blob,
+      });
+      status = res.status;
+      text = res.ok ? await res.text() : '';
+    }
+    if (status < 200 || status >= 300) {
       // Not deployed (or not configured): leave it alone for a while.
-      if (res.status === 404 || res.status >= 500) unreachableUntil = Date.now() + 10 * 60 * 1000;
+      if (status === 404 || status >= 500) unreachableUntil = Date.now() + 10 * 60 * 1000;
       return null;
     }
-    const out = (await res.json()) as { path?: string; url?: string };
+    const out = JSON.parse(text) as { path?: string; url?: string };
     return isR2Path(out.path) ? { path: out.path, ...(out.url ? { url: out.url } : {}) } : null;
   } catch {
     unreachableUntil = Date.now() + 10 * 60 * 1000;

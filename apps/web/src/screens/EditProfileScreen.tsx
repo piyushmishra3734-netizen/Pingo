@@ -100,6 +100,9 @@ export function EditProfileScreen() {
   const [preparingCover, setPreparingCover] = useState(false);
   // Why a cover was refused, shown under the cover itself: the form's own error sits at the foot, out of sight.
   const [coverError, setCoverError] = useState<string>();
+  // The cover going up on Save: undefined before it starts, 0 to 1 as the bytes move.
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverProgress, setCoverProgress] = useState<number>();
   // A photo goes through the crop editor first; its result is what is staged.
   const [coverEditing, setCoverEditing] = useState<File>();
 
@@ -188,7 +191,15 @@ export function EditProfileScreen() {
       else if (photo) avatarUrl = await service.uploadAvatar(photo);
 
       let bannerUrl: string | undefined;
-      if (cover) bannerUrl = await service.uploadCover(cover);
+      if (cover) {
+        setCoverUploading(true);
+        setCoverProgress(undefined);
+        try {
+          bannerUrl = await service.uploadCover(cover, setCoverProgress);
+        } finally {
+          setCoverUploading(false);
+        }
+      }
 
       await update({
         displayName: displayName.trim(),
@@ -279,7 +290,10 @@ export function EditProfileScreen() {
               src={coverPreview ?? profile.bannerUrl}
               offset={coverOffset ?? profile.bannerOffset}
               editable
-              busy={preparingCover}
+              busy={preparingCover || coverUploading}
+              busyLabel={coverUploading ? `Uploading cover${cover ? ` (${(cover.size / (1024 * 1024)).toFixed(1)} MB)` : ''}…` : 'Preparing your cover…'}
+              {...(coverUploading && coverProgress !== undefined ? { progress: coverProgress } : {})}
+              pending={Boolean(cover) && !saving}
               onPick={() => coverRef.current?.click()}
               onOffsetChange={setCoverOffset}
             />

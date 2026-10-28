@@ -39,8 +39,14 @@ export interface ProfileCoverProps {
   onPick?: () => void;
   /** Fires once, when the drag ends - not on every pixel of it. */
   onOffsetChange?: (offset: number) => void;
-  /** A picture is being prepared: shown over the band so the pick does not look ignored. */
+  /** A picture is being prepared or sent: shown over the band so the pick does not look ignored. */
   busy?: boolean;
+  /** What is going on, in words, beside the spinner. */
+  busyLabel?: string;
+  /** 0 to 1 while an upload reports it; without it the bar is not drawn. */
+  progress?: number;
+  /** A picked cover that is waiting for Save, so it is clear nothing has gone up yet. */
+  pending?: boolean;
 }
 
 export function ProfileCover({
@@ -50,6 +56,9 @@ export function ProfileCover({
   onPick,
   onOffsetChange,
   busy = false,
+  busyLabel,
+  progress,
+  pending = false,
 }: ProfileCoverProps) {
   const [dragging, setDragging] = useState(false);
   const band = useRef<HTMLDivElement>(null);
@@ -161,9 +170,24 @@ export function ProfileCover({
       )}
 
       {busy ? (
-        <div className="absolute inset-0 grid place-items-center bg-black/25" role="status" aria-label="Preparing cover">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40" role="status" aria-live="polite">
           <span aria-hidden className="size-7 animate-spin rounded-full border-[3px] border-white/40 border-t-white motion-reduce:animate-none" />
+          <span className="text-caption font-medium tabular-nums text-white">
+            {busyLabel ?? 'Working…'}
+            {progress !== undefined ? ` ${Math.round(progress * 100)}%` : ''}
+          </span>
+          {progress !== undefined ? (
+            <span aria-hidden className="h-1 w-40 overflow-hidden rounded-full bg-white/30">
+              <span className="block h-full rounded-full bg-white transition-[width] duration-150 ease-standard" style={{ width: `${Math.round(progress * 100)}%` }} />
+            </span>
+          ) : null}
         </div>
+      ) : null}
+
+      {pending && !busy ? (
+        <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm">
+          New cover · uploads when you tap Save
+        </span>
       ) : null}
 
       {/*
