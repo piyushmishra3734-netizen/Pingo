@@ -40,6 +40,9 @@ import type { ProfileRow, StoryRow } from './types.js';
 
 const STORY_BUCKET = 'stories';
 
+/** How long the mutual list answers for the rail before it is read again. */
+const MUTUALS_TTL_MS = 5 * 60 * 1000;
+
 /** What one piece of sound looks like in the row, before it is signed. */
 interface StoredAudioTrack {
   path: string;
@@ -165,6 +168,15 @@ export class SupabaseStoryService implements StoryService {
    * pattern as the chat thread's cache.
    */
   #signingInFlight = new Map<string, Promise<Map<string, string>>>();
+  /**
+   * The mutual list, held for `MUTUALS_TTL_MS`.
+   *
+   * Every rail read asked for it again - 1,014 reads a day on 2026-10-28 for
+   * about thirty people, each the whole set of follows involving them. Who you
+   * are mutual with changes when somebody accepts a request, not between two
+   * swipes of the rail. Keyed by account so a switch never borrows the last one's.
+   */
+  #mutuals?: { me: string; at: number; ids: Promise<string[]> };
 
   async #signMedia(rows: StoryRow[]): Promise<Map<string, string>> {
     const paths = [
@@ -811,7 +823,19 @@ export class SupabaseStoryService implements StoryService {
 
   async #mutualIds(): Promise<string[]> {
     const me = await this.#userId();
+    const held = this.#mutuals;
+    if (held && held.me === me && Date.now() - held.at < MUTUALS_TTL_MS) return held.ids;
 
+    const ids = this.#readMutualIds(me);
+    this.#mutuals = { me, at: Date.now(), ids };
+    // A failed read is not remembered: the next caller asks again.
+    ids.catch(() => {
+      if (this.#mutuals?.ids === ids) this.#mutuals = undefined;
+    });
+    return ids;
+  }
+
+  async #readMutualIds(me: string): Promise<string[]> {
     const { data } = await this.#client
       .from('follows')
       .select('follower_id, followee_id')
