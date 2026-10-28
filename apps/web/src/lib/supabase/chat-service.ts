@@ -421,6 +421,15 @@ const DELTA_LIMIT = 200;
  */
 const CONVERSATION_COALESCE_MS = 300;
 
+/**
+ * How long a patched chat list may go without a whole read.
+ *
+ * `#patchList` only re-reads conversations whose messages or read cursors
+ * moved. Streaks lapse at midnight and names and faces change without either,
+ * so the cached rows of quiet chats are refreshed in full at most this often.
+ */
+const LIST_FULL_READ_MS = 6 * 60 * 60 * 1000;
+
 /** First and longest wait between outbox resends on a line that keeps dropping. */
 const RETRY_FIRST_MS = 2000;
 const RETRY_MAX_MS = 30_000;
@@ -2692,6 +2701,24 @@ export class SupabaseChatService implements ChatService {
           }
           return cached.list;
         }
+
+        /*
+         * Something changed: read what changed, not everything.
+         *
+         * A mismatch used to throw the whole cached list away - nine queries
+         * and ~80 kB for an account with fifty chats - when the usual cause is
+         * one message in one conversation. Measured on 2026-10-28: 368 whole
+         * reads a day out of 466 checks.
+         */
+        if (cached && cached.list.length > 0 && !hasUnnamed(cached.list)) {
+          const patched = await this.#patchList(cached, fingerprint).catch(() => undefined);
+          if (patched && patched.length > 0 && !hasUnnamed(patched)) {
+            void sealRecord({ fingerprint, builtAt: cached.builtAt, list: patched }).then((sealed) =>
+              localSet(STORE.conversations, key, sealed),
+            );
+            return patched;
+          }
+        }
       }
 
       const live = await this.#listConversationsFromNetwork();
@@ -2700,7 +2727,7 @@ export class SupabaseChatService implements ChatService {
       // Kept only when it is whole: an empty list, or one with unnamed chats, is what a bad read
       // looks like, and writing it down made a bad moment permanent.
       if (live.length > 0 && !hasUnnamed(live)) {
-        void sealRecord({ fingerprint, list: live }).then((sealed) =>
+        void sealRecord({ fingerprint, builtAt: Date.now(), list: live }).then((sealed) =>
           localSet(STORE.conversations, key, sealed),
         );
       }
@@ -2726,10 +2753,10 @@ export class SupabaseChatService implements ChatService {
    */
   async #cachedList(
     key: string,
-  ): Promise<{ fingerprint?: string; list: Conversation[] } | undefined> {
-    const stored = await openRecord<Conversation[] | { fingerprint?: string; list: Conversation[] }>(
-      await localGet<unknown>(STORE.conversations, key),
-    );
+  ): Promise<{ fingerprint?: string; builtAt?: number; list: Conversation[] } | undefined> {
+    const stored = await openRecord<
+      Conversation[] | { fingerprint?: string; builtAt?: number; list: Conversation[] }
+    >(await localGet<unknown>(STORE.conversations, key));
 
     if (!stored) return undefined;
     if (Array.isArray(stored)) return { list: stored };
@@ -2776,6 +2803,90 @@ export class SupabaseChatService implements ChatService {
       total.count ?? 0,
       read.data?.last_read_at ?? '',
     ].join('|');
+  }
+
+  /**
+   * The cached list with only the conversations that moved read again.
+   *
+   * The fingerprint says *that* something changed; its parts say where to look.
+   * A newer `last_message_at` names the conversations a message arrived in, a
+   * newer `last_read_at` the ones somebody read. Those are hydrated and merged
+   * over the cached rows; everything else is kept as it was.
+   *
+   * Returns `undefined` - read the whole list - whenever the cheap answer could
+   * be wrong: no fingerprint stored, a different number of conversations (one
+   * joined or left, which no timestamp records), a cache older than
+   * `LIST_FULL_READ_MS`, too many changes for a patch to be cheaper, or any
+   * failed request.
+   */
+  async #patchList(
+    cached: { fingerprint?: string; builtAt?: number; list: Conversation[] },
+    fingerprint: string,
+  ): Promise<Conversation[] | undefined> {
+    if (!cached.fingerprint || !cached.builtAt) return undefined;
+    if (Date.now() - cached.builtAt > LIST_FULL_READ_MS) return undefined;
+
+    const [oldNewest, oldTotal, oldRead] = cached.fingerprint.split('|');
+    const [newest, total, read] = fingerprint.split('|');
+    if (oldTotal !== total) return undefined;
+    // A part that was empty before cannot be compared against.
+    if ((newest !== oldNewest && !oldNewest) || (read !== oldRead && !oldRead)) return undefined;
+
+    const messaged = newest !== oldNewest
+      ? this.#client
+          .from('conversations')
+          .select('*')
+          .gt('last_message_at', oldNewest)
+          .limit(DELTA_LIMIT)
+      : undefined;
+    // Anyone's cursor, not only mine: the ticks on what I sent move when they read.
+    const readIn = read !== oldRead
+      ? this.#client
+          .from('conversation_members')
+          .select('conversation_id')
+          .gt('last_read_at', oldRead)
+          .limit(DELTA_LIMIT)
+      : undefined;
+
+    const [messagedRows, readRows] = await Promise.all([messaged, readIn]);
+    if (messagedRows?.error || readRows?.error) return undefined;
+    if ((messagedRows?.data?.length ?? 0) >= DELTA_LIMIT || (readRows?.data?.length ?? 0) >= DELTA_LIMIT) {
+      return undefined;
+    }
+
+    const rows = new Map<string, ConversationRow>(
+      (messagedRows?.data ?? []).map((row) => [row.id, row as ConversationRow]),
+    );
+    const missing = [
+      ...new Set((readRows?.data ?? []).map((row) => row.conversation_id)),
+    ].filter((id) => !rows.has(id));
+    if (missing.length > 0) {
+      const { data, error } = await this.#client.from('conversations').select('*').in('id', missing);
+      if (error) return undefined;
+      for (const row of data ?? []) rows.set(row.id, row as ConversationRow);
+    }
+
+    for (const conversation of cached.list) this.#known.set(conversation.id, conversation);
+    if (rows.size === 0) return cached.list;
+
+    const me = await this.#userId();
+    // The same rule as the whole read: AI side chats live in their drawer.
+    const changed = [...rows.values()].filter((row) => !row.ai_side);
+    const fresh = await this.#hydrate(changed, me);
+
+    /*
+     * Replaced by id, and dropped when the hydrate dropped them: a chat that
+     * was deleted, or a direct chat that went silent, leaves the list exactly
+     * as it would have on a whole read.
+     */
+    const byId = new Map(cached.list.map((conversation) => [conversation.id, conversation]));
+    for (const row of rows.values()) byId.delete(row.id);
+    for (const conversation of fresh) byId.set(conversation.id, conversation);
+
+    return [...byId.values()].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
   }
 
   async #listConversationsFromNetwork(): Promise<Conversation[]> {
