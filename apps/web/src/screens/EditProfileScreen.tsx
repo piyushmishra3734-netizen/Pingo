@@ -12,7 +12,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useT } from '../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
-import { CoverPhotoEditor } from '../features/profile/CoverPhotoEditor.js';
+import { CoverEditor } from '../features/profile/CoverEditor.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
 
 /**
@@ -249,7 +249,7 @@ export function EditProfileScreen() {
       )}
 
       {coverEditing && (
-        <CoverPhotoEditor
+        <CoverEditor
           file={coverEditing}
           onCancel={() => setCoverEditing(undefined)}
           onChooseAnother={() => coverRef.current?.click()}
@@ -345,7 +345,7 @@ export function EditProfileScreen() {
         <input
           ref={coverRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -353,6 +353,15 @@ export function EditProfileScreen() {
             if (!file) return;
             setError(undefined);
             setCoverError(undefined);
+            // A video becomes an animated cover, which is premium like any GIF cover.
+            if (file.type.startsWith('video/')) {
+              if (profile?.isPremium !== true) {
+                setCoverError('Animated covers are part of PINGO premium. Pick a photo instead.');
+                return;
+              }
+              setCoverEditing(file);
+              return;
+            }
             // A photo is cropped in the editor; only a GIF takes the check-and-shrink path.
             if (file.type !== 'image/gif') {
               setCoverEditing(file);

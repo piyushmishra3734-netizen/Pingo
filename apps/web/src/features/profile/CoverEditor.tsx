@@ -3,6 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
+import { GIF_COVER_MAX_BYTES } from './cover-gif.js';
 import { encodeCover } from './cover-image.js';
 
 /**
@@ -25,6 +26,14 @@ import { encodeCover } from './cover-image.js';
  * The photo on the stage is a copy no larger than 2048 pixels. A twelve
  * megapixel bitmap is a very large texture to move around; the *export* still
  * samples the full-size one, so zooming in does not cost sharpness.
+ *
+ * ## A video becomes an animated cover
+ *
+ * Pick a video and the same frame, pan and zoom apply to it, with a start
+ * slider for which six seconds to use. Saving plays that clip frame by frame
+ * under the frame and writes a GIF: the browser has no GIF encoder, and a GIF is
+ * the one animated image every profile surface already shows. It tries the best
+ * size first and steps down until the file fits the cover limit.
  */
 
 /** Width : height of a cover. The profile band is about this on a phone. */
@@ -33,6 +42,20 @@ const OUTPUT_WIDTH = 1280;
 const OUTPUT_HEIGHT = Math.round(OUTPUT_WIDTH / COVER_ASPECT);
 /** The stage copy's longest edge. */
 const STAGE_PIXELS = 2048;
+
+/** A video cover is this many seconds at most: a cover loops, and a long loop is a long download. */
+export const VIDEO_COVER_SECONDS = 6;
+/** Widest first; each is tried until the GIF fits `GIF_COVER_MAX_BYTES`. */
+const GIF_STEPS = [
+  { width: 720, fps: 12 },
+  { width: 560, fps: 12 },
+  { width: 440, fps: 10 },
+  { width: 360, fps: 8 },
+];
+/** A video this large is refused before it is opened. */
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+/** One frame of a video that takes longer than this to appear is not coming. */
+const SEEK_TIMEOUT_MS = 8000;
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
@@ -46,7 +69,8 @@ interface Point {
   y: number;
 }
 
-export interface CoverPhotoEditorProps {
+export interface CoverEditorProps {
+  /** A photo, or a video that becomes an animated cover. */
   file: File;
   onCancel: () => void;
   /** The cropped cover, ready to stage. Nothing is uploaded here. */
@@ -56,11 +80,13 @@ export interface CoverPhotoEditorProps {
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
-export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: CoverPhotoEditorProps) {
+export function CoverEditor({ file, onCancel, onSave, onChooseAnother }: CoverEditorProps) {
+  const isVideo = file.type.startsWith('video/');
   const titleId = useId();
   const confirm = useConfirm();
   const stageRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [stageSrc, setStageSrc] = useState<string>();
@@ -68,6 +94,11 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
   const [zoom, setZoomState] = useState(MIN_ZOOM);
   const [dragging, setDragging] = useState(false);
   const [zoomHint, setZoomHint] = useState(false);
+  /** Video only: how long it is, where the clip starts, and how far the GIF is made. */
+  const [duration, setDuration] = useState(0);
+  const [clipStart, setClipStart] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [problem, setProblem] = useState<string>();
 
   /*
    * The live picture of the crop. Gestures read and write these, not state, so a
@@ -85,6 +116,8 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
   const hintTimer = useRef<number | undefined>(undefined);
   const frameRequest = useRef(0);
   const dirty = useRef(false);
+  /** Set when somebody leaves while a GIF is being made, so the loop stops. */
+  const cancelled = useRef(false);
 
   /** The scale at which the photo exactly covers the frame, before any zoom. */
   const coverScale = () => {
@@ -114,7 +147,7 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
     if (frameRequest.current) return;
     frameRequest.current = requestAnimationFrame(() => {
       frameRequest.current = 0;
-      const img = imageRef.current;
+      const img = videoRef.current ?? imageRef.current;
       if (!img) return;
       const l = live.current;
       img.style.transform = `translate3d(${l.x}px, ${l.y}px, 0) rotate(${l.rotation}deg) scale(${coverScale() * l.zoom})`;
@@ -162,6 +195,24 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
     setStageSrc(undefined);
     reset();
 
+    cancelled.current = false;
+    setProblem(undefined);
+    setDuration(0);
+    setClipStart(0);
+    if (isVideo) {
+      if (file.size > MAX_VIDEO_BYTES) {
+        setProblem(`That video is ${Math.round(file.size / (1024 * 1024))} MB. Pick one under ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB.`);
+        setPhase('failed');
+        return;
+      }
+      url = URL.createObjectURL(file);
+      setStageSrc(url);
+      return () => {
+        alive = false;
+        if (url) URL.revokeObjectURL(url);
+      };
+    }
+
     void (async () => {
       try {
         const bitmap = await createImageBitmap(file);
@@ -195,10 +246,11 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
       alive = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [file, reset]);
+  }, [file, isVideo, reset]);
 
   useEffect(
     () => () => {
+      cancelled.current = true;
       original.current?.close();
       cancelAnimationFrame(frameRequest.current);
       window.clearTimeout(hintTimer.current);
@@ -304,8 +356,128 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
     flashZoom();
   };
 
+  // ---- video: the clip that loops under the frame ---------------------------------------
+  const clipLength = Math.min(VIDEO_COVER_SECONDS, duration);
+  const clipMax = Math.max(0, duration - clipLength);
+
+  // Loop the chosen clip, not the whole video, so what plays is what will be saved.
+  useEffect(() => {
+    if (!isVideo || phase !== 'edit') return;
+    const id = window.setInterval(() => {
+      const video = videoRef.current;
+      if (!video || busy) return;
+      if (video.currentTime >= clipStart + clipLength - 0.05 || video.currentTime < clipStart - 0.3) video.currentTime = clipStart;
+    }, 80);
+    return () => window.clearInterval(id);
+  }, [isVideo, phase, clipStart, clipLength, busy]);
+
+  const seek = (video: HTMLVideoElement, time: number) =>
+    new Promise<void>((resolve, reject) => {
+      const done = () => {
+        video.removeEventListener('seeked', done);
+        video.removeEventListener('error', failed);
+        resolve();
+      };
+      const failed = () => {
+        video.removeEventListener('seeked', done);
+        video.removeEventListener('error', failed);
+        reject(new Error('seek failed'));
+      };
+      video.addEventListener('seeked', done, { once: true });
+      video.addEventListener('error', failed, { once: true });
+      // A seek to where the video already is never reports back; and a stuck one must not hang the screen.
+      const timer = window.setTimeout(failed, SEEK_TIMEOUT_MS);
+      const clear = () => window.clearTimeout(timer);
+      video.addEventListener('seeked', clear, { once: true });
+      if (Math.abs(video.currentTime - time) < 0.001) {
+        done();
+        return;
+      }
+      video.currentTime = time;
+    });
+
+  /**
+   * Plays the clip frame by frame under the frame and writes it as a GIF.
+   *
+   * The widest size goes first. If it is plainly going to be over the limit
+   * after a few frames it is dropped there and then, not at the end, so a long
+   * busy clip does not cost the full time at every size.
+   */
+  const exportGif = async (): Promise<File> => {
+    const video = videoRef.current;
+    const f = frameRef.current;
+    const natural = size.current;
+    if (!video || !f.width || !natural.width) throw new Error('Video not ready.');
+    video.pause();
+    const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
+    const l = live.current;
+    const scale = coverScale() * l.zoom;
+    let lastSize = 0;
+
+    for (const step of GIF_STEPS) {
+      const width = step.width;
+      const height = Math.round(width / COVER_ASPECT);
+      const frames = Math.max(2, Math.round(clipLength * step.fps));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('Canvas unavailable.');
+
+      const gif = GIFEncoder();
+      let tooBig = false;
+      for (let index = 0; index < frames; index += 1) {
+        if (cancelled.current) throw new Error('cancelled');
+        await seek(video, Math.min(clipStart + index / step.fps, clipStart + clipLength - 0.001));
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.fillStyle = '#000';
+        context.fillRect(0, 0, width, height);
+        context.translate(width / 2, height / 2);
+        context.scale(width / f.width, width / f.width);
+        context.translate(l.x, l.y);
+        context.rotate((l.rotation * Math.PI) / 180);
+        context.scale(scale, scale);
+        context.drawImage(video, -natural.width / 2, -natural.height / 2, natural.width, natural.height);
+
+        const { data } = context.getImageData(0, 0, width, height);
+        const palette = quantize(data, 256);
+        gif.writeFrame(applyPalette(data, palette), width, height, {
+          palette,
+          delay: Math.round(1000 / step.fps),
+          ...(index === 0 ? { repeat: 0 } : {}),
+        });
+        setProgress((GIF_STEPS.indexOf(step) + (index + 1) / frames) / GIF_STEPS.length);
+
+        // After a handful of frames the size is predictable; do not finish a size that cannot fit.
+        if (index === 5 && (gif.bytes().length / 6) * frames > GIF_COVER_MAX_BYTES * 1.15) {
+          tooBig = true;
+          break;
+        }
+      }
+      if (tooBig) continue;
+      gif.finish();
+      const bytes = gif.bytes();
+      lastSize = bytes.length;
+      if (bytes.length <= GIF_COVER_MAX_BYTES) {
+        return new File([bytes as BlobPart], `cover-${Date.now()}.gif`, { type: 'image/gif' });
+      }
+    }
+    const mb = (lastSize / (1024 * 1024)).toFixed(1);
+    throw new Error(
+      lastSize
+        ? `The GIF came out ${mb} MB even at the smallest size. A cover can be at most ${(GIF_COVER_MAX_BYTES / (1024 * 1024)).toFixed(1)} MB. Pick a calmer or shorter clip.`
+        : 'This clip is too busy to fit a cover. Pick a calmer or shorter clip.',
+    );
+  };
+
   // ---- closing and saving --------------------------------------------------------------
   const requestClose = useCallback(async () => {
+    // Making a GIF takes a while, so it can be walked away from; a photo's save is instant.
+    if (busy && isVideo) {
+      cancelled.current = true;
+      onCancel();
+      return;
+    }
     if (busy) return;
     if (dirty.current) {
       const discard = await confirm({
@@ -317,7 +489,7 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
       if (!discard) return;
     }
     onCancel();
-  }, [busy, confirm, onCancel]);
+  }, [busy, confirm, isVideo, onCancel]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -375,11 +547,18 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
   const save = async () => {
     if (!ready) return;
     setPhase('saving');
+    setProgress(0);
+    setProblem(undefined);
     try {
-      const cover = await exportCrop();
+      const cover = isVideo ? await exportGif() : await exportCrop();
       onSave(cover);
       onCancel();
-    } catch {
+    } catch (cause) {
+      if (cancelled.current) return;
+      if (isVideo) {
+        setProblem(cause instanceof Error && cause.message.includes('MB') || (cause instanceof Error && cause.message.includes('busy')) ? cause.message : 'The video could not be turned into a GIF. Try another one.');
+        videoRef.current?.play().catch(() => undefined);
+      }
       setPhase('edit');
     }
   };
@@ -396,7 +575,7 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
         <header className="shrink-0 px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <div className="mx-auto flex w-full max-w-lg items-center gap-1">
             <h1 id={titleId} className="min-w-0 flex-1 truncate px-1 text-h2 text-ink">
-              Adjust cover
+              {isVideo ? 'Animated cover' : 'Adjust cover'}
             </h1>
             <p
               aria-live="polite"
@@ -408,7 +587,7 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
             >
               {Math.round(zoom * 100)}%
             </p>
-            <IconButton label="Close" variant="ghost" size="md" disabled={busy} onClick={() => void requestClose()}>
+            <IconButton label="Close" variant="ghost" size="md" disabled={busy && !isVideo} onClick={() => void requestClose()}>
               <CloseIcon size={22} />
             </IconButton>
           </div>
@@ -426,7 +605,39 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
           style={{ touchAction: 'none' }}
         >
           <div className="absolute inset-0 flex items-center justify-center">
-            {stageSrc ? (
+            {stageSrc && isVideo ? (
+              <video
+                ref={videoRef}
+                src={stageSrc}
+                muted
+                loop={false}
+                autoPlay
+                playsInline
+                preload="auto"
+                disablePictureInPicture
+                className={cn('max-w-none select-none will-change-transform', busy && 'opacity-70')}
+                style={{ transformOrigin: 'center center' }}
+                onLoadedMetadata={(event) => {
+                  const el = event.currentTarget;
+                  if (!el.videoWidth || !el.videoHeight || !Number.isFinite(el.duration)) {
+                    setProblem('This video could not be opened. Choose another.');
+                    setPhase('failed');
+                    return;
+                  }
+                  size.current = { width: el.videoWidth, height: el.videoHeight };
+                  el.style.width = `${el.videoWidth}px`;
+                  el.style.height = `${el.videoHeight}px`;
+                  setDuration(el.duration);
+                  clampPosition();
+                  paint();
+                  setPhase('edit');
+                }}
+                onError={() => {
+                  setProblem('This video could not be opened. Choose another.');
+                  setPhase('failed');
+                }}
+              />
+            ) : stageSrc ? (
               <img
                 ref={imageRef}
                 src={stageSrc}
@@ -470,12 +681,12 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
 
           {phase === 'loading' && (
             <div className="absolute inset-0 grid place-items-center">
-              <p className="text-caption text-text-secondary">Opening photo…</p>
+              <p className="text-caption text-text-secondary">{isVideo ? 'Opening video…' : 'Opening photo…'}</p>
             </div>
           )}
           {phase === 'failed' && (
             <div className="absolute inset-0 grid place-items-center px-8 text-center">
-              <p className="text-caption text-text-secondary">This photo could not be opened. Choose another.</p>
+              <p className="text-caption text-text-secondary">{problem ?? 'This photo could not be opened. Choose another.'}</p>
             </div>
           )}
         </div>
@@ -483,6 +694,33 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
         {/* ---- footer: zoom · choose · Cancel | Save --------------------------------------- */}
         <footer className="shrink-0 border-t border-line bg-page px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
           <div className="mx-auto flex w-full max-w-md flex-col items-stretch gap-4">
+            {isVideo && ready && duration > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between text-caption text-text-secondary">
+                  <span>Clip start</span>
+                  <span className="tabular-nums">
+                    {clipStart.toFixed(1)}s to {(clipStart + clipLength).toFixed(1)}s
+                    {duration > VIDEO_COVER_SECONDS ? ` · ${VIDEO_COVER_SECONDS}s max` : ''}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  aria-label="Where the clip starts"
+                  min={0}
+                  max={clipMax}
+                  step={0.1}
+                  value={Math.min(clipStart, clipMax)}
+                  disabled={busy || clipMax === 0}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setClipStart(next);
+                    dirty.current = true;
+                    if (videoRef.current) videoRef.current.currentTime = next;
+                  }}
+                  className="pingo-scrub h-1 min-w-0 touch-none appearance-none rounded-full bg-line accent-brand disabled:opacity-45"
+                />
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <input
                 type="range"
@@ -498,6 +736,7 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
                 }}
                 className="pingo-scrub h-1 min-w-0 flex-1 touch-none appearance-none rounded-full bg-line accent-brand disabled:opacity-45"
               />
+              {!isVideo && (
               <button
                 type="button"
                 onClick={rotate}
@@ -506,10 +745,23 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
               >
                 Rotate
               </button>
+              )}
             </div>
 
+            {problem && ready && (
+              <p role="alert" className="rounded-xl border border-danger/20 bg-danger-soft/70 px-3 py-2 text-center text-caption text-danger/90">
+                {problem}
+              </p>
+            )}
+
             <p className="text-center text-caption text-text-secondary" aria-live="polite">
-              {busy ? 'Preparing your cover…' : 'Pinch to zoom · Drag to move'}
+              {busy
+                ? isVideo
+                  ? `Making your GIF… ${Math.round(progress * 100)}%`
+                  : 'Preparing your cover…'
+                : isVideo
+                  ? 'Pinch to zoom · Drag to move · It loops as a GIF'
+                  : 'Pinch to zoom · Drag to move'}
             </p>
 
             <button
@@ -518,15 +770,15 @@ export function CoverPhotoEditor({ file, onCancel, onSave, onChooseAnother }: Co
               disabled={busy}
               className="focus-ring self-center rounded-full px-3 py-1.5 text-caption font-medium text-brand transition-colors duration-instant hover:bg-hover disabled:pointer-events-none disabled:opacity-45"
             >
-              Choose another photo
+              {isVideo ? 'Choose another' : 'Choose another photo'}
             </button>
 
             <div className="flex items-center gap-3">
-              <Button type="button" variant="secondary" size="lg" block onClick={() => void requestClose()} disabled={busy}>
+              <Button type="button" variant="secondary" size="lg" block onClick={() => void requestClose()} disabled={busy && !isVideo}>
                 Cancel
               </Button>
               <Button type="button" variant="primary" size="lg" block loading={busy} disabled={!ready} onClick={() => void save()}>
-                {busy ? 'Saving…' : 'Use cover'}
+                {busy ? (isVideo ? 'Making GIF…' : 'Saving…') : isVideo ? 'Make GIF cover' : 'Use cover'}
               </Button>
             </div>
           </div>

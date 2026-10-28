@@ -37,7 +37,8 @@ export const GIF_COVER_MAX_HEIGHT = 480;
 const MAX_FRAMES = 300;
 
 /** What may come out, after shrinking. */
-const MAX_BYTES = 6 * 1024 * 1024;
+export const GIF_COVER_MAX_BYTES = 6 * 1024 * 1024;
+const MAX_BYTES = GIF_COVER_MAX_BYTES;
 
 export type CoverResult = { ok: true; file: File } | { ok: false; reason: string };
 
