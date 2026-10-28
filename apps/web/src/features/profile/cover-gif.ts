@@ -29,6 +29,8 @@
  * from anybody else whatever this code does - see `profiles_cover_rules`.
  */
 
+import { shrinkCoverPhoto } from './cover-image.js';
+
 export const GIF_COVER_MAX_HEIGHT = 480;
 
 /** A long GIF at 480p is still a large file; past this it is refused. */
@@ -116,10 +118,10 @@ async function shrink(file: File, Decoder: ImageDecoderCtor): Promise<File> {
 /**
  * What to upload for a picked cover, or why not.
  *
- * Anything but a GIF passes straight through - photos keep their own path.
+ * A photo is shrunk to cover size (see `cover-image`); a GIF is checked here.
  */
 export async function prepareCover(file: File, premium: boolean): Promise<CoverResult> {
-  if (file.type !== 'image/gif') return { ok: true, file };
+  if (file.type !== 'image/gif') return { ok: true, file: await shrinkCoverPhoto(file) };
   if (!premium) return { ok: false, reason: 'GIF covers are part of PINGO premium.' };
 
   try {

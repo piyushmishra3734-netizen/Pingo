@@ -39,6 +39,8 @@ export interface ProfileCoverProps {
   onPick?: () => void;
   /** Fires once, when the drag ends - not on every pixel of it. */
   onOffsetChange?: (offset: number) => void;
+  /** A picture is being prepared: shown over the band so the pick does not look ignored. */
+  busy?: boolean;
 }
 
 export function ProfileCover({
@@ -47,22 +49,46 @@ export function ProfileCover({
   editable = false,
   onPick,
   onOffsetChange,
+  busy = false,
 }: ProfileCoverProps) {
-  const [live, setLive] = useState(offset);
   const [dragging, setDragging] = useState(false);
   const band = useRef<HTMLDivElement>(null);
+  const image = useRef<HTMLImageElement>(null);
   const start = useRef<{ y: number; from: number; moved: boolean } | null>(null);
+  /*
+   * Where the picture is right now, outside React.
+   *
+   * It used to be state, so every pointer move re-rendered the card and then
+   * the browser re-laid-out the image - a drag that felt like pulling through
+   * glue. The number now lives in a ref and goes straight onto the element,
+   * once per frame; React hears about it when the finger lifts.
+   */
+  const live = useRef(offset);
+  const frame = useRef(0);
+
+  const paint = (value: number) => {
+    live.current = value;
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      if (image.current) image.current.style.objectPosition = `50% ${live.current}%`;
+    });
+  };
 
   // Somebody else's cover, or our own after a save: follow the stored value.
   useEffect(() => {
-    if (!dragging) setLive(offset);
-  }, [offset, dragging]);
+    if (dragging) return;
+    live.current = offset;
+    if (image.current) image.current.style.objectPosition = `50% ${offset}%`;
+  }, [offset, dragging, src]);
+
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
   const canMove = editable && Boolean(src);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!canMove) return;
-    start.current = { y: e.clientY, from: live, moved: false };
+    start.current = { y: e.clientY, from: live.current, moved: false };
     setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -79,7 +105,7 @@ export function ProfileCover({
      * anything else makes the image feel either glued down or frictionless.
      */
     const height = band.current?.clientHeight || 1;
-    setLive(Math.max(0, Math.min(100, from.from - (dy / height) * 100)));
+    paint(Math.max(0, Math.min(100, from.from - (dy / height) * 100)));
   };
 
   const onPointerUp = () => {
@@ -89,7 +115,7 @@ export function ProfileCover({
     if (!from) return;
     // A tap is not a reposition - it is somebody wanting to change the picture.
     if (!from.moved) onPick?.();
-    else if (Math.round(live) !== Math.round(offset)) onOffsetChange?.(Math.round(live));
+    else if (Math.round(live.current) !== Math.round(offset)) onOffsetChange?.(Math.round(live.current));
   };
 
   return (
@@ -106,7 +132,13 @@ export function ProfileCover({
          */
         // The top of the profile card: the card draws its edge, this fills it.
         'absolute inset-x-0 top-0 h-[150px] overflow-hidden bg-brand-wash',
-        canMove && (dragging ? 'cursor-grabbing' : 'cursor-grab'),
+        /*
+         * `touch-none` is what makes the drag work on a phone at all. The drag is
+         * vertical, which is also the page's own scroll gesture; without this the
+         * browser took the gesture for a scroll, cancelled the pointer a few
+         * pixels in, and the cover stuttered between the two.
+         */
+        canMove && (dragging ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none'),
       )}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -115,16 +147,24 @@ export function ProfileCover({
     >
       {src ? (
         <img
+          ref={image}
           src={src}
           alt=""
+          decoding="async"
           className="absolute inset-0 h-full w-full select-none object-cover"
-          style={{ objectPosition: `50% ${live}%` }}
+          style={{ objectPosition: `50% ${offset}%` }}
           draggable={false}
         />
       ) : (
         // No photo: a wash of the PINGO sweep, the logo's own colours, at a whisper.
         <div className="bg-sweep absolute inset-0 opacity-[.24]" />
       )}
+
+      {busy ? (
+        <div className="absolute inset-0 grid place-items-center bg-black/25" role="status" aria-label="Preparing cover">
+          <span aria-hidden className="size-7 animate-spin rounded-full border-[3px] border-white/40 border-t-white motion-reduce:animate-none" />
+        </div>
+      ) : null}
 
       {/*
         A scrim, always, not only over a photo.

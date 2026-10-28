@@ -258,6 +258,7 @@ export function EditProfileScreen() {
               src={coverPreview ?? profile.bannerUrl}
               offset={coverOffset ?? profile.bannerOffset}
               editable
+              busy={preparingCover}
               onPick={() => coverRef.current?.click()}
               onOffsetChange={setCoverOffset}
             />
