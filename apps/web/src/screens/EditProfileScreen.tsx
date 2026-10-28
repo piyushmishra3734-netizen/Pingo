@@ -12,6 +12,7 @@ import { ScreenHeader } from '../components/ScreenHeader.js';
 import { useT } from '../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
+import { CoverPhotoEditor } from '../features/profile/CoverPhotoEditor.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
 
 /**
@@ -97,6 +98,8 @@ export function EditProfileScreen() {
   const [coverOffset, setCoverOffset] = useState<number>();
   // A GIF is checked and, over 480p, re-encoded before it can be staged.
   const [preparingCover, setPreparingCover] = useState(false);
+  // A photo goes through the crop editor first; its result is what is staged.
+  const [coverEditing, setCoverEditing] = useState<File>();
 
   const coverPreview = cover ? URL.createObjectURL(cover) : undefined;
   useEffect(() => {
@@ -241,6 +244,19 @@ export function EditProfileScreen() {
         />
       )}
 
+      {coverEditing && (
+        <CoverPhotoEditor
+          file={coverEditing}
+          onCancel={() => setCoverEditing(undefined)}
+          onChooseAnother={() => coverRef.current?.click()}
+          onSave={(cropped) => {
+            setCover(cropped);
+            // The crop is the offset now: the file is exactly the strip that was framed.
+            setCoverOffset(50);
+          }}
+        />
+      )}
+
       {/* Header is navigation only - one primary Save lives at the form foot. */}
       <ScreenHeader title={t('profile.editTitle')} showBack />
 
@@ -322,6 +338,11 @@ export function EditProfileScreen() {
             event.target.value = '';
             if (!file) return;
             setError(undefined);
+            // A photo is cropped in the editor; only a GIF takes the check-and-shrink path.
+            if (file.type !== 'image/gif') {
+              setCoverEditing(file);
+              return;
+            }
             setPreparingCover(true);
             void prepareCover(file, profile?.isPremium === true).then((result) => {
               setPreparingCover(false);

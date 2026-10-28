@@ -49,7 +49,7 @@ export async function shrinkCoverPhoto(file: File): Promise<File> {
     context.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
-    const blob = await encode(canvas);
+    const blob = await encodeCover(canvas);
     if (!blob || blob.size >= file.size) return file;
 
     const base = file.name.replace(/\.[^.]+$/, '') || 'cover';
@@ -60,7 +60,7 @@ export async function shrinkCoverPhoto(file: File): Promise<File> {
 }
 
 /** WebP where the browser can write it, JPEG where it cannot; the type is read back off the blob. */
-async function encode(canvas: HTMLCanvasElement): Promise<Blob | null> {
+export async function encodeCover(canvas: HTMLCanvasElement): Promise<Blob | null> {
   const webp = await toBlob(canvas, 'image/webp', 0.85);
   if (webp && webp.type === 'image/webp') return webp;
   return toBlob(canvas, 'image/jpeg', 0.85);
