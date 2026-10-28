@@ -98,7 +98,7 @@ import { enqueue, flush, pending } from '../local/outbox.js';
 import { recordMetric } from '../net-metrics.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
-import { toStandardQuality } from '../../features/chat/media-quality.js';
+import { toChatQuality, toStandardQuality } from '../../features/chat/media-quality.js';
 import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
 import { chatMediaOnR2, isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
@@ -4457,9 +4457,17 @@ export class SupabaseChatService implements ChatService {
      * served, and that was always right - but a GIF from the keyboard stored
      * under a `.jpg` name is a lie waiting to be believed by whoever saves it.
      */
-    const path = `${me}/${crypto.randomUUID()}.${imageExtension(image.type)}`;
+    /*
+     * At most 1600 px on the long side, like WhatsApp. Originals reached the
+     * bucket at 3-5 MB and every member of a group downloaded one per view;
+     * GIFs and anything that does not get smaller go as they are. Never throws.
+     */
+    const sending = await toChatQuality(
+      new File([image], 'photo', { type: image.type || 'image/jpeg' }),
+    ).catch(() => image);
+    const path = `${me}/${crypto.randomUUID()}.${imageExtension(sending.type)}`;
 
-    return this.#claimAndUpload(PHOTO_BUCKET, path, image, image.type || 'image/jpeg', 'photo', conversationId);
+    return this.#claimAndUpload(PHOTO_BUCKET, path, sending, sending.type || 'image/jpeg', 'photo', conversationId);
   }
 
   /**

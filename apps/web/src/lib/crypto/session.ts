@@ -13,7 +13,7 @@ import {
 } from '../local/db.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import { deviceLabel } from '../../features/settings/device-label.js';
-import { BUILD_ID } from '../build-id.js';
+import { BUILD_ID, DEVICE_CAPS } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { forgetOwnTexts, ownText } from '../local/sent-text.js';
@@ -405,6 +405,13 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
         label: deviceLabel(),
         // Which bundle is running, so rollout is measurable - see build-id.ts.
         build: BUILD_ID,
+        /*
+         * What this build can do, with the row itself. The heartbeat reports it
+         * too, but its first beat can land before this row exists and update
+         * nothing - and a short first session then left a capable device
+         * counted as unable, keeping every chat it is in off R2.
+         */
+        caps: DEVICE_CAPS,
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       /*

@@ -14,3 +14,11 @@ declare const __BUILD_ID__: string;
 
 export const BUILD_ID: string =
   typeof __BUILD_ID__ === 'string' && __BUILD_ID__ ? __BUILD_ID__ : 'dev';
+
+/**
+ * What this build can do, reported with the build itself. `r2chat`: it can open
+ * chat media stored on R2, so a conversation may send its media there. A build
+ * without it is never counted as able to, which is how an old phone keeps its
+ * chats on Supabase Storage instead of seeing broken photos.
+ */
+export const DEVICE_CAPS: string[] = ['r2chat'];

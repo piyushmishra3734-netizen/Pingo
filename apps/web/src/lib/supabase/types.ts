@@ -648,8 +648,10 @@ export type Database = {
           last_seen_at?: string;
           label?: string | null;
           build?: string | null;
+          /** What the build can do, e.g. `r2chat` - see `DEVICE_CAPS`. */
+          caps?: string[];
         };
-        Update: { last_seen_at?: string; label?: string | null; build?: string | null };
+        Update: { last_seen_at?: string; label?: string | null; build?: string | null; caps?: string[] };
         Relationships: [];
       };
       /** Read-only to the client; rows are written by `revoke_device`. */

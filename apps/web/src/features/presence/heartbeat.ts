@@ -1,5 +1,5 @@
 import { deviceIdentity } from '../../lib/crypto/keys.js';
-import { BUILD_ID } from '../../lib/build-id.js';
+import { BUILD_ID, DEVICE_CAPS } from '../../lib/build-id.js';
 import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { activityStatusOn } from '../settings/privacy-flags.js';
 
@@ -31,14 +31,6 @@ import { activityStatusOn } from '../settings/privacy-flags.js';
 /** Fine enough that no phrasing built on it can be wrong. */
 const BEAT_MS = 60_000;
 
-/**
- * What this build can do, reported with the build itself. `r2chat`: it can open
- * chat media stored on R2, so a conversation may send its media there. A build
- * without it is never counted as able to, which is how an old phone keeps its
- * chats on Supabase Storage instead of seeing broken photos.
- */
-const CAPS = ['r2chat'];
-
 let timer: ReturnType<typeof setInterval> | undefined;
 let running = false;
 
@@ -65,7 +57,7 @@ async function beat(): Promise<void> {
       update(values: Record<string, unknown>): { eq(column: string, value: string): PromiseLike<unknown> };
     };
     await table
-      .update(present ? { last_seen_at: new Date().toISOString(), build: BUILD_ID, caps: CAPS } : { build: BUILD_ID, caps: CAPS })
+      .update(present ? { last_seen_at: new Date().toISOString(), build: BUILD_ID, caps: DEVICE_CAPS } : { build: BUILD_ID, caps: DEVICE_CAPS })
       .eq('device_id', identity.deviceId);
   } catch {
     /*
