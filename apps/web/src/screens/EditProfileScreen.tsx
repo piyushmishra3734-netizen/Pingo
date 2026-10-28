@@ -5,7 +5,7 @@ import { ChatMusicPicker } from '../features/music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
 import { Avatar, Button, CameraIcon, TextField, TrashIcon, cn } from '@pingo/ui';
 import { AtSign, Briefcase, MapPin } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { ScreenHeader } from '../components/ScreenHeader.js';
@@ -98,17 +98,21 @@ export function EditProfileScreen() {
   const [coverOffset, setCoverOffset] = useState<number>();
   // A GIF is checked and, over 480p, re-encoded before it can be staged.
   const [preparingCover, setPreparingCover] = useState(false);
+  // Why a cover was refused, shown under the cover itself: the form's own error sits at the foot, out of sight.
+  const [coverError, setCoverError] = useState<string>();
   // A photo goes through the crop editor first; its result is what is staged.
   const [coverEditing, setCoverEditing] = useState<File>();
 
-  const coverPreview = cover ? URL.createObjectURL(cover) : undefined;
+  // One URL per file. Made in the render body it was a new one on every render, and the
+  // cleanup revoked the last while the image was still loading it: a cover that did not show.
+  const coverPreview = useMemo(() => (cover ? URL.createObjectURL(cover) : undefined), [cover]);
   useEffect(() => {
     return () => {
       if (coverPreview) URL.revokeObjectURL(coverPreview);
     };
   }, [coverPreview]);
 
-  const preview = photo ? URL.createObjectURL(photo) : undefined;
+  const preview = useMemo(() => (photo ? URL.createObjectURL(photo) : undefined), [photo]);
   useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -251,6 +255,7 @@ export function EditProfileScreen() {
           onChooseAnother={() => coverRef.current?.click()}
           onSave={(cropped) => {
             setCover(cropped);
+            setCoverError(undefined);
             // The crop is the offset now: the file is exactly the strip that was framed.
             setCoverOffset(50);
           }}
@@ -328,6 +333,15 @@ export function EditProfileScreen() {
           </div>
         </article>
 
+        {coverError && (
+          <p
+            role="alert"
+            className="rounded-xl border border-danger/20 bg-danger-soft/70 px-3.5 py-2.5 text-center text-caption text-danger/90"
+          >
+            {coverError}
+          </p>
+        )}
+
         <input
           ref={coverRef}
           type="file"
@@ -338,6 +352,7 @@ export function EditProfileScreen() {
             event.target.value = '';
             if (!file) return;
             setError(undefined);
+            setCoverError(undefined);
             // A photo is cropped in the editor; only a GIF takes the check-and-shrink path.
             if (file.type !== 'image/gif') {
               setCoverEditing(file);
@@ -347,7 +362,7 @@ export function EditProfileScreen() {
             void prepareCover(file, profile?.isPremium === true).then((result) => {
               setPreparingCover(false);
               if (!result.ok) {
-                setError(result.reason);
+                setCoverError(result.reason);
                 return;
               }
               setCover(result.file);

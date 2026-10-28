@@ -59,7 +59,11 @@ type ImageDecoderCtor = new (init: { data: ArrayBuffer; type: string }) => Image
 
 class CoverRefused extends Error {}
 
-const TOO_BIG = 'That GIF is too big for a cover. Try a shorter one.';
+const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+/** Says what was measured, so a refusal is something a person can act on. */
+const tooBig = (bytes: number, shrunk: boolean) =>
+  `That GIF is ${mb(bytes)}${shrunk ? ' even after shrinking it to 480p' : ''}. A cover can be at most ${mb(MAX_BYTES)}. Try a shorter or smaller GIF.`;
 
 /** The first frame's size, without decoding the rest. */
 async function firstFrameSize(file: File): Promise<{ width: number; height: number }> {
@@ -76,7 +80,7 @@ async function shrink(file: File, Decoder: ImageDecoderCtor): Promise<File> {
   try {
     await decoder.tracks.ready;
     const count = decoder.tracks.selectedTrack?.frameCount ?? 1;
-    if (count > MAX_FRAMES) throw new CoverRefused('That GIF is too long for a cover. Try a shorter one.');
+    if (count > MAX_FRAMES) throw new CoverRefused(`That GIF has ${count} frames. A cover can have at most ${MAX_FRAMES}. Try a shorter one.`);
 
     const first = (await decoder.decode({ frameIndex: 0 })).image;
     const height = GIF_COVER_MAX_HEIGHT;
@@ -128,21 +132,21 @@ export async function prepareCover(file: File, premium: boolean): Promise<CoverR
     const { height } = await firstFrameSize(file);
 
     if (height <= GIF_COVER_MAX_HEIGHT) {
-      return file.size <= MAX_BYTES ? { ok: true, file } : { ok: false, reason: TOO_BIG };
+      return file.size <= MAX_BYTES ? { ok: true, file } : { ok: false, reason: tooBig(file.size, false) };
     }
 
     const Decoder = (globalThis as { ImageDecoder?: ImageDecoderCtor }).ImageDecoder;
     if (!Decoder) {
       return {
         ok: false,
-        reason: 'This browser cannot shrink a GIF. Pick one 480p or smaller, or use the PINGO app.',
+        reason: `This GIF is ${height}p tall and this browser cannot shrink it. Pick one that is 480p or smaller, or use the PINGO app.`,
       };
     }
 
     const shrunk = await shrink(file, Decoder);
-    return shrunk.size <= MAX_BYTES ? { ok: true, file: shrunk } : { ok: false, reason: TOO_BIG };
+    return shrunk.size <= MAX_BYTES ? { ok: true, file: shrunk } : { ok: false, reason: tooBig(shrunk.size, true) };
   } catch (cause) {
     if (cause instanceof CoverRefused) return { ok: false, reason: cause.message };
-    return { ok: false, reason: 'That GIF could not be prepared. Try another one.' };
+    return { ok: false, reason: `That ${mb(file.size)} GIF could not be prepared. Try another one.` };
   }
 }
