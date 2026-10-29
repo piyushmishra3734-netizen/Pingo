@@ -15,17 +15,31 @@ import {
   pushRecentLanguage,
   type PersonalityId,
 } from './personalities.js';
+import {
+  INTERESTS,
+  LIFE,
+  MAX_INTERESTS,
+  MAX_WANTS,
+  NOTE_MAX,
+  WANTS,
+  requestGreeting,
+  saveAbout,
+  type Chip,
+} from './onboarding-about.js';
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /**
  * First open — centered liquid-glass “meet them” ritual.
  * Not a bottom sheet product wizard.
  */
 export function AiOnboardingSheet({
+  conversationId,
   onDone,
   onClose,
 }: {
+  /** The PINGO AI chat this opened over; it gets the first message once they finish. */
+  conversationId?: string;
   onDone: () => void;
   onClose: () => void;
 }) {
@@ -44,6 +58,10 @@ export function AiOnboardingSheet({
   );
   const [personality, setPersonality] = useState<PersonalityId>('friendly');
   const [custom, setCustom] = useState('');
+  const [interests, setInterests] = useState<string[]>([]);
+  const [life, setLife] = useState<string | null>(null);
+  const [wants, setWants] = useState<string[]>([]);
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [finishing, setFinishing] = useState(false);
@@ -62,12 +80,12 @@ export function AiOnboardingSheet({
       if (event.key !== 'Escape') return;
       event.stopPropagation();
       if (step === 0) onClose();
-      else if (step === 5) return;
+      else if (finishing) return;
       else setStep((s) => (s > 0 ? ((s - 1) as Step) : s));
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [step, onClose]);
+  }, [step, onClose, finishing]);
 
   const face = pub?.displayName ?? 'PINGO';
   const langs = orderedLanguages(
@@ -115,6 +133,18 @@ export function AiOnboardingSheet({
         updated_at: new Date().toISOString(),
       });
       if (writeError) throw writeError;
+      /*
+       * What they are into, before the first message is asked for: the
+       * greeting is made from these memories, so they have to be there first.
+       */
+      await saveAbout(profile.id, {
+        interests,
+        life,
+        // Flirting is for adults; an age changed after picking it drops it.
+        wants: isAdult(age) ? wants : wants.filter((w) => w !== 'flirt'),
+        note,
+      });
+      if (conversationId) requestGreeting(conversationId);
       // Soft success beat, then hand off to chat.
       window.setTimeout(() => onDone(), 220);
     } catch (cause) {
@@ -259,10 +289,71 @@ export function AiOnboardingSheet({
           )}
 
           {step === 4 && (
+            <StepShell titleId={titleId} title="What are you into?" onBack={() => setStep(3)}>
+              <p className="-mt-2 mb-3 text-caption text-text-secondary">
+                Pick up to {MAX_INTERESTS}. I&apos;ll bring these up so we never run out of things to talk about.
+              </p>
+              <Chips
+                label="Interests"
+                chips={INTERESTS}
+                picked={interests}
+                onToggle={(id) => setInterests((list) => toggle(list, id, MAX_INTERESTS))}
+              />
+              <NextOrSkip empty={!interests.length} onNext={() => setStep(5)} />
+            </StepShell>
+          )}
+
+          {step === 5 && (
+            <StepShell titleId={titleId} title="What's going on in your life?" onBack={() => setStep(4)}>
+              <Chips
+                label="Right now"
+                chips={LIFE}
+                picked={life ? [life] : []}
+                onToggle={(id) => setLife((now) => (now === id ? null : id))}
+              />
+              <label className="mt-4 block">
+                <span className="text-caption font-medium text-text-secondary">
+                  One thing I should know about you <span className="text-text-tertiary">(optional)</span>
+                </span>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+                  placeholder="Delhi se hoon, RCB fan, chai > coffee"
+                  className={cn(
+                    'focus-ring mt-1.5 w-full rounded-2xl border border-line/50 bg-sunken',
+                    'px-4 py-3 text-body text-ink placeholder:text-text-tertiary',
+                  )}
+                />
+              </label>
+              <NextOrSkip empty={!life && !note.trim()} onNext={() => setStep(6)} />
+            </StepShell>
+          )}
+
+          {step === 6 && (
+            <StepShell titleId={titleId} title={`What do you want ${face} to be?`} onBack={() => setStep(5)}>
+              <p className="-mt-2 mb-3 text-caption text-text-secondary">Pick up to {MAX_WANTS}.</p>
+              <Chips
+                label="What you want"
+                // Flirting is offered to adults only, like Spicy itself.
+                chips={isAdult(age) ? WANTS : WANTS.filter((w) => w.id !== 'flirt')}
+                picked={wants}
+                onToggle={(id) => {
+                  const next = toggle(wants, id, MAX_WANTS);
+                  setWants(next);
+                  // Asked for flirting: Spicy is what that is, so it starts selected on the next step.
+                  if (id === 'flirt' && next.includes('flirt')) setPersonality('spicy');
+                  else if (id === 'flirt' && personality === 'spicy') setPersonality('friendly');
+                }}
+              />
+              <NextOrSkip empty={!wants.length} onNext={() => setStep(7)} />
+            </StepShell>
+          )}
+
+          {step === 7 && (
             <StepShell
               titleId={titleId}
               title={t('ai.howBe')}
-              onBack={() => setStep(3)}
+              onBack={() => setStep(6)}
             >
               <AiPersonalityGrid
                 value={personality}
@@ -295,6 +386,57 @@ export function AiOnboardingSheet({
         </div>
       </div>
     </Overlay>
+  );
+}
+
+/** Adds or removes `id`; a full list takes nothing more until something is taken off. */
+function toggle(list: string[], id: string, max: number): string[] {
+  if (list.includes(id)) return list.filter((x) => x !== id);
+  return list.length >= max ? list : [...list, id];
+}
+
+function Chips({
+  label,
+  chips,
+  picked,
+  onToggle,
+}: {
+  label: string;
+  chips: Chip[];
+  picked: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+      {chips.map((c) => {
+        const on = picked.includes(c.id);
+        return (
+          <button
+            key={c.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(c.id)}
+            className={cn(
+              'focus-ring inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-caption font-medium',
+              'transition-[background-color,transform] duration-instant ease-standard active:scale-[0.96]',
+              on ? 'bg-brand text-on-brand' : 'bg-sunken text-text-secondary hover:bg-hover',
+            )}
+          >
+            <span aria-hidden>{c.emoji}</span>
+            {c.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Next when something is picked, Skip when nothing is: every one of these steps is optional. */
+function NextOrSkip({ empty, onNext }: { empty: boolean; onNext: () => void }) {
+  return (
+    <Button variant={empty ? 'secondary' : 'primary'} className="mt-5 w-full" onClick={onNext}>
+      {empty ? 'Skip' : 'Next'}
+    </Button>
   );
 }
 

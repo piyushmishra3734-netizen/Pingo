@@ -35,6 +35,7 @@ const DEFAULT_MODEL = 'mistralai/mistral-uncensored-roleplay';
 const HISTORY_ROWS = 16;
 const HISTORY_CHARS = 6_000;
 const MESSAGE_CHARS = 2_000;
+const MEMORY_ROWS = 30;
 
 export type SpicyProfile = ProfileVoice & {
   response_length?: string | null;
@@ -42,6 +43,7 @@ export type SpicyProfile = ProfileVoice & {
   display_name?: string | null;
   language?: string | null;
   age?: number | null;
+  memory_enabled?: boolean | null;
 };
 
 /** Spicy is for adults: chosen, and an age of 18 or more on their AI profile. */
@@ -56,6 +58,7 @@ export function spicyConfigured(): boolean {
 
 export interface SpicyTurn {
   db: Db;
+  userId: string;
   conversationId: string;
   live: string;
   profile: SpicyProfile;
@@ -79,7 +82,7 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
-function systemPrompt(p: SpicyProfile): string {
+function systemPrompt(p: SpicyProfile, known: string[]): string {
   const parts = [
     'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
@@ -95,6 +98,9 @@ function systemPrompt(p: SpicyProfile): string {
   if (callThem) parts.push(`Their name: ${callThem}. Use it now and then, the way a partner would.`);
   const lang = languageLabel(p.language);
   if (lang) parts.push(`Their preferred language: ${lang}. Still mirror what they actually write.`);
+  if (known.length) {
+    parts.push(['What you know about them - tease and flirt with it now and then, not every reply:', ...known].join('\n'));
+  }
   parts.push(lengthBlock(p.response_length ?? 'short'));
   const own = instructionsBlock(p);
   if (own) parts.push(own);
@@ -108,13 +114,20 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
   const t0 = Date.now();
   t.emit('reading');
 
-  const { data: rows } = await t.db
-    .from('messages')
-    .select('sender_id, body, created_at')
-    .eq('conversation_id', t.conversationId)
-    .is('encryption', null)
-    .order('created_at', { ascending: false })
-    .limit(HISTORY_ROWS);
+  // What they set up and what PINGO AI has learned, read alongside the thread: same round trip.
+  const [{ data: rows }, { data: saved }] = await Promise.all([
+    t.db
+      .from('messages')
+      .select('sender_id, body, created_at')
+      .eq('conversation_id', t.conversationId)
+      .is('encryption', null)
+      .order('created_at', { ascending: false })
+      .limit(HISTORY_ROWS),
+    t.profile.memory_enabled === false
+      ? Promise.resolve({ data: [] })
+      : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_ROWS),
+  ]);
+  const known = ((saved ?? []) as { value: string }[]).map((m) => `- ${m.value}`);
 
   let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -161,7 +174,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
-        messages: [{ role: 'system', content: systemPrompt(t.profile) }, ...history],
+        messages: [{ role: 'system', content: systemPrompt(t.profile, known) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });

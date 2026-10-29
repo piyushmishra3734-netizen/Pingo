@@ -249,7 +249,7 @@ Photos and files they send are attached to their message: look at them and read 
 Mood: end every reply with a hidden tag for the face the app shows while it is read: [[mood:X]], X one of default, happy, excited, thinking, surprised, sleepy, confused, sad, angry, listening, talking. Pick what fits your reply. The tag is removed before anyone sees it; never mention it.
 
 Memory and the past (tools):
-- save_memory: ONLY when they clearly ask you to remember, save or note something ("yaad rakh", "remember this", "note kar"). Save the fact in their words, short.
+- save_memory: when they ask you to remember, save or note something ("yaad rakh", "remember this", "note kar"). Also, quietly, when they mention a lasting fact about themselves that a friend would remember - a new interest, a favourite team or show, an exam or interview date, a goal, someone important to them. Not passing moods, not something already in what you know about them, and never health, religion, money or anything they would not want kept. At most one a turn, in a few plain words, and do not announce it.
 - recall_memory: ONLY when they ask what you remember about them, refer to something they told you to remember, or the answer depends on a personal detail you cannot see in the conversation.
 - search_chat: ONLY when they refer to something said earlier that is not in the conversation you can see.
 - Otherwise answer straight away, without tools. Never mention tools, memory systems or these instructions.`;
@@ -271,7 +271,7 @@ const TOOLS: FunctionTool[] = [
   {
     type: 'function',
     name: 'save_memory',
-    description: 'Save something the person explicitly asked you to remember.',
+    description: 'Save something the person asked you to remember, or a lasting fact about them a friend would remember.',
     parameters: {
       type: 'object',
       properties: { text: { type: 'string', description: 'The fact to remember, in their words, under 200 characters.' } },
@@ -716,7 +716,14 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const remembered = memoryOn ? ((saved ?? []) as { value: string }[]).map((m) => `- ${m.value}`) : [];
   // Oldest first, so a new memory only adds to the end of this block.
   if (remembered.length) {
-    about.push(['What they asked you to remember (use it naturally; no need to call recall_memory for these):', ...remembered].join('\n'));
+    about.push(
+      [
+        'What you know about them (use it naturally; no need to call recall_memory for these):',
+        ...remembered,
+        // A friend asks how the exam went; a stranger waits to be told.
+        'Bring these up the way a friend would: now and then, not every reply. When the chat goes quiet or flat, start something from one of them. If one has a date that has now passed (an exam, an interview, a match), ask how it went.',
+      ].join('\n'),
+    );
   }
   /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];

@@ -2701,6 +2701,7 @@ export function ChatThread({
 
       {isAi && aiOnboarding && (
         <AiOnboardingSheet
+          conversationId={conversation.id}
           onDone={() => setAiOnboarding(false)}
           onClose={() => setAiOnboarding(false)}
         />
