@@ -1141,8 +1141,7 @@ export class SupabaseChatService implements ChatService {
       void this.#client.auth.getSession().then(({ data: current }) => {
         if (!current.session) return;
         this.#client.realtime.setAuth(current.session.access_token);
-        this.#closeChannel();
-        this.#openChannel();
+        this.reconnect();
         // Not stop-then-start: that forgets who was online and drops the typing channels.
         this.#presenceHub.resume(current.session.user.id);
       });
@@ -1440,6 +1439,18 @@ export class SupabaseChatService implements ChatService {
    */
   reconnect(): void {
     this.#closeChannel();
+    /*
+     * And say so. The state stayed `connected` across the swap, so the new
+     * channel's SUBSCRIBED was no transition: the open thread did not ask what
+     * it missed while the app was away, and the outbox did not drain - which is
+     * the "new messages show only after backing out and opening the chat again"
+     * report, and messages that needed sending twice. Marked `connecting` here,
+     * the next SUBSCRIBED is a recovery like any other.
+     */
+    if (this.#connection === 'connected') {
+      this.#connection = 'connecting';
+      this.#emit({ type: 'connection:changed', state: 'connecting' });
+    }
     this.#openChannel();
   }
 
