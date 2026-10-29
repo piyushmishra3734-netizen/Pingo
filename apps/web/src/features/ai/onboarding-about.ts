@@ -110,6 +110,38 @@ export async function saveAbout(userId: string, about: About): Promise<void> {
 }
 
 /**
+ * What an earlier run saved, read back into picks, so being asked again is a
+ * confirmation rather than starting over. Undefined when there is nothing.
+ */
+export async function loadAbout(userId: string): Promise<About | undefined> {
+  try {
+    const { data } = await getSupabaseClient()
+      .from('ai_memories')
+      .select('key, value')
+      .eq('user_id', userId)
+      .in('key', Object.values(KEYS));
+    const rows = (data ?? []) as { key: string; value: string }[];
+    if (!rows.length) return undefined;
+    const text = (key: string) => rows.find((r) => r.key === key)?.value ?? '';
+    // Each chip's words appear in the sentence it was saved as; the longest first, so "school" never claims "in school".
+    const found = (list: Chip[], line: string) =>
+      [...list]
+        .sort((a, b) => b.says.length - a.says.length)
+        .filter((c) => line.includes(c.says))
+        .map((c) => c.id);
+    const life = found(LIFE, text(KEYS.life))[0] ?? null;
+    return {
+      interests: found(INTERESTS, text(KEYS.interests)).slice(0, MAX_INTERESTS),
+      life,
+      wants: found(WANTS, text(KEYS.wants)).slice(0, MAX_WANTS),
+      note: /"(.*)"/.exec(text(KEYS.note))?.[1] ?? '',
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Asks PINGO AI to send the first message, made from what they just told it.
  *
  * An empty chat waiting for "hi" is the dullest way to meet anybody. The

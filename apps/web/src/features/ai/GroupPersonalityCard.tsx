@@ -1,6 +1,6 @@
 import { cn } from '@pingo/ui';
 import { Check, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { isAdult } from './personalities.js';
 import { AiFace } from './profile/pastel.js';
@@ -16,14 +16,20 @@ import {
  * The card `@pingoai /personality` opens above the composer in a group: pick
  * how PINGO AI talks to you here, then OK.
  *
- * Yours only - the line under the question says so, because the first thing
- * anybody wonders in a group is whether they just changed it for everyone.
- * Spicy is not on the list for anyone under 18 or with no age.
+ * One row that scrolls sideways, like stickers or reactions: it sits over a
+ * chat, so it has to stay short and leave the conversation in view. The line
+ * under the row says what the highlighted one is like, so the tiles can be
+ * just a face and a name.
+ *
+ * Yours only - said under the question, because the first thing anybody
+ * wonders in a group is whether they just changed it for everyone. Spicy is
+ * not in the row for anyone under 18 or with no age.
  */
 export function GroupPersonalityCard({
   conversationId,
   userId,
   start,
+  preview = false,
   onClose,
   onSaved,
 }: {
@@ -31,16 +37,20 @@ export function GroupPersonalityCard({
   userId: string;
   /** A name typed after the command, picked to begin with. */
   start?: GroupPersonalityId | undefined;
+  /** Dev only: an adult, nothing current, and OK saves nothing. */
+  preview?: boolean;
   onClose: () => void;
   onSaved: (picked: GroupPersonality) => void;
 }) {
-  const [age, setAge] = useState<number | null>();
-  const [current, setCurrent] = useState<GroupPersonalityId>();
-  const [picked, setPicked] = useState<GroupPersonalityId | undefined>(start);
+  const [age, setAge] = useState<number | null | undefined>(preview ? 19 : undefined);
+  const [current, setCurrent] = useState<GroupPersonalityId | undefined>(preview ? 'friendly' : undefined);
+  const [picked, setPicked] = useState<GroupPersonalityId | undefined>(start ?? (preview ? 'friendly' : undefined));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (preview) return;
     let live = true;
     void loadMine(conversationId, userId)
       .then((mine) => {
@@ -49,11 +59,21 @@ export function GroupPersonalityCard({
         setCurrent(mine.current);
         setPicked((p) => p ?? mine.current);
       })
-      .catch(() => live && setAge(null));
+      .catch(() => {
+        if (!live) return;
+        setAge(null);
+        setCurrent('friendly');
+        setPicked((p) => p ?? 'friendly');
+      });
     return () => {
       live = false;
     };
-  }, [conversationId, userId]);
+  }, [conversationId, userId, preview]);
+
+  // The picked one in view, so a name typed after the command is not hidden off to the side.
+  useEffect(() => {
+    rowRef.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [age]);
 
   const loaded = age !== undefined;
   const options = GROUP_PERSONALITIES.filter((p) => p.id !== 'spicy' || isAdult(age));
@@ -64,7 +84,7 @@ export function GroupPersonalityCard({
     if (choice.id === current) return onClose();
     setBusy(true);
     setError(undefined);
-    const failed = await setMine(conversationId, choice.id);
+    const failed = preview ? undefined : await setMine(conversationId, choice.id);
     setBusy(false);
     if (failed) setError(failed);
     else onSaved(choice);
@@ -74,17 +94,21 @@ export function GroupPersonalityCard({
     <div
       role="dialog"
       aria-label="PINGO AI personality"
-      className="pingo-pastel mb-2 overflow-hidden rounded-[24px] shadow-[0_18px_48px_-14px_rgba(40,36,90,0.4)] ring-1 ring-black/5"
-      style={{ animation: 'gp-rise .32s cubic-bezier(.2,.8,.2,1)' }}
+      className="gp-rise pingo-pastel mb-2 overflow-hidden rounded-[24px] shadow-[0_18px_48px_-14px_rgba(40,36,90,0.4)] ring-1 ring-black/5"
     >
-      <style>{'@keyframes gp-rise { from { opacity: 0; transform: translateY(12px) scale(.98) } } @media (prefers-reduced-motion: reduce) { [aria-label="PINGO AI personality"] { animation: none !important } }'}</style>
-      <div className="flex items-start gap-3 px-4 pt-4">
-        <AiFace src={null} framed className="size-10 shrink-0 ring-2 ring-[var(--pp-card)]" />
+      <style>{`
+@keyframes gp-rise { from { opacity: 0; transform: translateY(12px) scale(.98) } }
+@keyframes gp-tile { from { opacity: 0; transform: translateX(14px) } }
+.gp-rise { animation: gp-rise .32s cubic-bezier(.2,.8,.2,1) }
+.gp-tile { animation: gp-tile .36s cubic-bezier(.2,.8,.2,1) both }
+.gp-row { scrollbar-width: none } .gp-row::-webkit-scrollbar { display: none }
+@media (prefers-reduced-motion: reduce) { .gp-rise, .gp-tile { animation: none !important } }`}</style>
+
+      <div className="flex items-center gap-3 px-4 pt-3.5">
+        <AiFace src={null} framed className="size-9 shrink-0 ring-2 ring-[var(--pp-card)]" />
         <div className="min-w-0 flex-1">
-          <p className="text-[16.5px] font-bold leading-snug text-[var(--pp-ink)]">How should I talk to you here?</p>
-          <p className="mt-0.5 text-[13px] leading-snug text-[var(--pp-sub)]">
-            Just for you. Everyone else keeps their own · tag @pingoai to chat
-          </p>
+          <p className="truncate text-[15.5px] font-bold text-[var(--pp-ink)]">How should I talk to you here?</p>
+          <p className="truncate text-[12.5px] text-[var(--pp-sub)]">Just for you · everyone else keeps their own</p>
         </div>
         <button
           type="button"
@@ -96,10 +120,15 @@ export function GroupPersonalityCard({
         </button>
       </div>
 
-      <div role="radiogroup" aria-label="Personality" className="grid max-h-[46vh] grid-cols-2 gap-2 overflow-y-auto px-4 pb-1 pt-3">
+      <div
+        ref={rowRef}
+        role="radiogroup"
+        aria-label="Personality"
+        className="gp-row flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-px-4 px-4 pb-2 pt-3"
+      >
         {!loaded
-          ? Array.from({ length: 6 }, (_, i) => <span key={i} className="h-[58px] animate-pulse rounded-2xl bg-[var(--pp-card)]" />)
-          : options.map((p) => {
+          ? Array.from({ length: 5 }, (_, i) => <span key={i} className="h-[92px] w-[78px] shrink-0 animate-pulse rounded-[20px] bg-[var(--pp-card)]" />)
+          : options.map((p, i) => {
               const on = picked === p.id;
               return (
                 <button
@@ -107,39 +136,49 @@ export function GroupPersonalityCard({
                   type="button"
                   role="radio"
                   aria-checked={on}
+                  aria-label={`${p.label}: ${p.hint}`}
                   onClick={() => setPicked(p.id)}
+                  style={{ animationDelay: `${i * 30}ms` }}
                   className={cn(
-                    'focus-ring relative flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition-[background-color,box-shadow] active:scale-[0.98]',
+                    'gp-tile focus-ring relative flex h-[92px] w-[78px] shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-[20px] transition-[background-color,box-shadow,transform] active:scale-95',
                     on
                       ? 'bg-[var(--pp-accent-soft)] shadow-[inset_0_0_0_2px_var(--pp-accent)]'
                       : 'bg-[var(--pp-card)] shadow-[var(--pp-shadow)]',
                   )}
                 >
-                  <span aria-hidden className="text-[22px] leading-none">{p.emoji}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14.5px] font-semibold text-[var(--pp-ink)]">
-                      {p.label}
-                      {current === p.id && <span className="ml-1 text-[11.5px] font-medium text-[var(--pp-faint)]">· now</span>}
-                    </span>
-                    <span className="block truncate text-[12px] text-[var(--pp-sub)]">{p.hint}</span>
+                  <span aria-hidden className={cn('grid size-11 place-items-center rounded-full text-[24px] leading-none transition-transform', on ? 'scale-110 bg-[var(--pp-card)]' : 'bg-[var(--pp-bg)]')}>
+                    {p.emoji}
                   </span>
+                  <span className="max-w-full truncate px-1 text-[12.5px] font-semibold text-[var(--pp-ink)]">{p.label}</span>
                   {on && (
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[var(--pp-accent)] text-[var(--pp-accent-ink)]">
-                      <Check size={13} strokeWidth={3} aria-hidden />
+                    <span className="absolute right-1.5 top-1.5 grid size-[18px] place-items-center rounded-full bg-[var(--pp-accent)] text-[var(--pp-accent-ink)]">
+                      <Check size={12} strokeWidth={3} aria-hidden />
                     </span>
+                  )}
+                  {current === p.id && !on && (
+                    <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[var(--pp-online)]" aria-hidden />
                   )}
                 </button>
               );
             })}
       </div>
 
+      <p className="min-h-[20px] px-4 text-[13px] text-[var(--pp-sub)]" aria-live="polite">
+        {choice && (
+          <>
+            <span className="font-semibold text-[var(--pp-ink)]">{choice.label}</span> · {choice.hint}
+            {current === choice.id && ' · using now'}
+          </>
+        )}
+      </p>
+
       {error && (
-        <p role="alert" className="px-4 pt-2 text-[13px] font-medium text-danger">
+        <p role="alert" className="px-4 pt-1 text-[13px] font-medium text-danger">
           {error}
         </p>
       )}
 
-      <div className="flex gap-2 p-4">
+      <div className="flex gap-2 px-4 pb-4 pt-3">
         <button
           type="button"
           onClick={onClose}
@@ -151,7 +190,7 @@ export function GroupPersonalityCard({
           type="button"
           onClick={() => void ok()}
           disabled={!choice || busy}
-          className="focus-ring bg-sweep h-11 flex-[1.4] rounded-full text-[15px] font-semibold text-white shadow-[0_8px_22px_-8px_rgba(139,93,255,0.65)] disabled:opacity-50"
+          className="focus-ring bg-sweep h-11 flex-[1.6] rounded-full text-[15px] font-semibold text-white shadow-[0_8px_22px_-8px_rgba(139,93,255,0.65)] disabled:opacity-50"
         >
           {busy ? 'Saving…' : choice ? `OK · ${choice.emoji} ${choice.label}` : 'OK'}
         </button>

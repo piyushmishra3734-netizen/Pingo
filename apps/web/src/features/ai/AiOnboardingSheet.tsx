@@ -25,6 +25,7 @@ import {
   NOTE_MAX,
   WANTS,
   requestGreeting,
+  loadAbout,
   saveAbout,
   type Chip,
 } from './onboarding-about.js';
@@ -88,12 +89,13 @@ export function AiOnboardingSheet({
   }, []);
 
   /*
-   * The age they gave at setup decides whether Flirt (and Spicy) is offered. The
-   * first setup let it be skipped, and 30 of the first 43 did - so somebody in
-   * the about-only run with no age on record is asked for it here too. The
-   * preview always shows that step.
+   * The age decides whether Flirt and Spicy are offered, so the about-only run
+   * asks everyone for it again. The first setup let it be skipped (30 of the
+   * first 43 did), and for the rest it is a confirmation: the wheel starts on
+   * the age on record, one tap to keep it.
    */
-  const [askAge, setAskAge] = useState(mode === 'about' && preview);
+  const askAge = mode === 'about';
+  const [ageOnRecord, setAgeOnRecord] = useState(false);
   useEffect(() => {
     if (mode !== 'about' || !profile || preview) return;
     void Promise.resolve(
@@ -101,8 +103,16 @@ export function AiOnboardingSheet({
     ).then(({ data }) => {
       const known = (data as { age?: number | null } | null)?.age ?? null;
       setAge(known);
-      setAskAge(known === null);
+      setAgeOnRecord(known !== null);
     }, () => undefined);
+    // Somebody asked again sees what they said last time, ready to keep or change.
+    void loadAbout(profile.id).then((before) => {
+      if (!before) return;
+      setInterests(before.interests);
+      setLife(before.life);
+      setWants(before.wants);
+      setNote(before.note);
+    });
   }, [mode, profile?.id, preview]);
 
   useEffect(() => {
@@ -326,11 +336,16 @@ export function AiOnboardingSheet({
           )}
 
           {step === 2 && (
-            <StepShell {...shell} title={t('ai.age')} onBack={() => setStep(mode === 'about' ? 0 : 1)}>
+            <StepShell
+              {...shell}
+              title={mode === 'about' && ageOnRecord ? 'Is this your age?' : t('ai.age')}
+              {...(mode === 'about' ? { hint: ageOnRecord ? 'Just checking it is still right. Change it if not.' : 'It decides what I can talk about with you.' } : {})}
+              onBack={() => setStep(mode === 'about' ? 0 : 1)}
+            >
               <AiAgeWheel value={age} onChange={setAge} />
               <div className="mt-5">
                 <Cta onClick={() => setStep(mode === 'about' ? 4 : 3)}>
-                  Next <ArrowRight size={18} aria-hidden />
+                  {mode === 'about' && ageOnRecord ? 'Yes, that’s me' : 'Next'} <ArrowRight size={18} aria-hidden />
                 </Cta>
               </div>
             </StepShell>
