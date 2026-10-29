@@ -35,9 +35,15 @@ type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
  */
 export function AiOnboardingSheet({
   conversationId,
+  mode = 'full',
   onDone,
   onClose,
 }: {
+  /**
+   * full: the whole setup. about: only the interests, life and what-you-want
+   * steps, for somebody who set PINGO AI up before they existed.
+   */
+  mode?: 'full' | 'about';
   /** The PINGO AI chat this opened over; it gets the first message once they finish. */
   conversationId?: string;
   onDone: () => void;
@@ -70,6 +76,14 @@ export function AiOnboardingSheet({
     void fetchAiPublicIdentity().then(setPub);
   }, []);
 
+  // The age they gave at setup decides whether Flirt is offered; in full mode it is asked here.
+  useEffect(() => {
+    if (mode !== 'about' || !profile) return;
+    void Promise.resolve(
+      getSupabaseClient().from('ai_profiles').select('age').eq('user_id', profile.id).maybeSingle(),
+    ).then(({ data }) => setAge((data as { age?: number | null } | null)?.age ?? null), () => undefined);
+  }, [mode, profile?.id]);
+
   useEffect(() => {
     const wanted = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
     (wanted ?? panelRef.current)?.focus();
@@ -81,11 +95,12 @@ export function AiOnboardingSheet({
       event.stopPropagation();
       if (step === 0) onClose();
       else if (finishing) return;
+      else if (mode === 'about' && step === 4) setStep(0);
       else setStep((s) => (s > 0 ? ((s - 1) as Step) : s));
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [step, onClose, finishing]);
+  }, [step, onClose, finishing, mode]);
 
   const face = pub?.displayName ?? 'PINGO';
   const langs = orderedLanguages(
@@ -130,6 +145,7 @@ export function AiOnboardingSheet({
         display_name: null,
         avatar_url: null,
         onboarded_at: new Date().toISOString(),
+        about_done_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
       if (writeError) throw writeError;
@@ -152,6 +168,26 @@ export function AiOnboardingSheet({
       setError(cause instanceof Error ? cause.message : 'Could not save.');
       setBusy(false);
     }
+  };
+
+  /**
+   * The end of the about-only run. Done counts whether they picked things or
+   * skipped every step: either way they have answered, and it stops asking.
+   */
+  const saveAboutOnly = async () => {
+    if (!profile) return;
+    setBusy(true);
+    setFinishing(true);
+    await saveAbout(profile.id, {
+      interests,
+      life,
+      wants: isAdult(age) ? wants : wants.filter((w) => w !== 'flirt'),
+      note,
+    });
+    await Promise.resolve(
+      getSupabaseClient().from('ai_profiles').update({ about_done_at: new Date().toISOString() }).eq('user_id', profile.id),
+    ).catch(() => undefined);
+    window.setTimeout(() => onDone(), 220);
   };
 
   return (
@@ -196,15 +232,17 @@ export function AiOnboardingSheet({
                 <span className="text-[0.75rem] font-medium text-text-secondary">Always here</span>
               </div>
               <h2 id={titleId} className="mt-3 text-h1 text-ink">
-                Hey 👋
+                {mode === 'about' ? 'Tell me about you 👀' : 'Hey 👋'}
               </h2>
               <p className="mt-2 max-w-[18rem] text-body text-text-secondary">
-                Let&apos;s get to know each other.
+                {mode === 'about'
+                  ? 'Three quick taps, so our chats never get boring.'
+                  : <>Let&apos;s get to know each other.</>}
               </p>
               <Button
                 variant="primary"
                 className="mt-6 w-full"
-                onClick={() => setStep(1)}
+                onClick={() => setStep(mode === 'about' ? 4 : 1)}
                 autoFocus
               >
                 Continue
@@ -289,7 +327,7 @@ export function AiOnboardingSheet({
           )}
 
           {step === 4 && (
-            <StepShell titleId={titleId} title="What are you into?" onBack={() => setStep(3)}>
+            <StepShell titleId={titleId} title="What are you into?" onBack={() => setStep(mode === 'about' ? 0 : 3)}>
               <p className="-mt-2 mb-3 text-caption text-text-secondary">
                 Pick up to {MAX_INTERESTS}. I&apos;ll bring these up so we never run out of things to talk about.
               </p>
@@ -345,7 +383,10 @@ export function AiOnboardingSheet({
                   else if (id === 'flirt' && personality === 'spicy') setPersonality('friendly');
                 }}
               />
-              <NextOrSkip empty={!wants.length} onNext={() => setStep(7)} />
+              <NextOrSkip
+                empty={!wants.length}
+                onNext={() => (mode === 'about' ? void saveAboutOnly() : setStep(7))}
+              />
             </StepShell>
           )}
 

@@ -59,6 +59,8 @@ export function spicyConfigured(): boolean {
 export interface SpicyTurn {
   db: Db;
   userId: string;
+  /** A group set to Spicy: only what was said to PINGO AI is read, and nobody's memories. */
+  isGroup?: boolean;
   conversationId: string;
   live: string;
   profile: SpicyProfile;
@@ -82,9 +84,11 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
-function systemPrompt(p: SpicyProfile, known: string[]): string {
+function systemPrompt(p: SpicyProfile, known: string[], group: boolean): string {
   const parts = [
-    'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
+    group
+      ? 'You are PINGO AI in Spicy mode in a group chat; an adult (18+) in the group just tagged you, and the group chose this mode. Reply to them. Others in the group read it too, so keep it to teasing and flirting - nothing sexually explicit here.'
+      : 'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
     'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
     'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
@@ -123,7 +127,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
       .is('encryption', null)
       .order('created_at', { ascending: false })
       .limit(HISTORY_ROWS),
-    t.profile.memory_enabled === false
+    t.isGroup || t.profile.memory_enabled === false
       ? Promise.resolve({ data: [] })
       : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_ROWS),
   ]);
@@ -132,6 +136,8 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
   let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const r of (rows ?? []) as Row[]) {
+    // In a group, only what was said to PINGO AI: everybody else's chat is theirs, not context.
+    if (t.isGroup && r.sender_id !== t.botId && !/@pingo_?ai/i.test(r.body ?? '')) continue;
     // Without the hidden [[mood]] tags, which a model otherwise copies into the bubble.
     const said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, MESSAGE_CHARS);
     if (!said || t.skipBodies.includes(said)) continue;
@@ -174,7 +180,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
-        messages: [{ role: 'system', content: systemPrompt(t.profile, known) }, ...history],
+        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });

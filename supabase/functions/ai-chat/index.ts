@@ -227,7 +227,7 @@ async function runTurn(
         : Promise.resolve(null);
     const { data: conv } = await userClient
       .from('conversations')
-      .select('id, kind, ai_side, title')
+      .select('id, kind, ai_side, title, ai_personality')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -316,12 +316,20 @@ async function runTurn(
        * looked up - a text turn needs neither - so it costs no extra round trip.
        * Everything else (groups, calls, /search, pictures) stays on Luna.
        */
-      const voice = isGroup ? null : await spicyVoice;
+      /*
+       * In a group Spicy is the group's choice, not the asker's: set with
+       * /personality by an adult there. The asker's own age still decides -
+       * anyone under 18 who tags PINGO AI is answered by Luna, in the default voice.
+       */
+      const own = await spicyVoice;
+      const groupSpicy = (conv as { ai_personality?: string | null }).ai_personality === 'spicy';
+      const voice = isGroup ? (groupSpicy && own ? { ...own, personality: 'spicy' } : null) : own;
       if (said && spicyAllowed(voice) && !imagePrompt(said)) {
         const out = await spicyTurn({
           db: userClient,
           userId: user.id,
           conversationId,
+          isGroup,
           live: said.slice(0, 4000),
           profile: voice!,
           botId: BOT_ID,
@@ -377,6 +385,7 @@ async function runTurn(
       const out = await lunaTurn(
         {
           master: masterRow?.enabled === true,
+          groupPersonality: isGroup ? ((conv as { ai_personality?: string | null }).ai_personality ?? null) : null,
           emitAction: (action) => emitExtra({ action }),
           db: userClient,
           userId: user.id,

@@ -1,5 +1,5 @@
 import { Toggle, cn } from '@pingo/ui';
-import { Brain, Briefcase, CheckCircle2, FileText, Flame, Gamepad2, Heart, Lightbulb, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Brain, Briefcase, CheckCircle2, FileText, Flame, Gamepad2, Heart, Lightbulb, Lock, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { isAdult } from '../personalities.js';
@@ -85,7 +85,12 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
           {AI_PERSONAS.map((p) => (
             <Persona key={p.id} on={persona === p.id} icon={ICONS[p.id]} title={p.label} sub={p.sub} onPick={() => setPersona(p.id)} />
           ))}
-          {adult && (
+          {/*
+            * Spicy is on the list for everybody, so nobody wonders where it is -
+            * and locked, greyed out with a padlock, for anyone under 18 or with
+            * no age: it cannot be picked, and the server would not honour it anyway.
+            */}
+          {adult ? (
             <Persona
               on={persona === 'spicy'}
               icon={<Flame size={26} className="text-[#f43f5e]" />}
@@ -93,6 +98,24 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
               sub="Flirty, bold, no filter · 18+"
               onPick={() => setPersona('spicy')}
             />
+          ) : (
+            ready && (
+              <div
+                aria-disabled="true"
+                className="pp-card flex w-full cursor-not-allowed items-center gap-3.5 px-4 py-3.5 text-left opacity-55 grayscale"
+              >
+                <span className="grid size-9 shrink-0 place-items-center">
+                  <Flame size={26} aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16.5px] font-semibold">Spicy</span>
+                  <span className="block text-[14px] text-[var(--pp-sub)]">For 18+ only</span>
+                </span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--pp-sub)]/15">
+                  <Lock size={16} aria-label="Locked" />
+                </span>
+              </div>
+            )
           )}
         </div>
 
