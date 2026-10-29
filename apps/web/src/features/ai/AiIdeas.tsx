@@ -1,9 +1,11 @@
+import { useProfile } from '@pingo/core';
+
 /**
  * What PINGO AI can do, in an empty chat, as Muse shows its Ideas: one white
  * card, a picture and two lines per idea, hairlines between them. Each one
  * starts the matching command in the composer.
  */
-const IDEAS: { command: string; emoji: string; title: string; body: string }[] = [
+const IDEAS: { command: string; emoji: string; title: string; body: string; premium?: boolean; free?: boolean }[] = [
   {
     command: '/search ',
     emoji: '🔎',
@@ -15,6 +17,14 @@ const IDEAS: { command: string; emoji: string; title: string; body: string }[] =
     emoji: '🎨',
     title: 'I can make pictures',
     body: "Posters, stickers and wallpapers from a line of text. Send me a photo and I'll edit it too.",
+    premium: true,
+  },
+  {
+    command: 'Help me write ',
+    emoji: '✍️',
+    title: 'I can help you say it right',
+    body: 'A reply to a tricky message, a bio, an apology or a birthday wish, in your own voice.',
+    free: true,
   },
   {
     command: '/summarize ',
@@ -31,6 +41,9 @@ const IDEAS: { command: string; emoji: string; title: string; body: string }[] =
 ];
 
 export function AiIdeas({ name, onPick }: { name?: string | undefined; onPick: (text: string) => void }) {
+  const { profile } = useProfile();
+  // Pictures are premium: a free account sees the writing idea in their place.
+  const ideas = IDEAS.filter((idea) => (idea.premium ? profile?.isPremium === true : idea.free ? profile?.isPremium !== true : true));
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5 pb-2">
       <div className="text-center">
@@ -40,7 +53,7 @@ export function AiIdeas({ name, onPick }: { name?: string | undefined; onPick: (
       <div className="rounded-[30px] bg-[var(--room-panel)] px-5 pb-2 pt-5 text-[#15171c] shadow-[0_10px_30px_-12px_rgb(0_0_0/0.25)]">
         <h3 className="mb-1 text-[22px] font-medium tracking-[-0.01em]">Ideas</h3>
         <ul>
-          {IDEAS.map((idea, i) => (
+          {ideas.map((idea, i) => (
             <li key={idea.command} className={i > 0 ? 'ml-[46px] border-t border-black/[0.08]' : 'ml-[46px]'}>
               <button
                 type="button"

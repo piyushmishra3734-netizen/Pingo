@@ -64,7 +64,12 @@ const FACES: { name: FlowFace; hint: string; icon: ComposerCommand['icon'] }[] =
   { name: 'angry', hint: 'Pingo Flow gets angry', icon: <Angry {...ICON} /> },
 ];
 
-export const AI_COMMANDS: ComposerCommand[] = [...ASK, ...APP, ...FACES].map(({ name, hint, icon }) => ({ name, hint, icon }));
+const ALL: ComposerCommand[] = [...ASK, ...APP, ...FACES].map(({ name, hint, icon }) => ({ name, hint, icon }));
+
+/** The slash menu for this person: pictures are PINGO premium, and the menu says so rather than letting them find out. */
+export function aiCommandsFor(premium: boolean): ComposerCommand[] {
+  return premium ? ALL : ALL.map((c) => (c.name === 'image' ? { ...c, hint: 'Create a picture · PINGO premium' } : c));
+}
 
 export type ParsedCommand =
   | { kind: 'ask'; command: AiCommand; body: string; face: FlowFace }

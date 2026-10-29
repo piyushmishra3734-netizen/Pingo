@@ -278,8 +278,16 @@ async function runTurn(
       const asked = ['search', 'image', 'remember', 'summarize', 'translate', 'explain', 'think'].includes(String(body.command))
         ? String(body.command)
         : undefined;
+      /*
+       * Pictures are PINGO premium. The model is not offered the drawing tool
+       * for anyone else, and the two ways around it (the /image command and a
+       * plain "draw me ...") are answered here, before a credit or a provider
+       * call is spent.
+       */
+      const premium = await isPremiumUser(userClient, user.id);
+      if (!premium && (asked === 'image' || imagePrompt(said))) return await sayPremiumPictures(request, userClient, conversationId);
       const command = !canSpend && (asked === 'search' || asked === 'image' || asked === 'think') ? undefined : asked;
-      const imagesOn = imagesOnEnv && canSpend;
+      const imagesOn = imagesOnEnv && canSpend && premium;
       const picture = canSpend ? (command === 'image' ? said || undefined : imagePrompt(said)) : undefined;
       if (picture && (!imagesOn || !openaiCanDraw())) {
         await credits.spend(5);
@@ -311,6 +319,7 @@ async function runTurn(
             : ((spoken ? Deno.env.get('OPENAI_VOICE_REASONING_EFFORT') : undefined) ?? 'none'),
           webSearch: Deno.env.get('OPENAI_WEB_SEARCH') !== 'off' && canSpend,
           images: imagesOn,
+          premium,
           creditsLeft,
           imageModel: Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-image-2',
           ...(command ? { command } : {}),
@@ -409,6 +418,9 @@ async function runTurn(
      * a better answer to "draw a conclusion" than a picture of one.
      */
     const drawing = imagePrompt(livePreview);
+    if (drawing && !(await isPremiumUser(userClient, user.id))) {
+      return await sayPremiumPictures(request, userClient, conversationId);
+    }
     if (drawing) {
       return await replyWithImage(request, userClient, supabaseUrl, conversationId, drawing, emit);
     }
@@ -2847,6 +2859,31 @@ async function capMemories(
     const drop = all.slice(0, all.length - max).map((r) => r.id);
     await userClient.from('ai_memories').delete().in('id', drop);
   }
+}
+
+/** Whether this person has PINGO premium. A failed lookup reads as "no": pictures are the costly thing to give away. */
+async function isPremiumUser(
+  // deno-lint-ignore no-explicit-any
+  userClient: any,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await userClient.from('profiles').select('is_premium').eq('id', userId).maybeSingle();
+  if (error) console.error('[ai-chat] premium lookup', error.message);
+  return data?.is_premium === true;
+}
+
+/** The answer to a picture request from a free account: one kind line, no credit spent, no provider called. */
+async function sayPremiumPictures(
+  request: Request,
+  // deno-lint-ignore no-explicit-any
+  userClient: any,
+  conversationId: string,
+): Promise<Response> {
+  const body = "Pictures are part of PINGO premium. Chat, web search and everything else stay free. Want me to help with the idea in words instead?";
+  const args = { target_conversation: conversationId, reply_body: body };
+  let { data: id, error } = await userClient.rpc('post_ai_reply', { ...args, reply_meta: { mood: 'happy' } });
+  if (error) ({ data: id } = await userClient.rpc('post_ai_reply', args));
+  return json(request, { messageId: id, mood: 'happy', error: 'image_premium' });
 }
 
 /**

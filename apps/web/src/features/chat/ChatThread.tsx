@@ -44,7 +44,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { stopAi, useAiDraft, useAiMood, useAiStoppable } from '../ai/ai-draft.js';
 import { AiContextRing } from '../ai/room/AiContextRing.js';
-import { AI_COMMANDS, parseAiCommand } from '../ai/ai-commands.js';
+import { aiCommandsFor, parseAiCommand } from '../ai/ai-commands.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
 import { reactWith, useFlowFace } from '../ai/flow/flow-face.js';
@@ -2368,7 +2368,7 @@ export function ChatThread({
           <Composer
             mentions={mentionOptions}
             {...(isAi && aiStoppable ? { onStop: () => stopAi(conversation.id) } : {})}
-            {...(isAi ? { commands: AI_COMMANDS, prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
+            {...(isAi ? { commands: aiCommandsFor(mine?.isPremium === true), prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.

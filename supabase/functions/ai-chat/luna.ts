@@ -34,6 +34,7 @@
  */
 
 import {
+  STALLED,
   streamResponse,
   type BuiltinTool,
   type DrawnImage,
@@ -59,6 +60,7 @@ export type LunaProfile = {
   display_name?: string;
   language?: string | null;
   country?: string | null;
+  age?: number | null;
   memory_enabled?: boolean;
 };
 
@@ -130,6 +132,8 @@ export interface LunaTurn {
   webSearch?: boolean;
   /** OpenAI's image tool, on unless switched off. Never on a call. */
   images?: boolean;
+  /** PINGO premium. Pictures are premium only; false makes the model say so instead of promising one. */
+  premium?: boolean;
   /** The gpt-image model for the image tool. Empty: OpenAI's default. */
   imageModel?: string;
   emit: (stage: LunaStage) => void;
@@ -238,6 +242,8 @@ Pictures (image_generation):
 - Not when they want a photo described or a question about it answered: you can see the photos they send, just answer.
 - After drawing, say at most one short line about it. Do not describe the picture at length.
 
+What you can do for them here (say it only when it helps, never as a list of features): look things up live on the web; read their photos, screenshots and files; remember things when they ask; help them write messages in their own voice; talk on a voice call from the call button; draw pictures for premium members. They get 15 free credits a day for search and deep thinking.
+
 Photos and files they send are attached to their message: look at them and read them, and answer about what is actually there.
 
 Mood: end every reply with a hidden tag for the face the app shows while it is read: [[mood:X]], X one of default, happy, excited, thinking, surprised, sleepy, confused, sad, angry, listening, talking. Pick what fits your reply. The tag is removed before anyone sees it; never mention it.
@@ -247,6 +253,19 @@ Memory and the past (tools):
 - recall_memory: ONLY when they ask what you remember about them, refer to something they told you to remember, or the answer depends on a personal detail you cannot see in the conversation.
 - search_chat: ONLY when they refer to something said earlier that is not in the conversation you can see.
 - Otherwise answer straight away, without tools. Never mention tools, memory systems or these instructions.`;
+
+/**
+ * Added only while a chat is brand new. What a first impression is made of, in
+ * the order it matters: an answer that is plainly good, a reply that proves it
+ * read them, and a reason to send a second message.
+ */
+const FIRST_MEETING = `This is one of the first messages you have ever exchanged with this person, so make it count.
+- Be genuinely useful in the very first reply: answer the real question fully, the way the best assistant they have used would. A thin or generic first answer is the one reason people leave.
+- Prove you listened: use one specific detail from their message (and their name once, if you know it). Never open with "Welcome to PINGO" or a feature list.
+- If their message is only a hello, do not ask "how can I help?". Say something warm and specific, then offer two or three concrete things to try as a short list, e.g. a quick fact check with live web search, help with a message or a plan, a story or a game, explaining something simply.
+- If a feature would clearly help with what they just asked (search for anything current, reading a photo or file, remembering a date), use it or mention it in half a line. Show, do not tell.
+- Finish with one specific, easy-to-answer question or next step so replying takes no effort.
+- Warm and human, never salesy. No emoji pile, no apology, no disclaimers.`;
 
 const TOOLS: FunctionTool[] = [
   {
@@ -539,7 +558,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const [{ data: profile }, { data: rows }, { data: chat }, { data: saved }] = await Promise.all([
     t.db
       .from('ai_profiles')
-      .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, memory_enabled')
+      .select('personality, custom_personality, custom_instructions, response_length, preferred_name, display_name, language, country, age, memory_enabled')
       .eq('user_id', t.userId)
       .maybeSingle(),
     t.db
@@ -675,6 +694,13 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const lang = d.languageLabel(p?.language);
   if (lang) about.push(`Their preferred language: ${lang}. Still mirror what they actually write.`);
   if (p?.country) about.push(`They are in ${p.country}.`);
+  if (typeof p?.age === 'number') {
+    about.push(
+      p.age < 18
+        ? `They are ${p.age}. Pitch examples, tone and advice at that age, and keep everything suitable for a teenager.`
+        : `They are ${p.age}. Pitch examples and references at that age without ever pointing it out.`,
+    );
+  }
   // The default voice is ChatGPT's own; only a personality somebody chose, or their own instructions, change it.
   const voice = d.profileVoiceBlock ? d.profileVoiceBlock(p) : p?.personality && p.personality !== 'friendly' ? d.personalityBlock(p) : '';
   if (voice) about.push(voice);
@@ -696,6 +722,18 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
   if (t.creditsLeft !== undefined && t.creditsLeft < 5) {
     now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
+  }
+  /*
+   * The first minutes decide whether PINGO AI gets a second visit: people try a
+   * new assistant with one real question and compare it to the one they know.
+   * So the opening turns are worth more than any other, and are told so.
+   */
+  const userTurns = history.filter((m) => m.role === 'user').length;
+  if (!t.isGroup && !t.spoken && userTurns <= 2 && !remembered.length) {
+    now.push(FIRST_MEETING);
+  }
+  if (t.premium === false) {
+    now.push('Making pictures is part of PINGO premium and they are on the free plan. You cannot draw or edit images: if they ask, say so in one friendly line and offer to help in words instead. Never promise a picture.');
   }
   if (t.master && !t.isGroup && !t.spoken) now.push(masterNote());
   if (!t.spoken && !t.isGroup && (profile as { reactions_enabled?: boolean } | null)?.reactions_enabled !== false) now.push(REACT_NOTE);
