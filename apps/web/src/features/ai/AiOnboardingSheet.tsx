@@ -38,6 +38,7 @@ type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export function AiOnboardingSheet({
   conversationId,
   mode = 'full',
+  preview = false,
   onDone,
   onClose,
 }: {
@@ -46,6 +47,8 @@ export function AiOnboardingSheet({
    * steps, for somebody who set PINGO AI up before they existed.
    */
   mode?: 'full' | 'about';
+  /** Dev only (`?ai-onboarding`): every step works and nothing is saved. */
+  preview?: boolean;
   /** The PINGO AI chat this opened over; it gets the first message once they finish. */
   conversationId?: string;
   onDone: () => void;
@@ -84,13 +87,23 @@ export function AiOnboardingSheet({
     void fetchAiPublicIdentity().then(setPub);
   }, []);
 
-  // The age they gave at setup decides whether Flirt is offered; in full mode it is asked here.
+  /*
+   * The age they gave at setup decides whether Flirt (and Spicy) is offered. The
+   * first setup let it be skipped, and 30 of the first 43 did - so somebody in
+   * the about-only run with no age on record is asked for it here too. The
+   * preview always shows that step.
+   */
+  const [askAge, setAskAge] = useState(mode === 'about' && preview);
   useEffect(() => {
-    if (mode !== 'about' || !profile) return;
+    if (mode !== 'about' || !profile || preview) return;
     void Promise.resolve(
       getSupabaseClient().from('ai_profiles').select('age').eq('user_id', profile.id).maybeSingle(),
-    ).then(({ data }) => setAge((data as { age?: number | null } | null)?.age ?? null), () => undefined);
-  }, [mode, profile?.id]);
+    ).then(({ data }) => {
+      const known = (data as { age?: number | null } | null)?.age ?? null;
+      setAge(known);
+      setAskAge(known === null);
+    }, () => undefined);
+  }, [mode, profile?.id, preview]);
 
   useEffect(() => {
     const wanted = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
@@ -103,15 +116,17 @@ export function AiOnboardingSheet({
       event.stopPropagation();
       if (step === 0) onClose();
       else if (finishing) return;
-      else if (mode === 'about' && step === 4) setStep(0);
+      else if (mode === 'about' && step === seq[0]) setStep(0);
+      else if (mode === 'about' && step === 4) setStep(askAge ? 2 : 0);
+      else if (mode === 'about' && step === 2) setStep(0);
       else setStep((s) => (s > 0 ? ((s - 1) as Step) : s));
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [step, onClose, finishing, mode]);
+  }, [step, onClose, finishing, mode, askAge]);
 
   const face = pub?.displayName ?? 'PINGO';
-  const seq: Step[] = mode === 'about' ? [4, 5, 6] : [1, 2, 3, 4, 5, 6, 7];
+  const seq: Step[] = mode === 'about' ? (askAge ? [2, 4, 5, 6] : [4, 5, 6]) : [1, 2, 3, 4, 5, 6, 7];
   const shell = {
     titleId,
     avatar: pub?.avatarUrl,
@@ -121,7 +136,14 @@ export function AiOnboardingSheet({
     typeof navigator !== 'undefined' ? navigator.language : undefined,
   );
 
+  /** The preview's end: the celebration, then closed, with nothing written. */
+  const finishPreview = () => {
+    setFinishing(true);
+    window.setTimeout(() => onDone(), 1600);
+  };
+
   const save = async () => {
+    if (preview) return finishPreview();
     if (!profile) return;
     if (personality === 'custom' && !custom.trim()) {
       setError('Describe the vibe, or pick another personality.');
@@ -189,6 +211,7 @@ export function AiOnboardingSheet({
    * skipped every step: either way they have answered, and it stops asking.
    */
   const saveAboutOnly = async () => {
+    if (preview) return finishPreview();
     if (!profile) return;
     setBusy(true);
     setFinishing(true);
@@ -199,7 +222,11 @@ export function AiOnboardingSheet({
       note,
     });
     await Promise.resolve(
-      getSupabaseClient().from('ai_profiles').update({ about_done_at: new Date().toISOString() }).eq('user_id', profile.id),
+      getSupabaseClient()
+        .from('ai_profiles')
+        // The age, when this run asked for it; never overwrites one already on record.
+        .update({ about_done_at: new Date().toISOString(), ...(askAge && age !== null ? { age } : {}) })
+        .eq('user_id', profile.id),
     ).catch(() => undefined);
     window.setTimeout(() => onDone(), 220);
   };
@@ -254,7 +281,7 @@ export function AiOnboardingSheet({
                 ))}
               </div>
               <div className="mt-6 w-full">
-                <Cta onClick={() => setStep(mode === 'about' ? 4 : 1)} autoFocus>
+                <Cta onClick={() => setStep(mode === 'about' ? seq[0]! : 1)} autoFocus>
                   {mode === 'about' ? "Let's go" : 'Continue'}
                   <ArrowRight size={18} aria-hidden />
                 </Cta>
@@ -299,10 +326,10 @@ export function AiOnboardingSheet({
           )}
 
           {step === 2 && (
-            <StepShell {...shell} title={t('ai.age')} onBack={() => setStep(1)}>
+            <StepShell {...shell} title={t('ai.age')} onBack={() => setStep(mode === 'about' ? 0 : 1)}>
               <AiAgeWheel value={age} onChange={setAge} />
               <div className="mt-5">
-                <Cta onClick={() => setStep(3)}>
+                <Cta onClick={() => setStep(mode === 'about' ? 4 : 3)}>
                   Next <ArrowRight size={18} aria-hidden />
                 </Cta>
               </div>
@@ -342,7 +369,7 @@ export function AiOnboardingSheet({
             <StepShell {...shell} title="What are you into?"
               hint={`Pick up to ${MAX_INTERESTS}. I'll bring these up, so we never run out of things to talk about.`}
               reaction={reaction}
-              onBack={() => setStep(mode === 'about' ? 0 : 3)}
+              onBack={() => setStep(mode === 'about' ? (askAge ? 2 : 0) : 3)}
             >
               <Chips
                 label="Interests"

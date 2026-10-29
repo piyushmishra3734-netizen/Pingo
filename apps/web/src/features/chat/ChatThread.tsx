@@ -803,6 +803,12 @@ export function ChatThread({
 
   useEffect(() => {
     if (!isAi || !currentUser) return;
+    // Dev only: ?ai-onboarding=about (or =full) opens the sheet as a preview that saves nothing.
+    const asked = import.meta.env.DEV ? new URLSearchParams(location.search).get('ai-onboarding') : null;
+    if (asked === 'about' || asked === 'full') {
+      setAiOnboarding(asked);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -2737,6 +2743,7 @@ export function ChatThread({
         <AiOnboardingSheet
           conversationId={conversation.id}
           mode={aiOnboarding}
+          preview={import.meta.env.DEV && new URLSearchParams(location.search).has('ai-onboarding')}
           onDone={() => setAiOnboarding(false)}
           onClose={() => setAiOnboarding(false)}
         />
