@@ -15,11 +15,12 @@ import {
   type SlideVariant,
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
-import { NoticeCard } from '../../features/updates/UpdateNotice.js';
+import { NoticeCard, UpdatePrompt } from '../../features/updates/UpdateNotice.js';
 import { isOperator } from '../../lib/operator.js';
 import {
   clearUpdateNotice,
   loadUpdateNotice,
+  publishTextUpdateNotice,
   updateNoticeUrl,
   uploadUpdateNotice,
   type UpdateNoticeRow,
@@ -249,6 +250,22 @@ export function ControllingScreen() {
     }
   };
 
+  /** No picture: the Update prompt alone, for older builds only. Costs no storage egress. */
+  const onPublishText = async () => {
+    setBusy('notice');
+    setError(null);
+    setOk(null);
+    try {
+      await publishTextUpdateNotice(Number.parseInt(minBuild, 10));
+      await refresh();
+      setOk('Update prompt published - anyone on an older APK sees "Update PINGO" with the download link next open.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not publish');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const onClearNotice = async () => {
     setBusy('notice');
     setError(null);
@@ -339,7 +356,11 @@ export function ControllingScreen() {
           </label>
 
           <div className="mb-2 overflow-hidden rounded bg-page">
-            {notice ? (
+            {notice && !notice.storage_path ? (
+              <p className="px-3 py-6 text-center text-caption text-text-secondary">
+                Text prompt: "Update PINGO" with the download button, no image
+              </p>
+            ) : notice ? (
               <img
                 src={updateNoticeUrl(notice)}
                 alt=""
@@ -379,6 +400,15 @@ export function ControllingScreen() {
           />
           <Button
             size="sm"
+            className="mb-2 w-full"
+            disabled={busy === 'notice' || Number(minBuild) < 1_000_000}
+            onClick={() => void onPublishText()}
+          >
+            {busy === 'notice' ? 'Publishing…' : 'Publish update prompt (no image)'}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             className="w-full"
             disabled={busy === 'notice' || Number(minBuild) < 1_000_000}
             onClick={() => noticeFile.current?.click()}
@@ -408,7 +438,9 @@ export function ControllingScreen() {
             </Button>
           ) : null}
 
-          {previewing && notice ? (
+          {previewing && notice && !notice.storage_path ? (
+            <UpdatePrompt version={undefined} onLater={() => setPreviewing(false)} />
+          ) : previewing && notice ? (
             <NoticeCard
               src={updateNoticeUrl(notice)}
               onClose={() => setPreviewing(false)}

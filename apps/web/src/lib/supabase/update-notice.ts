@@ -66,15 +66,8 @@ async function compactImage(file: File): Promise<File> {
   }
 }
 
-/**
- * Publishes (or replaces) the notice.
- *
- * The stored path carries the build number, so replacing a notice cannot be
- * served from a cache keyed on the old one — and `updated_at` busts the rest.
- */
-export async function uploadUpdateNotice(input: File, minBuild: number): Promise<UpdateNoticeRow> {
-  let file = input;
-  if (!file.type.startsWith('image/')) throw new Error('Only image files are allowed');
+/** Refuses anything that is not a versionCode - see the note inside. */
+function assertBuildNumber(minBuild: number): void {
   /*
    * A versionCode, not any number - and this check is the whole reason it
    * exists.
@@ -95,6 +88,49 @@ export async function uploadUpdateNotice(input: File, minBuild: number): Promise
         'year, ISO week, then the build within that week.',
     );
   }
+}
+
+/**
+ * Publishes a notice with no picture: "a new version is ready" and an Update
+ * button, for phones below `minBuild`, and nothing for anyone else.
+ *
+ * Every phone opening the app downloads the picture, so even a compacted card
+ * was a storage-egress cost paid by the whole fleet, for news only the people
+ * who are behind need. With no picture the prompt shows the logo, the version
+ * and the button - and every build since 2026-09-28 already draws it that way
+ * (`row.storage_path ? { image } : {}`), so old APKs need nothing new to get it.
+ */
+export async function publishTextUpdateNotice(minBuild: number): Promise<UpdateNoticeRow> {
+  assertBuildNumber(minBuild);
+  const { data, error } = await getSupabaseClient()
+    .from('update_notice')
+    .upsert(
+      {
+        id: true,
+        // Empty, not null: the column is NOT NULL, and old builds test it for truth.
+        storage_path: '',
+        content_type: null,
+        min_build: minBuild,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    )
+    .select(COLUMNS)
+    .single();
+  if (error) throw error;
+  return data as UpdateNoticeRow;
+}
+
+/**
+ * Publishes (or replaces) the notice.
+ *
+ * The stored path carries the build number, so replacing a notice cannot be
+ * served from a cache keyed on the old one — and `updated_at` busts the rest.
+ */
+export async function uploadUpdateNotice(input: File, minBuild: number): Promise<UpdateNoticeRow> {
+  let file = input;
+  if (!file.type.startsWith('image/')) throw new Error('Only image files are allowed');
+  assertBuildNumber(minBuild);
 
   const client = getSupabaseClient();
   file = await compactImage(file);

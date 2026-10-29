@@ -94,6 +94,8 @@ export function UpdateNotice() {
       />
     );
   }
+  // A text-only notice is for people who are behind; there is no news card to show anyone else.
+  if (!row.storage_path) return null;
   return <NoticeCard src={updateNoticeUrl(row)} onClose={close} />;
 }
 
@@ -122,8 +124,9 @@ export function UpdatePrompt({
 }) {
   const [picture, setPicture] = useState(image);
 
+  const downloadUrl = publicAppUrl('/download?update=1');
   const update = () => {
-    window.location.href = publicAppUrl('/download?update=1');
+    window.location.href = downloadUrl;
   };
 
   return (
@@ -177,6 +180,18 @@ export function UpdatePrompt({
             <ArrowDownToLine size={19} />
             Update now
           </button>
+          {/*
+           * The address itself, as a link, for when the button's hand-off to
+           * the browser does not happen - and so it can be copied or shared.
+           */}
+          <a
+            href={downloadUrl}
+            target="_blank"
+            rel="noopener"
+            className="focus-ring mt-3 block truncate text-center text-[13px] font-medium text-brand underline underline-offset-2"
+          >
+            {downloadUrl.replace(/^https?:\/\//, '').replace(/\?.*$/, '')}
+          </a>
           <button
             type="button"
             onClick={onLater}
