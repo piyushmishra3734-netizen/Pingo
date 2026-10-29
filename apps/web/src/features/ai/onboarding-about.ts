@@ -20,44 +20,46 @@ export interface Chip {
   emoji: string;
   /** How it reads inside the memory the model sees. */
   says: string;
+  /** Pingu's line when it is picked: proof, in the moment, that it was heard. */
+  react?: string;
 }
 
 export const INTERESTS: Chip[] = [
-  { id: 'cricket', label: 'Cricket', emoji: '🏏', says: 'cricket' },
-  { id: 'football', label: 'Football', emoji: '⚽', says: 'football' },
-  { id: 'anime', label: 'Anime', emoji: '🍥', says: 'anime' },
-  { id: 'gaming', label: 'Gaming', emoji: '🎮', says: 'gaming' },
-  { id: 'music', label: 'Music', emoji: '🎧', says: 'music' },
-  { id: 'movies', label: 'Movies & series', emoji: '🎬', says: 'movies and web series' },
-  { id: 'memes', label: 'Memes', emoji: '😂', says: 'memes' },
-  { id: 'fitness', label: 'Gym & fitness', emoji: '💪', says: 'gym and fitness' },
-  { id: 'coding', label: 'Coding', emoji: '💻', says: 'coding' },
-  { id: 'fashion', label: 'Fashion', emoji: '👗', says: 'fashion' },
-  { id: 'food', label: 'Food', emoji: '🍜', says: 'food' },
-  { id: 'travel', label: 'Travel', emoji: '✈️', says: 'travel' },
-  { id: 'books', label: 'Books', emoji: '📚', says: 'books' },
-  { id: 'art', label: 'Art & design', emoji: '🎨', says: 'art and design' },
-  { id: 'cars', label: 'Cars & bikes', emoji: '🏍️', says: 'cars and bikes' },
-  { id: 'kpop', label: 'K-pop', emoji: '💜', says: 'K-pop' },
-  { id: 'startups', label: 'Startups', emoji: '🚀', says: 'startups and business' },
-  { id: 'photo', label: 'Photography', emoji: '📸', says: 'photography' },
+  { id: 'cricket', label: 'Cricket', emoji: '🏏', says: 'cricket', react: 'Cricket! Match ke din mujhe bhi bulana 🏏' },
+  { id: 'football', label: 'Football', emoji: '⚽', says: 'football', react: 'Football fan? Messi ya Ronaldo, soch ke bolna ⚽' },
+  { id: 'anime', label: 'Anime', emoji: '🍥', says: 'anime', react: 'Anime! Ab recommendations ki line lagegi 🍥' },
+  { id: 'gaming', label: 'Gaming', emoji: '🎮', says: 'gaming', react: 'Gamer spotted. GG pakka 🎮' },
+  { id: 'music', label: 'Music', emoji: '🎧', says: 'music', react: 'Music! Playlist share karna padega 🎧' },
+  { id: 'movies', label: 'Movies & series', emoji: '🎬', says: 'movies and web series', react: 'Movie nights sorted 🍿' },
+  { id: 'memes', label: 'Memes', emoji: '😂', says: 'memes', react: 'Memes? Hum dono ki banegi 😂' },
+  { id: 'fitness', label: 'Gym & fitness', emoji: '💪', says: 'gym and fitness', react: 'Gym wale! Rest day pe baat karenge 💪' },
+  { id: 'coding', label: 'Coding', emoji: '💻', says: 'coding', react: 'Coder! Bugs ke saath main hoon 💻' },
+  { id: 'fashion', label: 'Fashion', emoji: '👗', says: 'fashion', react: 'Fashion sense, I see you 👗' },
+  { id: 'food', label: 'Food', emoji: '🍜', says: 'food', react: 'Foodie! Kya khaya aaj? 🍜' },
+  { id: 'travel', label: 'Travel', emoji: '✈️', says: 'travel', react: 'Next trip kahan ka? ✈️' },
+  { id: 'books', label: 'Books', emoji: '📚', says: 'books', react: 'Bookworm! Last kaunsi padhi? 📚' },
+  { id: 'art', label: 'Art & design', emoji: '🎨', says: 'art and design', react: 'Artist vibes ✨' },
+  { id: 'cars', label: 'Cars & bikes', emoji: '🏍️', says: 'cars and bikes', react: 'Vroom vroom 🏍️' },
+  { id: 'kpop', label: 'K-pop', emoji: '💜', says: 'K-pop', react: 'K-pop! Bias kaun hai? 💜' },
+  { id: 'startups', label: 'Startups', emoji: '🚀', says: 'startups and business', react: 'Founder energy 🚀' },
+  { id: 'photo', label: 'Photography', emoji: '📸', says: 'photography', react: 'Photographer! Best shot dikhana 📸' },
 ];
 
 export const LIFE: Chip[] = [
-  { id: 'school', label: 'In school', emoji: '🎒', says: 'in school' },
-  { id: 'college', label: 'In college', emoji: '🎓', says: 'in college' },
-  { id: 'exams', label: 'Preparing for exams', emoji: '📝', says: 'preparing for competitive exams' },
-  { id: 'work', label: 'Working', emoji: '💼', says: 'working' },
-  { id: 'building', label: 'Building something', emoji: '🛠️', says: 'building something of their own' },
-  { id: 'break', label: 'Taking a break', emoji: '🌴', says: 'taking a break' },
+  { id: 'school', label: 'In school', emoji: '🎒', says: 'in school', react: 'School life, sab yaad hai mujhe 🎒' },
+  { id: 'college', label: 'In college', emoji: '🎓', says: 'in college', react: 'College! Assignments, canteen aur drama 🎓' },
+  { id: 'exams', label: 'Preparing for exams', emoji: '📝', says: 'preparing for competitive exams', react: 'Exam prep? Main saath padhunga 📝' },
+  { id: 'work', label: 'Working', emoji: '💼', says: 'working', react: 'Working! Office ki kahaniyan sunaunga mat bolna 😄' },
+  { id: 'building', label: 'Building something', emoji: '🛠️', says: 'building something of their own', react: 'Kuch bana rahe ho? Batao batao 🛠️' },
+  { id: 'break', label: 'Taking a break', emoji: '🌴', says: 'taking a break', react: 'Break pe? Best phase 🌴' },
 ];
 
 export const WANTS: Chip[] = [
-  { id: 'friend', label: 'A friend to chill with', emoji: '😄', says: 'a friend to chill and joke with' },
-  { id: 'help', label: 'Help with study or work', emoji: '📚', says: 'help with studies or work' },
-  { id: 'vent', label: 'Someone to talk to', emoji: '🫂', says: 'someone to talk to when things are heavy' },
-  { id: 'ideas', label: 'Ideas and plans', emoji: '💡', says: 'ideas and plans' },
-  { id: 'flirt', label: 'Flirt', emoji: '🔥', says: 'someone to flirt with' },
+  { id: 'friend', label: 'A friend to chill with', emoji: '😄', says: 'a friend to chill and joke with', react: 'Bakchodi partner, done 😄' },
+  { id: 'help', label: 'Help with study or work', emoji: '📚', says: 'help with studies or work', react: 'Padhai ya kaam, sab sambhal lenge 📚' },
+  { id: 'vent', label: 'Someone to talk to', emoji: '🫂', says: 'someone to talk to when things are heavy', react: 'Main hoon na. Kabhi bhi 🫂' },
+  { id: 'ideas', label: 'Ideas and plans', emoji: '💡', says: 'ideas and plans', react: 'Ideas ki factory chalu 💡' },
+  { id: 'flirt', label: 'Flirt', emoji: '🔥', says: 'someone to flirt with', react: 'Ohh, bold 😏' },
 ];
 
 export const MAX_INTERESTS = 5;
