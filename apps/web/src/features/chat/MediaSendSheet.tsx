@@ -16,7 +16,7 @@ import { VideoTrimSheet } from './VideoTrimSheet.js';
  * chosen: the one in front large, the rest on a strip underneath. Swipe or tap
  * to move between them; the pencil draws on a photo, the scissors trim a clip;
  * the bin takes the one in front out and the strip's plus adds more. One caption for the
- * lot, riding on the first. Photos and videos go at their original quality. View once sits where WhatsApp puts
+ * lot, riding on the first. Videos go at their original quality; photos at most 1600 px on the long side. View once sits where WhatsApp puts
  * them - HD at the top, the "1" beside the caption.
  */
 

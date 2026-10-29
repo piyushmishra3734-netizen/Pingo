@@ -13,7 +13,7 @@ import {
 } from '../local/db.js';
 import { activityStatusOn } from '../../features/settings/privacy-flags.js';
 import { deviceLabel } from '../../features/settings/device-label.js';
-import { BUILD_ID } from '../build-id.js';
+import { BUILD_ID, DEVICE_CAPS } from '../build-id.js';
 import type { PingoSupabaseClient } from '../supabase/client.js';
 import type { MessageRow } from '../supabase/types.js';
 import { forgetOwnTexts, ownText } from '../local/sent-text.js';
@@ -405,6 +405,12 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
         label: deviceLabel(),
         // Which bundle is running, so rollout is measurable - see build-id.ts.
         build: BUILD_ID,
+        /*
+         * Not `caps`: `authenticated` has no SELECT on that column, and the
+         * upsert's `do update set caps = excluded.caps` needs it - every publish
+         * was refused with a 403 (2026-10-28). It is set by a plain update
+         * right after this resolves, below.
+         */
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       /*
@@ -431,6 +437,15 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
       { onConflict: 'device_id' },
     );
     if (error) throw error;
+    /*
+     * What this build can do, now that the row exists. A plain update needs no
+     * SELECT on the column, which is why it is not in the upsert. Best effort:
+     * the heartbeat says it again every minute.
+     */
+    const devices = client.from('device_keys') as unknown as {
+      update(values: Record<string, unknown>): { eq(column: string, value: string): PromiseLike<unknown> };
+    };
+    void Promise.resolve(devices.update({ caps: DEVICE_CAPS }).eq('device_id', identity.deviceId)).catch(() => undefined);
     return identity.deviceId;
 }
 

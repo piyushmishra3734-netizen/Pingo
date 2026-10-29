@@ -648,8 +648,10 @@ export type Database = {
           last_seen_at?: string;
           label?: string | null;
           build?: string | null;
+          /** What the build can do, e.g. `r2chat` - see `DEVICE_CAPS`. */
+          caps?: string[];
         };
-        Update: { last_seen_at?: string; label?: string | null; build?: string | null };
+        Update: { last_seen_at?: string; label?: string | null; build?: string | null; caps?: string[] };
         Relationships: [];
       };
       /** Read-only to the client; rows are written by `revoke_device`. */
@@ -1335,7 +1337,8 @@ export type Database = {
       };
       /** Newest message and unread count per conversation, for this user only. */
       conversation_previews: {
-        Args: Record<string, never>;
+        /** `only_ids` names the chats to answer for; omitted means all of mine. */
+        Args: Record<string, never> | { only_ids: string[] };
         Returns: {
           conversation_id: string;
           last_message_id: string | null;
@@ -1462,7 +1465,8 @@ export type Database = {
         Returns: { id: string; status: string }[];
       };
       my_streaks: {
-        Args: Record<string, never>;
+        /** `only_ids` names the chats to answer for; omitted means all of mine. */
+        Args: Record<string, never> | { only_ids: string[] };
         Returns: { conversation_id: string; streak: number }[];
       };
       /**

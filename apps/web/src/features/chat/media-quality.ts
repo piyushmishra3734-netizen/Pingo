@@ -96,11 +96,49 @@ export function standardSize(
  * version of "compress everything" is a dependency and a plan, not a line here.
  */
 export async function toStandardQuality(file: File): Promise<File> {
+  return shrink(file, standardSize, QUALITY);
+}
+
+/**
+ * The long edge of a chat photo: WhatsApp's default, sharp on any phone.
+ *
+ * Chat photos went at their original size on purpose - 480p was too soft for a
+ * conversation - so a 4032x3024 camera file reached Supabase at 3-5 MB and every
+ * member of a group downloaded it. At 1600 px the full-screen view is still
+ * sharper than the screen and the file is a tenth of the size.
+ */
+export const CHAT_LONG_EDGE = 1600;
+
+/** A notch above the 480p encode: the picture is bigger and gets looked at full screen. */
+const CHAT_QUALITY = 0.8;
+
+/** Exported for the test, like `standardSize`. `undefined` when already within the edge. */
+export function chatSize(width: number, height: number): { width: number; height: number } | undefined {
+  if (width <= 0 || height <= 0) return undefined;
+  const long = Math.max(width, height);
+  if (long <= CHAT_LONG_EDGE) return undefined;
+  const scale = CHAT_LONG_EDGE / long;
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+
+/**
+ * A still chat photo at most `CHAT_LONG_EDGE` on its long side. Never throws;
+ * animated images and anything that cannot be re-encoded smaller go as they are.
+ */
+export function toChatQuality(file: File): Promise<File> {
+  return shrink(file, chatSize, CHAT_QUALITY);
+}
+
+async function shrink(
+  file: File,
+  sizeFor: (width: number, height: number) => { width: number; height: number } | undefined,
+  quality: number,
+): Promise<File> {
   if (!isStillImage(file)) return file;
 
   try {
     const bitmap = await createImageBitmap(file);
-    const size = standardSize(bitmap.width, bitmap.height);
+    const size = sizeFor(bitmap.width, bitmap.height);
     if (!size) {
       bitmap.close();
       return file;
@@ -123,8 +161,8 @@ export async function toStandardQuality(file: File): Promise<File> {
      * cannot returns a PNG instead of failing, and a PNG of a photograph is
      * larger than the original was. So the type is checked rather than assumed.
      */
-    const encoded = await encode(canvas, 'image/webp');
-    const blob = encoded ?? (await encode(canvas, 'image/jpeg'));
+    const encoded = await encode(canvas, 'image/webp', quality);
+    const blob = encoded ?? (await encode(canvas, 'image/jpeg', quality));
     if (!blob) return file;
 
     // Bigger than what we started with means the original was already better
@@ -141,12 +179,12 @@ export async function toStandardQuality(file: File): Promise<File> {
   }
 }
 
-function encode(canvas: HTMLCanvasElement, type: string): Promise<Blob | undefined> {
+function encode(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | undefined> {
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => resolve(blob && blob.type === type ? blob : undefined),
       type,
-      QUALITY,
+      quality,
     );
   });
 }
