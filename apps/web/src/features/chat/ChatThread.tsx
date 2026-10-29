@@ -45,7 +45,8 @@ import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { stopAi, useAiDraft, useAiMood, useAiStoppable } from '../ai/ai-draft.js';
 import { AiContextRing } from '../ai/room/AiContextRing.js';
 import { aiCommandsFor, parseAiCommand } from '../ai/ai-commands.js';
-import { GROUP_PERSONALITY_HINT, parseGroupPersonality, setGroupPersonality } from '../ai/group-personality.js';
+import { parseGroupPersonality, type GroupPersonalityId } from '../ai/group-personality.js';
+import { GroupPersonalityCard } from '../ai/GroupPersonalityCard.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
 import { reactWith, useFlowFace } from '../ai/flow/flow-face.js';
@@ -1430,6 +1431,7 @@ export function ChatThread({
 
   const PINGO_AI_ID = 'a1000000-0000-4000-8000-0000000000a1';
   /** A group with PINGO AI in it: `/personality` is offered there. */
+  const [personaCard, setPersonaCard] = useState<{ start?: GroupPersonalityId }>();
   const groupHasAi = isGroup && conversation.participantIds.includes(PINGO_AI_ID);
   /**
    * @ autocomplete for groups (and AI DMs).
@@ -2339,6 +2341,18 @@ export function ChatThread({
             </div>
           )}
 
+          {personaCard && currentUser && (
+            <GroupPersonalityCard
+              conversationId={conversation.id}
+              userId={currentUser.id}
+              start={personaCard.start}
+              onClose={() => setPersonaCard(undefined)}
+              onSaved={(p) => {
+                setPersonaCard(undefined);
+                setGoalNote(`${p.emoji} PINGO AI will be ${p.label} with you here`);
+              }}
+            />
+          )}
           {(isAi || groupHasAi) && goalNote && (
             <p role="status" className={cn('mx-auto mb-2 w-fit rounded-full px-4 py-2 text-[14px] font-medium', isAi ? 'bg-[var(--room-raised)] text-[var(--room-ink)]' : 'bg-surface text-ink shadow-sm ring-1 ring-line')}>
               {goalNote}
@@ -2382,7 +2396,7 @@ export function ChatThread({
             {...(isAi && aiStoppable ? { onStop: () => stopAi(conversation.id) } : {})}
             {...(isAi ? { commands: aiCommandsFor(mine?.isPremium === true), prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
             {...(groupHasAi
-              ? { commands: [{ name: 'personality', hint: 'Change how PINGO AI talks here · 18+', icon: <Sparkles size={17} strokeWidth={2} aria-hidden /> }] }
+              ? { commands: [{ name: 'personality', hint: 'Pick how PINGO AI talks to you here', icon: <Sparkles size={17} strokeWidth={2} aria-hidden /> }] }
               : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
@@ -2395,27 +2409,12 @@ export function ChatThread({
                * and is never sent; the rest go with the text as `aiCommand`.
                */
               /*
-               * /personality in a group PINGO AI is in: changes how it talks there
-               * for everybody, after a confirm. Never sent as a message.
+               * `@pingoai /personality` in a group PINGO AI is in: opens the card
+               * where they pick how it talks to them there. Never sent.
                */
               const persona = groupHasAi ? parseGroupPersonality(body) : undefined;
-              if (persona === 'list' || persona === 'unknown') {
-                setGoalNote(`${persona === 'unknown' ? 'No such personality. ' : ''}${GROUP_PERSONALITY_HINT}`);
-                return;
-              }
               if (persona) {
-                const spicy = persona.id === 'spicy';
-                const ok = await confirm({
-                  title: `Make PINGO AI ${persona.label} in this group?`,
-                  description: spicy
-                    ? 'It flirts and teases when an adult tags it here. Anyone under 18 still gets the normal PINGO AI. Only 18+ members can change this.'
-                    : 'Everyone here will see PINGO AI talk this way. Only 18+ members can change this.',
-                  confirmLabel: 'Change',
-                  tone: 'normal',
-                });
-                if (!ok) return;
-                const failed = await setGroupPersonality(conversation.id, persona.id);
-                setGoalNote(failed ?? `PINGO AI is ${persona.label} in this group now`);
+                setPersonaCard(persona);
                 return;
               }
 

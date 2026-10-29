@@ -143,7 +143,7 @@ export interface LunaTurn {
   emitSources?: (sources: Source[]) => void;
   /** The picture it drew, once it is a message in the thread. */
   emitImage?: (image: { messageId: string; path: string }) => void;
-  /** The group's PINGO AI personality, when one was set there. */
+  /** The asker's own PINGO AI personality for this group, when they picked one. */
   groupPersonality?: string | null;
   /** A slash command the client stripped from the text: search, image, remember, summarize, translate, explain. */
   command?: string;
@@ -588,8 +588,12 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_CAP),
   ]);
   const needsTitle = !!d.nameChat && sideChatNeedsTitle(chat as ChatRow);
-  /* A group's own personality (`/personality` in that group) replaces the asker's; their age still decides Spicy. */
-  const p = (t.isGroup && t.groupPersonality ? { ...(profile ?? {}), personality: t.groupPersonality } : (profile ?? null)) as LunaProfile | null;
+  /*
+   * In a group the asker's pick for that group (`@pingoai /personality`) is the voice,
+   * and none picked is the default - their private chat's personality stays private.
+   * Their age still decides Spicy.
+   */
+  const p = (t.isGroup ? { ...(profile ?? {}), personality: t.groupPersonality ?? 'friendly' } : (profile ?? null)) as LunaProfile | null;
   const memoryOn = p?.memory_enabled !== false;
   const newest = (rows ?? []) as Row[];
 

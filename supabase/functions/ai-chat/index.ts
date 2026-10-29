@@ -227,7 +227,7 @@ async function runTurn(
         : Promise.resolve(null);
     const { data: conv } = await userClient
       .from('conversations')
-      .select('id, kind, ai_side, title, ai_personality')
+      .select('id, kind, ai_side, title')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -265,6 +265,11 @@ async function runTurn(
       return json(request, { error: 'Not an AI conversation.' }, 403);
     }
 
+    /*
+     * In a group PINGO AI is everyone's, and each member picks how it talks to
+     * *them* (`@pingoai /personality`): read off the asker's own membership row.
+     */
+    let myGroupPersonality: string | null = null;
     if (isGroup) {
       const { data: botMember } = await userClient
         .from('conversation_members')
@@ -277,13 +282,14 @@ async function runTurn(
       }
       const { data: meMember } = await userClient
         .from('conversation_members')
-        .select('user_id')
+        .select('user_id, ai_personality')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)
         .maybeSingle();
       if (!meMember) {
         return json(request, { error: 'Not a group member.' }, 403);
       }
+      myGroupPersonality = (meMember as { ai_personality?: string | null }).ai_personality ?? null;
     }
 
     /*
@@ -317,12 +323,12 @@ async function runTurn(
        * Everything else (groups, calls, /search, pictures) stays on Luna.
        */
       /*
-       * In a group Spicy is the group's choice, not the asker's: set with
-       * /personality by an adult there. The asker's own age still decides -
-       * anyone under 18 who tags PINGO AI is answered by Luna, in the default voice.
+       * In a group Spicy is the asker's own choice for that group (their
+       * `/personality`), and their age still decides - anyone under 18 is
+       * answered by Luna, in the default voice.
        */
       const own = await spicyVoice;
-      const groupSpicy = (conv as { ai_personality?: string | null }).ai_personality === 'spicy';
+      const groupSpicy = myGroupPersonality === 'spicy';
       const voice = isGroup ? (groupSpicy && own ? { ...own, personality: 'spicy' } : null) : own;
       if (said && spicyAllowed(voice) && !imagePrompt(said)) {
         const out = await spicyTurn({
@@ -385,7 +391,7 @@ async function runTurn(
       const out = await lunaTurn(
         {
           master: masterRow?.enabled === true,
-          groupPersonality: isGroup ? ((conv as { ai_personality?: string | null }).ai_personality ?? null) : null,
+          groupPersonality: isGroup ? myGroupPersonality : null,
           emitAction: (action) => emitExtra({ action }),
           db: userClient,
           userId: user.id,
