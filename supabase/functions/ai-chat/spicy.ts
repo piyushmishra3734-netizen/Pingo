@@ -7,7 +7,7 @@
  * any OpenAI-compatible chat-completions endpoint. Secrets:
  *   SPICY_API_KEY    required; without it Spicy stays on Luna (flirty only)
  *   SPICY_BASE_URL   the router's /v1 base
- *   SPICY_MODEL      default mistralai/mistral-uncensored-1.2
+ *   SPICY_MODEL      default mistralai/mistral-uncensored-roleplay
  *
  * Who gets it is decided on the server, never by the app: `spicyAllowed`. The
  * age is the one they gave at the start of PINGO AI (`ai_profiles.age`); no
@@ -25,9 +25,15 @@ import { instructionsBlock, languageLabel, lengthBlock, type ProfileVoice } from
 type Db = any;
 
 export const SPICY_MIN_AGE = 18;
-const DEFAULT_MODEL = 'mistralai/mistral-uncensored-1.2';
-const HISTORY_ROWS = 60;
-const HISTORY_CHARS = 24_000;
+// Compared on AnonRouter 2026-10-29: the roleplay tune flirts in natural Hinglish; 1.2 was flat.
+const DEFAULT_MODEL = 'mistralai/mistral-uncensored-roleplay';
+/*
+ * A short window, on purpose. The same thread holds everything Luna did before
+ * Spicy was switched on - "send this to Baani", Approve cards, mood tags - and
+ * sixty rows of that turned a flirt into confused replies about messages.
+ */
+const HISTORY_ROWS = 16;
+const HISTORY_CHARS = 6_000;
 const MESSAGE_CHARS = 2_000;
 
 export type SpicyProfile = ProfileVoice & {
@@ -77,7 +83,8 @@ function systemPrompt(p: SpicyProfile): string {
   const parts = [
     'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
-    'Talk like a person in a chat: short messages, no lectures, no disclaimers, no "as an AI". Each line you write is one message.',
+    'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
+    'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
     'Language: mirror what they write - Hinglish to Hinglish, Hindi to Hindi, English to English, word for word in the same mix.',
     'Asked what you are: you are PINGO, in one line. No model names, no backend.',
     LIMITS,
@@ -110,7 +117,8 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
   let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const r of (rows ?? []) as Row[]) {
-    const said = t.stripMarkers((r.body ?? '').trim()).slice(0, MESSAGE_CHARS);
+    // Without the hidden [[mood]] tags, which a model otherwise copies into the bubble.
+    const said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, MESSAGE_CHARS);
     if (!said || t.skipBodies.includes(said)) continue;
     if (said.length > budget && picked.length) break;
     budget -= said.length;
