@@ -46,7 +46,8 @@ import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
 import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
 import { compactChat, serviceClient } from './compact.ts';
-import { nameSideChat, nameSideChatFromMessage } from './side-chat.ts';
+import { firstWordsTitle, nameSideChat, nameSideChatFromMessage, sideChatNeedsTitle } from './side-chat.ts';
+import type { ChatRow } from './side-chat-title.ts';
 import { spicyAllowed, spicyConfigured, spicyTurn, type SpicyProfile } from './spicy.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
@@ -198,9 +199,23 @@ async function runTurn(
       return json(request, { error: 'conversationId required.' }, 400);
     }
 
+    /*
+     * Spicy needs the person's AI profile before anything else is decided, so
+     * it is read alongside the conversation rather than after it: one round
+     * trip, not two. Only asked for when a Spicy turn is possible at all.
+     */
+    const spicyVoice =
+      !spoken && !body.command && body.action !== 'compact' && spicyConfigured()
+        ? userClient
+            .from('ai_profiles')
+            .select('personality, custom_instructions, response_length, preferred_name, display_name, language, age')
+            .eq('user_id', user.id)
+            .maybeSingle()
+            .then((r: { data: unknown }) => r.data as SpicyProfile | null, () => null)
+        : Promise.resolve(null);
     const { data: conv } = await userClient
       .from('conversations')
-      .select('id, kind')
+      .select('id, kind, ai_side, title')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -265,6 +280,32 @@ async function runTurn(
     if (openaiKey) {
       const said = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
       /*
+       * Spicy, for an adult who chose it: their own AI chat, typed, no slash
+       * command, not a picture request. Decided before credits and premium are
+       * looked up - a text turn needs neither - so it costs no extra round trip.
+       * Everything else (groups, calls, /search, pictures) stays on Luna.
+       */
+      const voice = isGroup ? null : await spicyVoice;
+      if (said && spicyAllowed(voice) && !imagePrompt(said)) {
+        const out = await spicyTurn({
+          db: userClient,
+          conversationId,
+          live: said.slice(0, 4000),
+          profile: voice!,
+          botId: BOT_ID,
+          skipBodies: SKIP_BODIES,
+          stripMarkers,
+          emit,
+          emitDelta,
+          ...(signal ? { signal } : {}),
+        });
+        // Only a side chat still called 'New chat' is named; the row was read above, so no lookup.
+        if (out.status === 200 && sideChatNeedsTitle(conv as ChatRow)) {
+          await nameSideChat(supabaseUrl, user.id, conversationId, firstWordsTitle(said));
+        }
+        return json(request, out.body, out.status);
+      }
+      /*
        * The model decides when to draw. The regex only routes around it when
        * OpenAI cannot draw here: switched off, or refused by this model.
        */
@@ -296,34 +337,6 @@ async function runTurn(
         // A side chat's first turn: named from the words, since no model wrote a title.
         if (!isGroup) await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
         return drawn;
-      }
-      /*
-       * Spicy, for an adult who chose it: their own AI chat, typed, no slash
-       * command. Everything else - groups, calls, /search, pictures - stays on
-       * Luna. See `spicy.ts`.
-       */
-      if (!isGroup && !spoken && !command && spicyConfigured()) {
-        const { data: voice } = await userClient
-          .from('ai_profiles')
-          .select('personality, custom_instructions, response_length, preferred_name, display_name, language, age')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (spicyAllowed(voice)) {
-          const out = await spicyTurn({
-            db: userClient,
-            conversationId,
-            live: said.slice(0, 4000),
-            profile: voice as SpicyProfile,
-            botId: BOT_ID,
-            skipBodies: SKIP_BODIES,
-            stripMarkers,
-            emit,
-            emitDelta,
-            ...(signal ? { signal } : {}),
-          });
-          await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
-          return json(request, out.body, out.status);
-        }
       }
       // PINGO Master: only the person's own AI chat, and only when they have switched it on.
       const { data: masterRow } = !isGroup

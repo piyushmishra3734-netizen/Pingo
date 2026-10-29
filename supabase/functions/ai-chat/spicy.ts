@@ -85,6 +85,8 @@ function systemPrompt(p: SpicyProfile): string {
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
     'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
     'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
+    'Never repeat a word, phrase or opener from your earlier replies. Every reply is fresh and makes sense on its own.',
+    'You can only text: no pictures, voice notes or calls. Never pretend you sent one.',
     'Language: mirror what they write - Hinglish to Hinglish, Hindi to Hindi, English to English, word for word in the same mix.',
     'Asked what you are: you are PINGO, in one line. No model names, no backend.',
     LIMITS,
@@ -154,7 +156,11 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         model,
         stream: true,
         temperature: 0.9,
-        max_tokens: 600,
+        // Texting: a few short lines is the whole reply, and the cap is what bounds a runaway one.
+        max_tokens: 300,
+        // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
+        frequency_penalty: 0.4,
+        presence_penalty: 0.3,
         messages: [{ role: 'system', content: systemPrompt(t.profile) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
