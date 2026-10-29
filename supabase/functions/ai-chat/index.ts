@@ -47,6 +47,7 @@ import { windowIndices } from './history-window.ts';
 import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
 import { compactChat, serviceClient } from './compact.ts';
 import { nameSideChat, nameSideChatFromMessage } from './side-chat.ts';
+import { spicyAllowed, spicyConfigured, spicyTurn, type SpicyProfile } from './spicy.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -295,6 +296,34 @@ async function runTurn(
         // A side chat's first turn: named from the words, since no model wrote a title.
         if (!isGroup) await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
         return drawn;
+      }
+      /*
+       * Spicy, for an adult who chose it: their own AI chat, typed, no slash
+       * command. Everything else - groups, calls, /search, pictures - stays on
+       * Luna. See `spicy.ts`.
+       */
+      if (!isGroup && !spoken && !command && spicyConfigured()) {
+        const { data: voice } = await userClient
+          .from('ai_profiles')
+          .select('personality, custom_instructions, response_length, preferred_name, display_name, language, age')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (spicyAllowed(voice)) {
+          const out = await spicyTurn({
+            db: userClient,
+            conversationId,
+            live: said.slice(0, 4000),
+            profile: voice as SpicyProfile,
+            botId: BOT_ID,
+            skipBodies: SKIP_BODIES,
+            stripMarkers,
+            emit,
+            emitDelta,
+            ...(signal ? { signal } : {}),
+          });
+          await nameSideChatFromMessage(userClient, supabaseUrl, user.id, conversationId, said);
+          return json(request, out.body, out.status);
+        }
       }
       // PINGO Master: only the person's own AI chat, and only when they have switched it on.
       const { data: masterRow } = !isGroup

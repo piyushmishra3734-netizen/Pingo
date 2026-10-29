@@ -2,18 +2,21 @@ import { cn } from '@pingo/ui';
 import { Check } from 'lucide-react';
 
 import { useT } from '../i18n/useT.js';
-import { PERSONALITIES, type PersonalityId } from './personalities.js';
+import { PERSONALITIES, personalitiesFor, type PersonalityId } from './personalities.js';
 
 export function AiPersonalityGrid({
   value,
   customText,
   onChange,
   onCustomText,
+  age,
 }: {
   value: PersonalityId;
   customText?: string;
   onChange: (id: PersonalityId) => void;
   onCustomText?: (text: string) => void;
+  /** Their PINGO AI age; Spicy is listed only from 18. */
+  age?: number | null;
 }) {
   const t = useT();
   const active = PERSONALITIES.find((p) => p.id === value) ?? PERSONALITIES[0]!;
@@ -26,7 +29,7 @@ export function AiPersonalityGrid({
     <div className="space-y-3">
       {/* A list with a tick, as a phone's own settings pick one of several. */}
       <ul className="overflow-hidden rounded-[14px] bg-surface ring-1 ring-line [&>li+li]:border-t [&>li+li]:border-line" role="radiogroup" aria-label={t('ai.personality')}>
-        {PERSONALITIES.map((p) => {
+        {personalitiesFor(age).map((p) => {
           const selected = value === p.id;
           return (
             <li key={p.id}>

@@ -10,6 +10,7 @@ import { fetchAiPublicIdentity, type AiPublicIdentity } from './ai-public.js';
 import { AiAgeWheel } from './AiAgeWheel.js';
 import { AiPersonalityGrid } from './AiPersonalityGrid.js';
 import {
+  isAdult,
   orderedLanguages,
   pushRecentLanguage,
   type PersonalityId,
@@ -90,7 +91,8 @@ export function AiOnboardingSheet({
         preferred_name: preferredName.trim() || null,
         age: age,
         language: language.trim() || null,
-        personality,
+        // Spicy picked, then the age changed to under 18: the default instead.
+        personality: personality === 'spicy' && !isAdult(age) ? 'friendly' : personality,
         custom_personality: personality === 'custom' ? custom.trim() || null : null,
         response_length: 'short',
         memory_enabled: true,
@@ -267,6 +269,7 @@ export function AiOnboardingSheet({
                 customText={custom}
                 onChange={setPersonality}
                 onCustomText={setCustom}
+                age={age}
               />
               {error && (
                 <p className="mt-2 text-center text-caption text-danger/90" role="alert">

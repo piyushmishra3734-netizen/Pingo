@@ -1,7 +1,8 @@
 import { Toggle, cn } from '@pingo/ui';
-import { Brain, Briefcase, CheckCircle2, FileText, Gamepad2, Heart, Lightbulb, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Brain, Briefcase, CheckCircle2, FileText, Flame, Gamepad2, Heart, Lightbulb, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { isAdult } from '../personalities.js';
 import { saveAiPrefs, useAiPrefs } from '../room/ai-prefs.js';
 import { AI_PERSONAS, LIMITS, personaLabel } from './ai-profile-model.js';
 import { AiFace, Card, Counted, fieldClass, Sky, TopBar } from './pastel.js';
@@ -37,8 +38,10 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
     setReady(true);
   }, [loaded, ready, prefs]);
 
-  const legacy = ready && !AI_PERSONAS.some((p) => p.id === prefs.personality) ? prefs.personality : undefined;
-  const line = AI_PERSONAS.find((p) => p.id === persona)?.line ?? "I'm always here to help you.";
+  // Spicy is listed for adults (below), so for them it is not a personality from before.
+  const adult = isAdult(prefs.age);
+  const legacy = ready && !AI_PERSONAS.some((p) => p.id === prefs.personality) && !(adult && prefs.personality === 'spicy') ? prefs.personality : undefined;
+  const line = persona === 'spicy' ? "Oh? You're bold today. I like that." : (AI_PERSONAS.find((p) => p.id === persona)?.line ?? "I'm always here to help you.");
   const tooLong = instructions.trim().length > LIMITS.instructions;
   const customEmpty = persona === 'custom' && !instructions.trim();
   const dirty =
@@ -82,6 +85,15 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
           {AI_PERSONAS.map((p) => (
             <Persona key={p.id} on={persona === p.id} icon={ICONS[p.id]} title={p.label} sub={p.sub} onPick={() => setPersona(p.id)} />
           ))}
+          {adult && (
+            <Persona
+              on={persona === 'spicy'}
+              icon={<Flame size={26} className="text-[#f43f5e]" />}
+              title="Spicy"
+              sub="Flirty, bold, no filter · 18+"
+              onPick={() => setPersona('spicy')}
+            />
+          )}
         </div>
 
         <Card className="mt-4 p-4">

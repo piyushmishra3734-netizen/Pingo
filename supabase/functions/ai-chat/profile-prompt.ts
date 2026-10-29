@@ -12,7 +12,20 @@ export type ProfileVoice = {
   custom_personality?: string | null;
   /** Their own standing instructions from the profile page, sent whatever the personality. */
   custom_instructions?: string | null;
+  /** From the start of PINGO AI. Spicy needs 18 or more; see `voiceOf`. */
+  age?: number | null;
 };
+
+/**
+ * The personality actually used. Spicy is for adults only: with no age, or
+ * under 18, it is the default voice - whatever the row says and whichever app
+ * build wrote it.
+ */
+function voiceOf(profile: ProfileVoice | null): string {
+  const personality = profile?.personality ?? 'friendly';
+  if (personality === 'spicy' && !(typeof profile?.age === 'number' && profile.age >= 18)) return 'friendly';
+  return personality;
+}
 
 export function languageLabel(code: string | null | undefined): string | null {
   if (!code) return null;
@@ -33,7 +46,7 @@ export function languageLabel(code: string | null | undefined): string | null {
 
 export function personalityBlock(profile: ProfileVoice | null): string {
   // Ignore leftover custom_personality text when mode is not custom.
-  const personality = profile?.personality ?? 'friendly';
+  const personality = voiceOf(profile);
   const custom =
     personality === 'custom' ? profile?.custom_personality?.trim() : undefined;
 
@@ -154,7 +167,7 @@ export function instructionsBlock(profile: ProfileVoice | null): string {
  */
 export function profileVoiceBlock(profile: ProfileVoice | null): string {
   const parts: string[] = [];
-  if (profile?.personality && profile.personality !== 'friendly') parts.push(personalityBlock(profile));
+  if (voiceOf(profile) !== 'friendly') parts.push(personalityBlock(profile));
   const own = instructionsBlock(profile);
   if (own) parts.push(own);
   return parts.join('\n\n');
