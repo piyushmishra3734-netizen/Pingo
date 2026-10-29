@@ -406,12 +406,11 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
         // Which bundle is running, so rollout is measurable - see build-id.ts.
         build: BUILD_ID,
         /*
-         * What this build can do, with the row itself. The heartbeat reports it
-         * too, but its first beat can land before this row exists and update
-         * nothing - and a short first session then left a capable device
-         * counted as unable, keeping every chat it is in off R2.
+         * Not `caps`: `authenticated` has no SELECT on that column, and the
+         * upsert's `do update set caps = excluded.caps` needs it - every publish
+         * was refused with a 403 (2026-10-28). It is set by a plain update
+         * right after this resolves, below.
          */
-        caps: DEVICE_CAPS,
         ...(activityStatusOn() ? { last_seen_at: new Date().toISOString() } : {}),
       },
       /*
@@ -438,6 +437,15 @@ async function publishOnce(client: PingoSupabaseClient, userId: string): Promise
       { onConflict: 'device_id' },
     );
     if (error) throw error;
+    /*
+     * What this build can do, now that the row exists. A plain update needs no
+     * SELECT on the column, which is why it is not in the upsert. Best effort:
+     * the heartbeat says it again every minute.
+     */
+    const devices = client.from('device_keys') as unknown as {
+      update(values: Record<string, unknown>): { eq(column: string, value: string): PromiseLike<unknown> };
+    };
+    void Promise.resolve(devices.update({ caps: DEVICE_CAPS }).eq('device_id', identity.deviceId)).catch(() => undefined);
     return identity.deviceId;
 }
 
