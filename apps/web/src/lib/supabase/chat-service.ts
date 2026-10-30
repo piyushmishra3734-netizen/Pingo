@@ -432,6 +432,26 @@ const CONVERSATION_COALESCE_MS = 300;
 const LIST_FULL_READ_MS = 6 * 60 * 60 * 1000;
 
 /** First and longest wait between outbox resends on a line that keeps dropping. */
+/** Pauses between the quiet inline retries of an insert that hit a flaky moment. */
+const SEND_RETRY_MS = [250, 900];
+
+/**
+ * Whether a failed insert is worth trying again.
+ *
+ * A refusal (permission, constraint, rule) will be refused again. Everything else
+ * is the line or the load: no error code at all, a statement timeout (57014), a
+ * lock or serialisation clash, too many connections, a restarting server, a
+ * dropped connection class, an expired token.
+ */
+function isTransientSendError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (!code) return true;
+  if (code === 'PGRST301' || code === 'PGRST302') return true;
+  if (/^(57014|57P0[1-3]|53300|53400|40001|40P01|55P03|08.{3})$/.test(code)) return true;
+  return /jwt expired|timeout|timed out|network|fetch/i.test(error.message ?? '');
+}
+
 const RETRY_FIRST_MS = 2000;
 const RETRY_MAX_MS = 30_000;
 
@@ -5286,7 +5306,16 @@ export class SupabaseChatService implements ChatService {
                 return Object.keys(bits).length > 0 ? bits : undefined;
               })();
 
-    const { data, error } = await this.#client
+    /*
+     * A flaky moment is retried before it is ever shown.
+     *
+     * Most "couldn't be sent" errors were not refusals: a statement timeout under
+     * load, an expired token mid-send, a gateway blip. Each of those succeeds a
+     * second later, so the insert is tried again (twice, 250 ms then 900 ms) with
+     * a fresh session when the token was the problem. The id is ours, so a retry
+     * that raced a slow success lands on the same row instead of a copy.
+     */
+    const insertRow = () => this.#client
       .from('messages')
       .insert({
         // Ours, so the row the server writes is the bubble already on screen.
@@ -5348,6 +5377,22 @@ export class SupabaseChatService implements ChatService {
       .select('*')
       .single();
 
+    let attempt = await insertRow();
+    for (const wait of SEND_RETRY_MS) {
+      if (!attempt.error || !isTransientSendError(attempt.error)) break;
+      if (/jwt|token/i.test(attempt.error.message ?? '') || attempt.error.code === 'PGRST301') {
+        await this.#client.auth.refreshSession().catch(() => undefined);
+      }
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      attempt = await insertRow();
+      // A retry that raced a slow success finds its own row: that is a send, not a clash.
+      if (attempt.error?.code === '23505') {
+        const found = await this.#client.from('messages').select('*').eq('id', id).single();
+        if (found.data) attempt = found as typeof attempt;
+      }
+    }
+    const { error } = attempt;
+
     if (error) {
       /*
        * The bubble stays, and says so.
@@ -5378,7 +5423,7 @@ export class SupabaseChatService implements ChatService {
        * is a file handle that does not survive a reload, so promising to send
        * it later is a promise the queue cannot keep.
        */
-      const serverRefused = Boolean((error as { code?: string }).code);
+      const serverRefused = !isTransientSendError(error);
 
       /*
        * And a retry that hits the same bad line is still only waiting.
@@ -5388,11 +5433,16 @@ export class SupabaseChatService implements ChatService {
        * lost that was about to go out on the next pass.
        */
       if (!serverRefused && !hasMediaDraft(draft)) {
-        if (!existingId) {
-          await enqueue(draft, id).catch(() => undefined);
-          this.#scheduleRetry();
-        }
-        throw error;
+        // The outbox resending must see the failure so its pass stops; a first send must not.
+        if (existingId) throw error;
+        await enqueue(draft, id).catch(() => undefined);
+        this.#scheduleRetry();
+        /*
+         * Not an error to the sender: the clock stays on the bubble and it goes out by itself.
+         * Throwing here put the text back in the composer under a red "could not be sent" while
+         * the very same message was queued, which is how one message became two.
+         */
+        return pending;
       }
 
       /*
@@ -5414,6 +5464,7 @@ export class SupabaseChatService implements ChatService {
      * here - a sender who cannot read their own message the instant they send
      * it has no way to tell that from the message not sending.
      */
+    const data = attempt.data!;
     data.body = draft.body;
 
     // Signed here too, or the sender stares at their own photo as a blank frame
