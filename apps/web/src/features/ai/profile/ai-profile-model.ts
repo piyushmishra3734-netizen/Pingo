@@ -218,6 +218,12 @@ export function toAiProfileUpsert(userId: string, next: Partial<AiProfileRow>, n
     custom_instructions: next.custom_instructions?.trim() ? next.custom_instructions.trim().slice(0, 500) : null,
     response_length: next.response_length ?? 'short',
     preferred_name: next.preferred_name ?? null,
+    /*
+     * Missing from this list until 2026-10-30: the Personality page's "Your
+     * age" showed the new age and never wrote it, so it was back to the old
+     * one on the next open. Anything a settings screen can change has to be here.
+     */
+    age: next.age ?? null,
     language: next.language ?? null,
     memory_enabled: next.memory_enabled ?? true,
     reactions_enabled: next.reactions_enabled ?? true,
