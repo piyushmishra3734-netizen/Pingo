@@ -182,8 +182,13 @@ const HISTORY_ROWS = 400;
 const HISTORY_CHARS = 80_000;
 /** The prompt size the ring in the app measures against; keep equal to the app's AI_CONTEXT_LIMIT. */
 export const CONTEXT_LIMIT = 32_000;
-/** In a group: tagged messages and PINGO AI's replies only, this many at most. */
-const GROUP_WINDOW = 6;
+/**
+ * In a group: the last this-many messages from everybody, the way a member
+ * scrolls up before answering. Each one is cut to GROUP_MESSAGE_CHARS, so forty
+ * lines of chat stay a few thousand characters however long somebody rants.
+ */
+const GROUP_WINDOW = 40;
+const GROUP_MESSAGE_CHARS = 500;
 const MESSAGE_CHARS = 4_000;
 const MAX_TOOL_ROUNDS = 3;
 const MEMORY_CAP = 60;
@@ -541,9 +546,11 @@ type Row = {
   file_size?: number | null;
   view_limit?: number | null;
   media_purged_at?: string | null;
+  /** The message this one answers, when it was sent as a reply. */
+  reply_to_id?: string | null;
 };
 
-const ROW_COLUMNS = 'id, sender_id, body, created_at, kind, photo_path, file_path, file_name, file_mime, file_size, view_limit, media_purged_at';
+const ROW_COLUMNS = 'id, sender_id, body, created_at, kind, photo_path, file_path, file_name, file_mime, file_size, view_limit, media_purged_at, reply_to_id';
 
 export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: number; body: Record<string, unknown> }> {
   const t0 = Date.now();
@@ -644,17 +651,18 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
       return !d.skipBodies.includes(said) && !/<<<\s*(REPLY|ASK)\s*>>>/i.test(said);
     })
     /*
-     * In a group, only what was said to PINGO AI: the messages that tag it and
-     * its own replies, and only the last few of those. Everybody else's chat is
-     * theirs, not context; sending it on every mention was most of the cost.
+     * In a group, the last forty messages from everybody. It used to read only
+     * the lines that tagged it, and answered like somebody who walked in on the
+     * last sentence: "kya bol rahe ho?" about a thing the group had discussed
+     * for ten minutes. A member reads the chat before speaking.
      */
-    .filter((r) => !t.isGroup || r.sender_id === d.botId || /@pingo_?ai\b/i.test(r.body ?? ''))
     .slice(0, t.isGroup ? GROUP_WINDOW : undefined);
   const oldestInView = recent.length ? recent[recent.length - 1]!.created_at : new Date().toISOString();
 
   const names = new Map<string, string>();
   if (t.isGroup) {
-    const ids = [...new Set(recent.map((r) => r.sender_id).filter((id) => id !== d.botId))];
+    // The asker too: their tag may be the only line of theirs, or not in view yet.
+    const ids = [...new Set([...recent.map((r) => r.sender_id), t.userId].filter((id) => id !== d.botId))];
     if (ids.length) {
       const { data: people } = await t.db.from('profiles').select('id, display_name, username').in('id', ids);
       for (const person of (people ?? []) as { id: string; display_name?: string; username?: string }[]) {
@@ -669,7 +677,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   for (const r of recent) {
     const role = r.sender_id === d.botId ? 'assistant' : 'user';
     const speaker = role === 'user' ? (names.get(r.sender_id) ?? '') : '';
-    const text = describeRow(r, role, d.stripMarkers).slice(0, MESSAGE_CHARS);
+    const text = describeRow(r, role, d.stripMarkers).slice(0, t.isGroup ? GROUP_MESSAGE_CHARS : MESSAGE_CHARS);
     const content = speaker ? `${speaker}: ${text}` : text;
     if (content.length > budget && picked.length) break;
     budget -= content.length;
@@ -762,12 +770,18 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     if (here) about.push(here);
   }
   if (t.isGroup) {
+    const asker = names.get(t.userId) ?? 'the person who tagged you';
+    const replyNote = await repliedTo(t, newest, names, d);
     about.push(
       [
-        'You are in a GROUP chat and were mentioned. Each human line starts with the speaker\'s name ("Baani: ..."); that prefix is not part of what they said.',
-        'Keep people apart: never give one person\'s words or details to another. If unsure who said something, say so.',
-        'Answer the latest person who mentioned you. Do not start your reply with a name.',
-      ].join('\n'),
+        "You are in a GROUP chat, as one of its members - the group's own PINGO AI, everybody's, not anyone's assistant. Each human line starts with the speaker's name (\"Baani: ...\"); that prefix is not part of what they said.",
+        `${asker} just tagged you. Answer them - their latest message - using what the group has been saying above: what they are talking about, the jokes, who said what.`,
+        replyNote,
+        'Be a fun member, not a help desk: playful, quick, a light roast when it fits, the group\'s inside jokes when they fit. Answer the actual question properly first if there is one.',
+        'Keep it going: end most replies with a hook - a question back to them, or pull somebody else in by name ("Rahul tu bata, sahi bol raha hai ye?"). Never end flat.',
+        'Short, like a group chat: one to three lines. Do not start with their name every time. Match the language mix the group is using.',
+        'Keep people apart: never give one person\'s private details to another, and never claim somebody said something they did not. If you are not sure who said it, say so.',
+      ].filter(Boolean).join('\n'),
     );
   }
 
@@ -1501,6 +1515,27 @@ async function worldTool(name: string, args: { handle?: string; query?: string; 
 }
 
 /** What this group is, for the turn: name, description and who is in it. Members all see it already. */
+/**
+ * When the asker tagged PINGO AI in a reply to somebody's message, that
+ * message - so "@pingoai is ye sach hai?" is about the thing being replied to,
+ * not the last thing anyone said. Looked for in what was already read, then
+ * once in the table when it is older than that.
+ */
+async function repliedTo(t: LunaTurn, rows: Row[], names: Map<string, string>, d: LunaDeps): Promise<string> {
+  const mine = rows.find((r) => r.sender_id === t.userId && /@pingo_?ai\b/i.test(r.body ?? ''));
+  const target = mine?.reply_to_id;
+  if (!target) return '';
+  let quoted = rows.find((r) => r.id === target);
+  if (!quoted) {
+    const { data } = await t.db.from('messages').select(ROW_COLUMNS).eq('id', target).is('encryption', null).maybeSingle();
+    quoted = (data ?? undefined) as Row | undefined;
+  }
+  if (!quoted) return '';
+  const who = quoted.sender_id === d.botId ? 'you (PINGO AI)' : (names.get(quoted.sender_id) ?? 'a member');
+  const text = describeRow(quoted, quoted.sender_id === d.botId ? 'assistant' : 'user', d.stripMarkers).slice(0, GROUP_MESSAGE_CHARS);
+  return text ? `They tagged you as a reply to ${who}: "${text}". That message is what they are asking about.` : '';
+}
+
 async function groupContext(t: LunaTurn): Promise<string> {
   try {
     const [{ data: conv }, { data: people }] = await Promise.all([

@@ -36,6 +36,9 @@ const HISTORY_ROWS = 16;
 const HISTORY_CHARS = 6_000;
 const MESSAGE_CHARS = 2_000;
 const MEMORY_ROWS = 30;
+/** In a group, read like a member scrolling up: the last this-many, each cut short. */
+const GROUP_ROWS = 40;
+const GROUP_MESSAGE_CHARS = 500;
 
 export type SpicyProfile = ProfileVoice & {
   response_length?: string | null;
@@ -59,7 +62,7 @@ export function spicyConfigured(): boolean {
 export interface SpicyTurn {
   db: Db;
   userId: string;
-  /** A group set to Spicy: only what was said to PINGO AI is read, and nobody's memories. */
+  /** A group: the last GROUP_ROWS messages from everybody, with names, and nobody's memories. */
   isGroup?: boolean;
   conversationId: string;
   live: string;
@@ -84,10 +87,10 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
-function systemPrompt(p: SpicyProfile, known: string[], group: boolean): string {
+function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string): string {
   const parts = [
     group
-      ? 'You are PINGO AI in Spicy mode in a group chat; an adult (18+) in the group just tagged you, and the group chose this mode. Reply to them. Others in the group read it too, so keep it to teasing and flirting - nothing sexually explicit here.'
+      ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.`
       : 'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
     'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
@@ -126,29 +129,44 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
       .eq('conversation_id', t.conversationId)
       .is('encryption', null)
       .order('created_at', { ascending: false })
-      .limit(HISTORY_ROWS),
+      .limit(t.isGroup ? GROUP_ROWS : HISTORY_ROWS),
     t.isGroup || t.profile.memory_enabled === false
       ? Promise.resolve({ data: [] })
       : t.db.from('ai_memories').select('value').eq('user_id', t.userId).order('created_at', { ascending: true }).limit(MEMORY_ROWS),
   ]);
   const known = ((saved ?? []) as { value: string }[]).map((m) => `- ${m.value}`);
 
+  // Who said what, in a group: every human line carries its speaker's name.
+  const names = new Map<string, string>();
+  if (t.isGroup) {
+    const ids = [...new Set([...((rows ?? []) as Row[]).map((r) => r.sender_id), t.userId].filter((id) => id !== t.botId))];
+    const { data: people } = ids.length
+      ? await t.db.from('profiles').select('id, display_name, username').in('id', ids)
+      : { data: [] };
+    for (const person of (people ?? []) as { id: string; display_name?: string; username?: string }[]) {
+      const n = (person.display_name ?? '').trim() || (person.username ?? '').trim();
+      if (n) names.set(person.id, n);
+    }
+  }
+
   let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const r of (rows ?? []) as Row[]) {
-    // In a group, only what was said to PINGO AI: everybody else's chat is theirs, not context.
-    if (t.isGroup && r.sender_id !== t.botId && !/@pingo_?ai/i.test(r.body ?? '')) continue;
     // Without the hidden [[mood]] tags, which a model otherwise copies into the bubble.
-    const said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, MESSAGE_CHARS);
+    const said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, t.isGroup ? GROUP_MESSAGE_CHARS : MESSAGE_CHARS);
     if (!said || t.skipBodies.includes(said)) continue;
-    if (said.length > budget && picked.length) break;
-    budget -= said.length;
-    picked.push({ role: r.sender_id === t.botId ? 'assistant' : 'user', content: said });
+    const mine = r.sender_id === t.botId;
+    const speaker = t.isGroup && !mine ? names.get(r.sender_id) : undefined;
+    const content = speaker ? `${speaker}: ${said}` : said;
+    if (content.length > budget && picked.length) break;
+    budget -= content.length;
+    picked.push({ role: mine ? 'assistant' : 'user', content });
   }
   picked.reverse();
   const last = picked[picked.length - 1];
-  if (t.live && !(last?.role === 'user' && last.content === t.live.slice(0, MESSAGE_CHARS))) {
-    picked.push({ role: 'user', content: t.live.slice(0, MESSAGE_CHARS) });
+  if (t.live && !(last?.role === 'user' && last.content.endsWith(t.live.slice(0, MESSAGE_CHARS)))) {
+    const asker = t.isGroup ? names.get(t.userId) : undefined;
+    picked.push({ role: 'user', content: asker ? `${asker}: ${t.live.slice(0, MESSAGE_CHARS)}` : t.live.slice(0, MESSAGE_CHARS) });
   }
   // Chat completions want turns to alternate; two of theirs in a row are one turn.
   const history: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -180,7 +198,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
-        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup) }, ...history],
+        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId)) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });
