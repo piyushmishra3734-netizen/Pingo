@@ -81,6 +81,19 @@ export const PERSONALITIES: {
   },
 ];
 
+/**
+ * Spicy is for adults: shown only to somebody whose PINGO AI age is 18 or more.
+ * The server holds the same line (`spicy.ts`), so hiding it here is courtesy,
+ * not the lock.
+ */
+export function isAdult(age: number | null | undefined): boolean {
+  return typeof age === 'number' && age >= 18;
+}
+
+export function personalitiesFor(age: number | null | undefined): typeof PERSONALITIES {
+  return isAdult(age) ? PERSONALITIES : PERSONALITIES.filter((p) => p.id !== 'spicy');
+}
+
 export const LANGUAGES: { id: string; label: string }[] = [
   { id: 'en', label: 'English' },
   { id: 'hi', label: 'Hindi' },

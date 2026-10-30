@@ -109,6 +109,9 @@ ok('the row: trimmed, capped, custom personality follows the instructions', () =
   assert.equal(plain.custom_instructions, 'Use bullet points');
   assert.equal(plain.memory_enabled, true);
   assert.equal(toAiProfileUpsert('u1', { memory_enabled: false }).memory_enabled, false);
+  // The age set on the Personality page reaches the row (it once did not, and never saved).
+  assert.equal(toAiProfileUpsert('u1', { age: 19 }).age, 19);
+  assert.equal(toAiProfileUpsert('u1', {}).age, null);
 });
 
 ok('memory import: lines, bullets, JSON, duplicates and the cap', () => {

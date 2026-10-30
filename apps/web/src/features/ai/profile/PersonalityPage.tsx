@@ -1,7 +1,9 @@
 import { Toggle, cn } from '@pingo/ui';
-import { Brain, Briefcase, CheckCircle2, FileText, Gamepad2, Heart, Lightbulb, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Brain, Briefcase, CheckCircle2, Cake, ChevronDown, FileText, Flame, Gamepad2, Heart, Lightbulb, Lock, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { AiAgeWheel } from '../AiAgeWheel.js';
+import { isAdult } from '../personalities.js';
 import { saveAiPrefs, useAiPrefs } from '../room/ai-prefs.js';
 import { AI_PERSONAS, LIMITS, personaLabel } from './ai-profile-model.js';
 import { AiFace, Card, Counted, fieldClass, Sky, TopBar } from './pastel.js';
@@ -28,6 +30,26 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [ageOpen, setAgeOpen] = useState(false);
+  const [ageDraft, setAgeDraft] = useState<number | null>(null);
+  const [ageSaving, setAgeSaving] = useState(false);
+  const [ageError, setAgeError] = useState<string>();
+
+  const saveAge = async () => {
+    setAgeSaving(true);
+    setAgeError(undefined);
+    // Under 18 with Spicy picked: it falls back to the default here too, as the server already would.
+    const err = await saveAiPrefs({
+      age: ageDraft,
+      ...(prefs.personality === 'spicy' && !isAdult(ageDraft) ? { personality: 'friendly' } : {}),
+    });
+    setAgeSaving(false);
+    if (err) setAgeError(err);
+    else {
+      setAgeOpen(false);
+      if (persona === 'spicy' && !isAdult(ageDraft)) setPersona('friendly');
+    }
+  };
 
   useEffect(() => {
     if (!loaded || ready) return;
@@ -37,8 +59,10 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
     setReady(true);
   }, [loaded, ready, prefs]);
 
-  const legacy = ready && !AI_PERSONAS.some((p) => p.id === prefs.personality) ? prefs.personality : undefined;
-  const line = AI_PERSONAS.find((p) => p.id === persona)?.line ?? "I'm always here to help you.";
+  // Spicy is listed for adults (below), so for them it is not a personality from before.
+  const adult = isAdult(prefs.age);
+  const legacy = ready && !AI_PERSONAS.some((p) => p.id === prefs.personality) && !(adult && prefs.personality === 'spicy') ? prefs.personality : undefined;
+  const line = persona === 'spicy' ? "Oh? You're bold today. I like that." : (AI_PERSONAS.find((p) => p.id === persona)?.line ?? "I'm always here to help you.");
   const tooLong = instructions.trim().length > LIMITS.instructions;
   const customEmpty = persona === 'custom' && !instructions.trim();
   const dirty =
@@ -82,9 +106,84 @@ export function PersonalityPage({ onBack, onSaved }: { onBack: () => void; onSav
           {AI_PERSONAS.map((p) => (
             <Persona key={p.id} on={persona === p.id} icon={ICONS[p.id]} title={p.label} sub={p.sub} onPick={() => setPersona(p.id)} />
           ))}
+          {/*
+            * Spicy is on the list for everybody, so nobody wonders where it is -
+            * and locked, greyed out with a padlock, for anyone under 18 or with
+            * no age: it cannot be picked, and the server would not honour it anyway.
+            */}
+          {adult ? (
+            <Persona
+              on={persona === 'spicy'}
+              icon={<Flame size={26} className="text-[#f43f5e]" />}
+              title="Spicy"
+              sub="Flirty, bold, no filter · 18+"
+              onPick={() => setPersona('spicy')}
+            />
+          ) : (
+            ready && (
+              <button
+                type="button"
+                aria-disabled="true"
+                // Locked, but not a dead end: with no age on record, the tap goes to where it is set.
+                onClick={() => prefs.age == null && setAgeOpen(true)}
+                className="pp-card flex w-full items-center gap-3.5 px-4 py-3.5 text-left opacity-55 grayscale"
+              >
+                <span className="grid size-9 shrink-0 place-items-center">
+                  <Flame size={26} aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16.5px] font-semibold">Spicy</span>
+                  <span className="block text-[14px] text-[var(--pp-sub)]">{prefs.age == null ? 'For 18+ only · add your age below' : 'For 18+ only'}</span>
+                </span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--pp-sub)]/15">
+                  <Lock size={16} aria-label="Locked" />
+                </span>
+              </button>
+            )
+          )}
         </div>
 
-        <Card className="mt-4 p-4">
+        {/*
+          * The age from the start of PINGO AI, changeable here. It decides
+          * Spicy, so it sits under the list it unlocks. Saved on its own button,
+          * apart from the page's Save, because it is not a personality.
+          */}
+        <Card className="mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setAgeDraft(prefs.age ?? null);
+              setAgeOpen((open) => !open);
+            }}
+            aria-expanded={ageOpen}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+          >
+            <Cake size={25} className="shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[16px] font-semibold">Your age</span>
+              <span className="block text-[13.5px] text-[var(--pp-sub)]">
+                {ready && prefs.age != null ? `${prefs.age} · Pingo talks to you for your age` : 'Not set · needed for Spicy'}
+              </span>
+            </span>
+            <ChevronDown size={20} className={cn('shrink-0 text-[var(--pp-sub)] transition-transform', ageOpen && 'rotate-180')} aria-hidden />
+          </button>
+          {ageOpen && (
+            <div className="border-t border-[var(--pp-line)] px-4 pb-4 pt-2">
+              <AiAgeWheel value={ageDraft} onChange={setAgeDraft} />
+              {ageError && <p role="alert" className="mt-2 text-center text-[13px] text-danger">{ageError}</p>}
+              <button
+                type="button"
+                disabled={ageSaving || ageDraft === (prefs.age ?? null)}
+                onClick={() => void saveAge()}
+                className="bg-sweep mt-3 h-11 w-full rounded-full text-[15px] font-semibold text-white disabled:opacity-45"
+              >
+                {ageSaving ? 'Saving…' : 'Save age'}
+              </button>
+            </div>
+          )}
+        </Card>
+
+        <Card className="mt-3 p-4">
           <label>
             <span className="block text-[16.5px] font-bold">Custom instructions</span>
             <textarea

@@ -33,7 +33,7 @@ import { setHeyPingo, speechSupported, useHeyPingoOn } from '../../voice-assista
 import { AiMemoriesSheet } from '../AiMemoriesSheet.js';
 import { AiProfileSheet } from '../AiProfileSheet.js';
 import { setFlowMotion, useFlowMotion } from '../flow/flow-face.js';
-import { orderedLanguages, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId } from '../personalities.js';
+import { orderedLanguages, personalitiesFor, PERSONALITIES, RESPONSE_LENGTHS, type PersonalityId } from '../personalities.js';
 import { AI_VOICES, useAiPrefs, useAiVoice } from './ai-prefs.js';
 import { AiPanel, Choices, Group, PageHeader, Row } from './ui.js';
 
@@ -77,7 +77,7 @@ export function AiSettingsPage({ conversationId, onClose, onCall }: { conversati
       <div className="flex flex-col gap-6">
         <Group title="Personality">
           <Choices
-            options={PERSONALITIES.map((p) => ({ id: p.id, label: p.label, hint: p.hint }))}
+            options={personalitiesFor(prefs.age).map((p) => ({ id: p.id, label: p.label, hint: p.hint }))}
             value={personality}
             onPick={(id) => void save({ personality: id })}
           />

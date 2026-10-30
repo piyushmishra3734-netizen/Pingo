@@ -45,6 +45,8 @@ import { mentionsPingoAi, PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { stopAi, useAiDraft, useAiMood, useAiStoppable } from '../ai/ai-draft.js';
 import { AiContextRing } from '../ai/room/AiContextRing.js';
 import { aiCommandsFor, parseAiCommand } from '../ai/ai-commands.js';
+import { parseGroupPersonality, type GroupPersonalityId } from '../ai/group-personality.js';
+import { GroupPersonalityCard } from '../ai/GroupPersonalityCard.js';
 import { AiIdeas } from '../ai/AiIdeas.js';
 import { PingoFlow } from '../ai/flow/PingoFlow.js';
 import { reactWith, useFlowFace } from '../ai/flow/flow-face.js';
@@ -99,7 +101,7 @@ import { ListenAlongBar } from '../music/ListenAlongBar.js';
 import { MusicMark } from '../music/MusicMark.js';
 import { useWatching, watchingLine } from '../tv/watching.js';
 import { WatchAlongBar } from '../tv/WatchAlongBar.js';
-import { Clapperboard, Menu, Mic, MicOff, Phone, PhoneOff, Zap } from 'lucide-react';
+import { Clapperboard, Menu, Mic, MicOff, Phone, PhoneOff, Sparkles, Zap } from 'lucide-react';
 import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
@@ -796,22 +798,31 @@ export function ChatThread({
    * instead of a profile. Everything else reuses the same chat chrome.
    */
   const isAi = conversation.kind === 'ai';
-  const [aiOnboarding, setAiOnboarding] = useState(false);
+  /** full: never set up. about: set up before the interests steps existed, and has not answered or skipped them yet. */
+  const [aiOnboarding, setAiOnboarding] = useState<false | 'full' | 'about'>(false);
   const [aiProfileOpen, setAiProfileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAi || !currentUser) return;
+    // Dev only: ?ai-onboarding=about (or =full) opens the sheet as a preview that saves nothing.
+    const asked = import.meta.env.DEV ? new URLSearchParams(location.search).get('ai-onboarding') : null;
+    if (asked === 'about' || asked === 'full') {
+      setAiOnboarding(asked);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
         const { data, error } = await getSupabaseClient()
           .from('ai_profiles')
-          .select('onboarded_at')
+          .select('onboarded_at, about_done_at')
           .eq('user_id', currentUser.id)
           .maybeSingle();
         // Missing table / offline: skip the sheet rather than block chat.
         if (cancelled || error) return;
-        if (!data?.onboarded_at) setAiOnboarding(true);
+        if (!data?.onboarded_at) setAiOnboarding('full');
+        // Asked again on every open until they answer or skip it; closing it is not either.
+        else if (!(data as { about_done_at?: string | null }).about_done_at) setAiOnboarding('about');
       } catch {
         /* offline / not configured */
       }
@@ -1419,6 +1430,9 @@ export function ChatThread({
   };
 
   const PINGO_AI_ID = 'a1000000-0000-4000-8000-0000000000a1';
+  /** A group with PINGO AI in it: `/personality` is offered there. */
+  const [personaCard, setPersonaCard] = useState<{ start?: GroupPersonalityId }>();
+  const groupHasAi = isGroup && conversation.participantIds.includes(PINGO_AI_ID);
   /**
    * @ autocomplete for groups (and AI DMs).
    * AI is listed when it is a member of the room so @pingoai is discoverable.
@@ -2327,8 +2341,20 @@ export function ChatThread({
             </div>
           )}
 
-          {isAi && goalNote && (
-            <p role="status" className="mx-auto mb-2 w-fit rounded-full bg-[var(--room-raised)] px-4 py-2 text-[14px] font-medium text-[var(--room-ink)]">
+          {personaCard && currentUser && (
+            <GroupPersonalityCard
+              conversationId={conversation.id}
+              userId={currentUser.id}
+              start={personaCard.start}
+              onClose={() => setPersonaCard(undefined)}
+              onSaved={(p) => {
+                setPersonaCard(undefined);
+                setGoalNote(`${p.emoji} PINGO AI will be ${p.label} with you here`);
+              }}
+            />
+          )}
+          {(isAi || groupHasAi) && goalNote && (
+            <p role="status" className={cn('mx-auto mb-2 w-fit rounded-full px-4 py-2 text-[14px] font-medium', isAi ? 'bg-[var(--room-raised)] text-[var(--room-ink)]' : 'bg-surface text-ink shadow-sm ring-1 ring-line')}>
               {goalNote}
             </p>
           )}
@@ -2369,6 +2395,9 @@ export function ChatThread({
             mentions={mentionOptions}
             {...(isAi && aiStoppable ? { onStop: () => stopAi(conversation.id) } : {})}
             {...(isAi ? { commands: aiCommandsFor(mine?.isPremium === true), prefill: composerPrefill, placeholder: 'Message', room: true } : {})}
+            {...(groupHasAi
+              ? { commands: [{ name: 'personality', hint: 'Pick how PINGO AI talks to you here', icon: <Sparkles size={17} strokeWidth={2} aria-hidden /> }] }
+              : {})}
             onSend={async (body) => {
               // Captured before the await: a reply cleared mid-flight must not
               // turn this into a plain message.
@@ -2379,6 +2408,16 @@ export function ChatThread({
                * PINGO AI's slash commands. A face (/happy) is Pingo Flow's alone
                * and is never sent; the rest go with the text as `aiCommand`.
                */
+              /*
+               * `@pingoai /personality` in a group PINGO AI is in: opens the card
+               * where they pick how it talks to them there. Never sent.
+               */
+              const persona = groupHasAi ? parseGroupPersonality(body) : undefined;
+              if (persona) {
+                setPersonaCard(persona);
+                return;
+              }
+
               const parsed = isAi ? parseAiCommand(body) : undefined;
               if (parsed?.kind === 'face') {
                 reactWith(parsed.face);
@@ -2701,6 +2740,9 @@ export function ChatThread({
 
       {isAi && aiOnboarding && (
         <AiOnboardingSheet
+          conversationId={conversation.id}
+          mode={aiOnboarding}
+          preview={import.meta.env.DEV && new URLSearchParams(location.search).has('ai-onboarding')}
           onDone={() => setAiOnboarding(false)}
           onClose={() => setAiOnboarding(false)}
         />

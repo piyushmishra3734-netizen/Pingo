@@ -46,11 +46,22 @@ import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
 import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
 import { compactChat, serviceClient } from './compact.ts';
-import { nameSideChat, nameSideChatFromMessage } from './side-chat.ts';
+import { firstWordsTitle, nameSideChat, nameSideChatFromMessage, sideChatNeedsTitle } from './side-chat.ts';
+import type { ChatRow } from './side-chat-title.ts';
+import { spicyAllowed, spicyConfigured, spicyTurn, type SpicyProfile } from './spicy.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
 const BOT_ID = 'a1000000-0000-4000-8000-0000000000a1';
+
+/** What PINGO AI is answering when it speaks first. Read by the model, never shown or stored. */
+const GREET_NOTE =
+  '[Not from them: they just finished setting you up and have not written anything yet. ' +
+  'Send the first message of this chat yourself, the way a friend texts first. Greet them by name, ' +
+  'and open with something specific from what you know about them - one of their interests, what is ' +
+  'going on in their life, or what they want you for - as a playful take or a question about it. ' +
+  'Never mention setup, settings, this note or a list of features. One or two short lines, ending ' +
+  'with one easy question. Write in their language.]';
 
 /** Noise we never feed back into the model. */
 const SKIP_BODIES = [
@@ -188,8 +199,11 @@ async function runTurn(
        * Anything else is an ordinary turn.
        */
       command?: string;
-      /** Fold this chat's older messages into a summary (the ring in the app, on their yes). */
-      action?: 'compact';
+      /**
+       * compact: fold this chat's older messages into a summary (the ring in the app, on their yes).
+       * greet: write the first message of an empty PINGO AI chat, after setup.
+       */
+      action?: 'compact' | 'greet';
     };
     const spoken = body.voice === true;
     const conversationId = body.conversationId;
@@ -197,9 +211,23 @@ async function runTurn(
       return json(request, { error: 'conversationId required.' }, 400);
     }
 
+    /*
+     * Spicy needs the person's AI profile before anything else is decided, so
+     * it is read alongside the conversation rather than after it: one round
+     * trip, not two. Only asked for when a Spicy turn is possible at all.
+     */
+    const spicyVoice =
+      !spoken && !body.command && body.action !== 'compact' && spicyConfigured()
+        ? userClient
+            .from('ai_profiles')
+            .select('personality, custom_instructions, response_length, preferred_name, display_name, language, age, memory_enabled')
+            .eq('user_id', user.id)
+            .maybeSingle()
+            .then((r: { data: unknown }) => r.data as SpicyProfile | null, () => null)
+        : Promise.resolve(null);
     const { data: conv } = await userClient
       .from('conversations')
-      .select('id, kind')
+      .select('id, kind, ai_side, title')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -214,10 +242,34 @@ async function runTurn(
       const out = await compactChat(supabaseUrl, userClient, conversationId, BOT_ID);
       return json(request, out.body, out.status);
     }
+    /*
+     * PINGO AI speaks first, once, when they finish setting it up
+     * (`requestGreeting` in the app). The note below stands in for their
+     * message: it is never stored, only read, and the reply is an ordinary turn
+     * on whichever path they are on - so it uses the interests they just picked,
+     * which are memories by now, and a Spicy adult is greeted in Spicy's voice.
+     * A chat with anything in it already is left alone: a second call, a late
+     * one, or somebody who typed first.
+     */
+    if (body.action === 'greet') {
+      if (!isAiDm) return json(request, { error: 'Only a PINGO AI chat can be greeted.' }, 400);
+      const { count } = await userClient
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId);
+      if (count) return json(request, { skipped: 'not_empty' });
+      body.userMessage = GREET_NOTE;
+      body.command = undefined;
+    }
     if (!isAiDm && !isGroup) {
       return json(request, { error: 'Not an AI conversation.' }, 403);
     }
 
+    /*
+     * In a group PINGO AI is everyone's, and each member picks how it talks to
+     * *them* (`@pingoai /personality`): read off the asker's own membership row.
+     */
+    let myGroupPersonality: string | null = null;
     if (isGroup) {
       const { data: botMember } = await userClient
         .from('conversation_members')
@@ -230,13 +282,14 @@ async function runTurn(
       }
       const { data: meMember } = await userClient
         .from('conversation_members')
-        .select('user_id')
+        .select('user_id, ai_personality')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)
         .maybeSingle();
       if (!meMember) {
         return json(request, { error: 'Not a group member.' }, 403);
       }
+      myGroupPersonality = (meMember as { ai_personality?: string | null }).ai_personality ?? null;
     }
 
     /*
@@ -263,6 +316,41 @@ async function runTurn(
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
     if (openaiKey) {
       const said = typeof body.userMessage === 'string' ? body.userMessage.trim() : '';
+      /*
+       * Spicy, for an adult who chose it: their own AI chat, typed, no slash
+       * command, not a picture request. Decided before credits and premium are
+       * looked up - a text turn needs neither - so it costs no extra round trip.
+       * Everything else (groups, calls, /search, pictures) stays on Luna.
+       */
+      /*
+       * In a group Spicy is the asker's own choice for that group (their
+       * `/personality`), and their age still decides - anyone under 18 is
+       * answered by Luna, in the default voice.
+       */
+      const own = await spicyVoice;
+      const groupSpicy = myGroupPersonality === 'spicy';
+      const voice = isGroup ? (groupSpicy && own ? { ...own, personality: 'spicy' } : null) : own;
+      if (said && spicyAllowed(voice) && !imagePrompt(said)) {
+        const out = await spicyTurn({
+          db: userClient,
+          userId: user.id,
+          conversationId,
+          isGroup,
+          live: said.slice(0, 4000),
+          profile: voice!,
+          botId: BOT_ID,
+          skipBodies: SKIP_BODIES,
+          stripMarkers,
+          emit,
+          emitDelta,
+          ...(signal ? { signal } : {}),
+        });
+        // Only a side chat still called 'New chat' is named; the row was read above, so no lookup.
+        if (out.status === 200 && sideChatNeedsTitle(conv as ChatRow)) {
+          await nameSideChat(supabaseUrl, user.id, conversationId, firstWordsTitle(said));
+        }
+        return json(request, out.body, out.status);
+      }
       /*
        * The model decides when to draw. The regex only routes around it when
        * OpenAI cannot draw here: switched off, or refused by this model.
@@ -303,6 +391,7 @@ async function runTurn(
       const out = await lunaTurn(
         {
           master: masterRow?.enabled === true,
+          groupPersonality: isGroup ? myGroupPersonality : null,
           emitAction: (action) => emitExtra({ action }),
           db: userClient,
           userId: user.id,

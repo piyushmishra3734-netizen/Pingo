@@ -295,6 +295,8 @@ export type AiProfileRow = {
   /** PINGO AI may react to this person's messages with an emoji. */
   reactions_enabled: boolean;
   onboarded_at: string | null;
+  /** When they answered or skipped the interests / life / what-you-want steps. */
+  about_done_at: string | null;
   /** A short line under its name on the profile. */
   tagline: string | null;
   /** How it shows: online, away, or do not disturb (which also mutes its chat). */
