@@ -78,24 +78,12 @@ const ACCENT_MIGRATION_KEY = 'pingo:accent-purple-v2';
  * this keeps it: the marker makes it a one-time move.
  */
 /**
- * Light by default, once per install.
- *
- * The default used to be `auto`, and the whole blob is saved, so every install
- * that never touched Appearance has `auto` stored - which follows a dark phone
- * into dark without anybody having asked. Moved to light once; anybody who
- * picks dark or auto afterwards keeps it. `index.html` reads the same marker so
- * the first frame agrees.
+ * There is no "follow the phone" theme any more: it was what made a dark phone
+ * open a light PINGO on a dark splash. A saved `auto` becomes light, and the
+ * theme is whichever of light or dark was picked.
  */
-const THEME_MIGRATION_KEY = 'pingo:theme-light-default-v1';
-
 function migrateTheme(appearance: AppearanceSettings): AppearanceSettings {
-  try {
-    if (localStorage.getItem(THEME_MIGRATION_KEY)) return appearance;
-    localStorage.setItem(THEME_MIGRATION_KEY, '1');
-    return appearance.theme === 'auto' ? { ...appearance, theme: 'light' } : appearance;
-  } catch {
-    return appearance;
-  }
+  return appearance.theme === 'auto' ? { ...appearance, theme: 'light' } : appearance;
 }
 
 const NOISE_FILTER_MIGRATION_KEY = 'pingo:calls-noise-filter-off-v1';
@@ -225,13 +213,6 @@ function read(): Preferences {
   } catch {
     // Unreadable or malformed. Defaults are always a valid place to start.
   }
-  // A fresh install starts light by default, so there is no old `auto` to move -
-  // mark it done, or a later deliberate `auto` would be read as the old default.
-  try {
-    localStorage.setItem(THEME_MIGRATION_KEY, '1');
-  } catch {
-    /* no storage: nothing to migrate either */
-  }
   return DEFAULT_PREFERENCES;
 }
 
@@ -256,9 +237,6 @@ const WEAK_DEVICE = (() => {
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] = useState<Preferences>(read);
-  const [systemDark, setSystemDark] = useState(
-    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
-  );
   /**
    * Whether the operating system has been asked for less transparency, or for
    * more contrast.
@@ -282,16 +260,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const { appearance } = preferences;
 
-  // `auto` has to keep following the OS after load, not just sample it once.
-  useEffect(() => {
-    const query = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!query) return;
-
-    const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-
   /*
    * The same live wiring the theme has. A setting toggled in the OS while PINGO
    * is open has to land without a reload - that is when somebody is most likely
@@ -310,8 +278,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const resolvedTheme: 'light' | 'dark' =
-    appearance.theme === 'auto' ? (systemDark ? 'dark' : 'light') : appearance.theme;
+  const resolvedTheme: 'light' | 'dark' = appearance.theme === 'dark' ? 'dark' : 'light';
 
   /*
    * The system's request wins over the slider, and that is deliberate.

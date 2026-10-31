@@ -31,12 +31,11 @@ const GLASS_LEVELS: GlassLevel[] = [0, 25, 50, 75, 100];
 export function AppearanceScreen() {
   const flowMotion = useFlowMotion();
   const t = useT();
-  const { appearance, updateAppearance, resolvedTheme } = useAppearance();
+  const { appearance, updateAppearance } = useAppearance();
 
   const themes: { value: ThemeMode; label: string; hint: string }[] = [
     { value: 'light', label: t('appear.themeLight'), hint: t('appear.themeLightHint') },
     { value: 'dark', label: t('appear.themeDark'), hint: t('appear.themeDarkHint') },
-    { value: 'auto', label: t('appear.themeAuto'), hint: t('appear.themeAutoHint') },
   ];
 
   const accents: { value: AccentName; label: string }[] = [
@@ -59,15 +58,8 @@ export function AppearanceScreen() {
       <ScreenHeader title={t('page.appearance')} showBack />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-4">
-        <Group
-          title={t('appear.darkMode')}
-          hint={
-            appearance.theme === 'auto'
-              ? t('appear.followingDevice', { theme: resolvedTheme })
-              : undefined
-          }
-        >
-          <div className="grid grid-cols-3 gap-2.5">
+        <Group title={t('appear.darkMode')}>
+          <div className="grid grid-cols-2 gap-2.5">
             {themes.map((theme) => (
               <ChoiceCard
                 key={theme.value}
@@ -77,7 +69,7 @@ export function AppearanceScreen() {
                 onSelect={() => updateAppearance({ theme: theme.value })}
               >
                 {/* A miniature of the real chat screen, not a colour swatch. */}
-                <ThemePreview mode={theme.value} resolved={resolvedTheme} />
+                <ThemePreview mode={theme.value} />
               </ChoiceCard>
             ))}
           </div>
@@ -306,8 +298,8 @@ function ChoiceCard({
  * *while the app is dark*, so it cannot read the live tokens the way everything
  * else does.
  */
-function ThemePreview({ mode, resolved }: { mode: ThemeMode; resolved: 'light' | 'dark' }) {
-  const dark = mode === 'dark' || (mode === 'auto' && resolved === 'dark');
+function ThemePreview({ mode }: { mode: ThemeMode }) {
+  const dark = mode === 'dark';
 
   return (
     <span
