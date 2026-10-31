@@ -30,6 +30,9 @@ public class PingoWebViewClient extends BridgeWebViewClient {
 
     @Override
     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+        if (AdBlock.blocks(request)) {
+            return AdBlock.empty();
+        }
         if (shared.handles(request)) {
             return shared.serve(request);
         }

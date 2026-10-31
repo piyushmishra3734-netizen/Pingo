@@ -34,6 +34,8 @@ public class PopupGuardPlugin extends Plugin {
     @PluginMethod
     public void setActive(PluginCall call) {
         final boolean active = Boolean.TRUE.equals(call.getBoolean("active", false));
+        // The ad-host list follows the same switch: on only while a player is on screen.
+        AdBlock.setActive(active);
         getActivity().runOnUiThread(() -> {
             WebView view = getBridge().getWebView();
             if (view != null) {
