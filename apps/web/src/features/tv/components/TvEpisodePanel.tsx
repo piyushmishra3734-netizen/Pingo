@@ -47,7 +47,7 @@ export function TvEpisodePanel({ media, isTv, season, episode, onPick, onOpenMed
   ];
 
   return (
-    <aside aria-label="Episodes and details" className="flex min-h-0 flex-col border-t border-white/10 bg-[#0d0e14] lg:w-[390px] lg:shrink-0 lg:border-l lg:border-t-0">
+    <aside aria-label="Episodes and details" className="flex min-h-0 flex-1 flex-col border-t border-white/10 bg-[#0d0e14] lg:w-[390px] lg:flex-none lg:shrink-0 lg:border-l lg:border-t-0">
       <div role="tablist" className="flex shrink-0 items-center gap-1 border-b border-white/10 px-3">
         {tabs.map((t) => (
           <button

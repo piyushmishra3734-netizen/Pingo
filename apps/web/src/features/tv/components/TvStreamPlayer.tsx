@@ -1263,9 +1263,14 @@ export function TvStreamPlayer({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/*
+            * On a phone the player is exactly 16:9 and the panel takes whatever is left, scrolling inside
+            * itself. Both used to be allowed to grow, so a tall episode list squeezed this column to
+            * nothing and the frame, which has a height of its own, was painted over the list.
+            */}
+          <div className={cn('flex min-h-0 min-w-0 flex-col', mini || isTheater ? 'flex-1' : 'flex-none lg:flex-1')}>
             {/* Video Frame */}
-            <div className="relative aspect-video w-full flex-none bg-black lg:aspect-auto lg:flex-1">
+            <div className={cn('relative w-full bg-black', mini ? 'aspect-video flex-1 lg:aspect-auto' : 'aspect-video flex-none lg:aspect-auto lg:flex-1')}>
               {/* Notification Toast */}
               {notification && !mini && (
                 <div className="absolute left-3 top-3 z-30 flex max-w-[calc(100%-9.5rem)] items-center gap-2 rounded-xl bg-black/85 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">
