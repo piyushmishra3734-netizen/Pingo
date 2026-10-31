@@ -35,6 +35,8 @@ export type ProfileRow = {
   bio: string | null;
   /** Wide cover behind the face. Null means the gradient. */
   banner_url: string | null;
+  /** The picture behind their row in other people's chat lists. Null means none. */
+  chat_banner_url?: string | null;
   /** Vertical percent of the cover to centre on. 50 unless they moved it. */
   banner_offset: number;
   /** One short line under the bio, up to 40 characters. Null means not drawn. */
@@ -796,6 +798,7 @@ export type Database = {
           bio?: string | null;
           banner_url?: string | null;
           banner_offset?: number;
+          chat_banner_url?: string | null;
           work?: string | null;
           location?: string | null;
           song?: { name: string; artist: string; img: string; url: string; secs: number } | null;

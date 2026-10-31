@@ -14,7 +14,7 @@ import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
 import { CoverEditor } from '../features/profile/CoverEditor.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
-import { CoverPicker } from '../features/profile/CoverPicker.js';
+import { ChatBannerSection } from '../features/profile/ChatBannerSection.js';
 import { isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
 
 /**
@@ -96,10 +96,6 @@ export function EditProfileScreen() {
    * that uploaded on pick would already have changed it.
    */
   const coverRef = useRef<HTMLInputElement>(null);
-  /** A ready-made cover picked from the collections: its address, saved as it is on Save. */
-  const [coverPreset, setCoverPreset] = useState<string>();
-  const [coverPicker, setCoverPicker] = useState(false);
-  const premium = profile?.isPremium === true;
   const [cover, setCover] = useState<File>();
   const [coverOffset, setCoverOffset] = useState<number>();
   // A GIF is checked and, over 480p, re-encoded before it can be staged.
@@ -210,7 +206,7 @@ export function EditProfileScreen() {
       if (removePhoto) avatarUrl = null;
       else if (photo) avatarUrl = await service.uploadAvatar(photo);
 
-      let bannerUrl: string | undefined = cover ? undefined : coverPreset;
+      let bannerUrl: string | undefined;
       if (cover) {
         setCoverUploading(true);
         setCoverProgress(undefined);
@@ -279,26 +275,6 @@ export function EditProfileScreen() {
         />
       )}
 
-      {coverPicker && (
-        <CoverPicker
-          current={coverPreview ? undefined : (coverPreset ?? profile.bannerUrl)}
-          premium={premium}
-          onClose={() => setCoverPicker(false)}
-          onUpload={() => {
-            setCoverPicker(false);
-            coverRef.current?.click();
-          }}
-          onPick={(preset) => {
-            setCoverPreset(preset.src);
-            setCover(undefined);
-            setCoverError(undefined);
-            // A new picture starts centred.
-            setCoverOffset(50);
-            setCoverPicker(false);
-          }}
-        />
-      )}
-
       {coverEditing && (
         <CoverEditor
           file={coverEditing}
@@ -306,7 +282,6 @@ export function EditProfileScreen() {
           onChooseAnother={() => coverRef.current?.click()}
           onSave={(cropped) => {
             setCover(cropped);
-            setCoverPreset(undefined);
             setCoverError(undefined);
             // The crop is the offset now: the file is exactly the strip that was framed.
             setCoverOffset(50);
@@ -328,15 +303,14 @@ export function EditProfileScreen() {
         <article className="rounded-[34px] bg-surface/70 p-[5px] ring-1 ring-line">
           <div className="relative overflow-hidden rounded-[29px] bg-surface">
             <ProfileCover
-              src={coverPreview ?? coverPreset ?? profile.bannerUrl}
+              src={coverPreview ?? profile.bannerUrl}
               offset={coverOffset ?? profile.bannerOffset}
               editable
               busy={preparingCover || coverUploading}
               busyLabel={coverUploading ? `Uploading cover${cover ? ` (${(cover.size / (1024 * 1024)).toFixed(1)} MB)` : ''}…` : 'Preparing your cover…'}
               {...(coverUploading && coverProgress !== undefined ? { progress: coverProgress } : {})}
-              pending={Boolean(cover || coverPreset) && !saving}
-              // The collections for everybody, your own upload for premium: see CoverPicker.
-              onPick={() => setCoverPicker(true)}
+              pending={Boolean(cover) && !saving}
+              onPick={() => coverRef.current?.click()}
               onOffsetChange={setCoverOffset}
             />
 
@@ -409,11 +383,6 @@ export function EditProfileScreen() {
             if (!file) return;
             setError(undefined);
             setCoverError(undefined);
-            // Your own cover is premium; the database refuses it from anybody else anyway.
-            if (!premium) {
-              setCoverError('Uploading your own cover is part of PINGO premium. Pick one from the collections.');
-              return;
-            }
             // A video becomes an animated cover, which is premium like any GIF cover.
             if (file.type.startsWith('video/')) {
               if (profile?.isPremium !== true) {
@@ -454,6 +423,8 @@ export function EditProfileScreen() {
             if (file) openEditor(file);
           }}
         />
+
+        <ChatBannerSection />
 
         {/* Form hierarchy: display name primary, then username, then bio. */}
         <section className="space-y-4 rounded-[28px] bg-surface p-[18px]">

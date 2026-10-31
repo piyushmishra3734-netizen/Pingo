@@ -188,7 +188,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 /** A direct chat that could not be named: its people were not read, so it fell back to a placeholder. */
 const hasUnnamed = (list: Conversation[]): boolean => list.some((c) => c.kind === 'direct' && c.title === 'Conversation');
 
-const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
+const USER_COLUMNS = 'id,display_name,username,avatar_url,chat_banner_url,created_at';
 
 /**
  * Exactly what `toUser` reads, so a caller cannot be asked for more.
@@ -198,7 +198,7 @@ const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
  * fetching one. A full `ProfileRow` still satisfies this, so the screens that
  * genuinely have one pass it unchanged.
  */
-type UserRow = Pick<ProfileRow, 'id' | 'display_name' | 'username' | 'avatar_url' | 'created_at'>;
+type UserRow = Pick<ProfileRow, 'id' | 'display_name' | 'username' | 'avatar_url' | 'chat_banner_url' | 'created_at'>;
 
 /**
  * The status somebody shows everyone, if it is one of the two that are not
@@ -237,6 +237,7 @@ function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd',
     name: row.display_name,
     handle: row.username,
     avatarUrl: row.avatar_url ?? undefined,
+    ...(row.chat_banner_url ? { chatBannerUrl: row.chat_banner_url } : {}),
     /*
      * Offline until Realtime says otherwise - a green dot that means nothing is
      * worse than no dot at all.

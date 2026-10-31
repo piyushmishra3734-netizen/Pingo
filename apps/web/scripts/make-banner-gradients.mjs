@@ -9,7 +9,7 @@ import sharp from 'sharp';
  *   node scripts/make-cover-gradients.mjs
  */
 
-const OUT = 'public/covers/gradients';
+const OUT = 'public/banners/gradients';
 const SETS = {
   dusk: ['#ff9a8b', '#ff6a88', '#a855f7'],
   ocean: ['#22d3ee', '#3b82f6', '#6366f1'],
