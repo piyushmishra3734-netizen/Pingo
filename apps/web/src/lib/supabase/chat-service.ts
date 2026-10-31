@@ -5291,10 +5291,22 @@ export class SupabaseChatService implements ChatService {
      * mention, nothing to look up.
      */
     const mentioned = mentionsPingoAi(draft.body);
-    const isAi = await this.#isAiConversation(draft.conversationId);
+    /*
+     * Asked now, answered only when needed, and never in the way of the insert.
+     *
+     * Whether this is an AI thread decides one thing - whether to ask the
+     * assistant to reply - and that happens after the row is written. It used to
+     * be awaited here, so the first message of every conversation in a session
+     * waited on one more round trip before its insert even started. Started in
+     * parallel instead, it is usually answered by the time the insert returns.
+     * A group message that @mentions somebody does need it up front, for the
+     * conversation lookup below.
+     */
+    const aiLookup = this.#isAiConversation(draft.conversationId).catch(() => false);
+    const isAiEarly = mentioned ? await aiLookup : undefined;
 
     const conversationSnap =
-      mentioned && !isAi ? await this.getConversation(draft.conversationId) : undefined;
+      mentioned && !isAiEarly ? await this.getConversation(draft.conversationId) : undefined;
 
     const groupHasAi =
       (conversationSnap?.kind === 'group' || conversationSnap?.kind === 'community') &&
@@ -5613,6 +5625,7 @@ export class SupabaseChatService implements ChatService {
      * In its own thread a photo or a file with no caption is a turn too: it
      * can see and read them now, so "what is this" can go without saying.
      */
+    const isAi = await aiLookup;
     if ((isAi && (draft.body.trim() || photoPath || filePath || draft.aiCommand)) || (callAiInGroup && draft.body.trim())) {
       void this.#requestAiReply(
         draft.conversationId,
