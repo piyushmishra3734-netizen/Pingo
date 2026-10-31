@@ -228,6 +228,10 @@ function openAt(version?: number): Promise<IDBDatabase | undefined> {
         db.close();
         open = undefined;
       };
+      // The browser closed it (iOS Safari, after the page was in the background): the next use opens a fresh one.
+      db.onclose = () => {
+        open = undefined;
+      };
       resolve(db);
     };
     request.onerror = () => resolve(undefined);
@@ -287,25 +291,81 @@ function openDatabase(): Promise<IDBDatabase | undefined> {
   return open;
 }
 
+/**
+ * Whether an IndexedDB error means the browser closed the connection under us.
+ *
+ * iOS Safari does this to a page that has been in the background (the error
+ * reads "Connection to Indexed Database server lost" or "The database
+ * connection is closing"), and so can any engine under memory pressure. The
+ * handle this module holds is then dead for good: every transaction on it
+ * throws, and the catch blocks below turned each throw into "nothing there" for
+ * the rest of the session - no cached pages, no startup snapshot, writes
+ * dropped, the outbox unable to keep what was typed. Chats looked as if they had
+ * vanished until the page was reloaded.
+ */
+function connectionGone(error: unknown): boolean {
+  const name = (error as { name?: string } | null)?.name;
+  const message = String((error as { message?: string } | null)?.message ?? '');
+  return name === 'InvalidStateError' || name === 'UnknownError' || /connection (is )?(closing|lost)|database.*closed/i.test(message);
+}
+
+/** Lets go of a connection that has gone, so the next use opens a fresh one. */
+function forget(db: IDBDatabase): void {
+  open = undefined;
+  try {
+    db.close();
+  } catch {
+    // Already closed.
+  }
+}
+
+/**
+ * Runs `use` on the open database, and once more on a fresh connection when it
+ * says the first one had gone ('retry'). Anything else it answers is final.
+ */
+async function withLiveDb<T>(use: (db: IDBDatabase) => Promise<{ value: T } | 'retry'>, fallback: T): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const db = await openDatabase();
+    if (!db) return fallback;
+    const outcome = await use(db);
+    if (outcome !== 'retry') return outcome.value;
+    forget(db);
+  }
+  return fallback;
+}
+
 async function withStore<T>(
   name: StoreName,
   mode: IDBTransactionMode,
   run: (store: IDBObjectStore) => IDBRequest,
 ): Promise<T | undefined> {
-  const db = await openDatabase();
-  if (!db) return undefined;
-
-  return new Promise<T | undefined>((resolve) => {
-    let request: IDBRequest;
-    try {
-      request = run(db.transaction(name, mode).objectStore(name));
-    } catch {
-      resolve(undefined);
-      return;
-    }
-    request.onsuccess = () => resolve(request.result as T);
-    request.onerror = () => resolve(undefined);
-  });
+  return withLiveDb<T | undefined>(
+    (db) =>
+      new Promise((resolve) => {
+        let transaction: IDBTransaction;
+        let request: IDBRequest;
+        try {
+          transaction = db.transaction(name, mode);
+          request = run(transaction.objectStore(name));
+        } catch (error) {
+          resolve(connectionGone(error) ? 'retry' : { value: undefined });
+          return;
+        }
+        if (mode === 'readonly') {
+          request.onsuccess = () => resolve({ value: request.result as T });
+          request.onerror = () => resolve({ value: undefined });
+          return;
+        }
+        // A write is done when its transaction commits, not when the request is
+        // queued: a transaction that aborts after the request "succeeded" (a full
+        // disk, a connection that went) kept nothing, and the caller should not be
+        // told otherwise.
+        transaction.oncomplete = () => resolve({ value: request.result as T });
+        transaction.onerror = () => resolve({ value: undefined });
+        transaction.onabort = () => resolve({ value: undefined });
+      }),
+    undefined,
+  );
 }
 
 export function localGet<T>(store: StoreName, key: string): Promise<T | undefined> {
@@ -336,31 +396,34 @@ export async function localRange<T>(
   range: IDBKeyRange,
   limit: number,
 ): Promise<T[]> {
-  const db = await openDatabase();
-  if (!db) return [];
+  return withLiveDb<T[]>(
+    (db) =>
+      new Promise((resolve) => {
+        let request: IDBRequest<IDBCursorWithValue | null>;
+        try {
+          // Backwards, so the cap keeps the newest rather than the oldest.
+          request = db.transaction(store, 'readonly').objectStore(store).openCursor(range, 'prev');
+        } catch (error) {
+          resolve(connectionGone(error) ? 'retry' : { value: [] });
+          return;
+        }
 
-  return new Promise<T[]>((resolve) => {
-    let request: IDBRequest<IDBCursorWithValue | null>;
-    try {
-      // Backwards, so the cap keeps the newest rather than the oldest.
-      request = db.transaction(store, 'readonly').objectStore(store).openCursor(range, 'prev');
-    } catch {
-      resolve([]);
-      return;
-    }
-
-    const out: T[] = [];
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (!cursor || out.length >= limit) {
-        resolve(out.reverse());
-        return;
-      }
-      out.push(cursor.value as T);
-      cursor.continue();
-    };
-    request.onerror = () => resolve(out.reverse());
-  });
+        const out: T[] = [];
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor || out.length >= limit) {
+            resolve({ value: out.reverse() });
+            return;
+          }
+          out.push(cursor.value as T);
+          cursor.continue();
+        };
+        // A read that failed part-way is a miss, not the part it got: the newest
+        // rows alone would read as the whole page, with the older ones simply gone.
+        request.onerror = () => resolve({ value: [] });
+      }),
+    [],
+  );
 }
 
 /**
@@ -372,18 +435,19 @@ export async function localRange<T>(
  * how many there are, which is the opposite of what the proof is for.
  */
 export async function localCount(store: StoreName, range: IDBKeyRange): Promise<number> {
-  const db = await openDatabase();
-  if (!db) return 0;
-
-  return new Promise<number>((resolve) => {
-    try {
-      const request = db.transaction(store, 'readonly').objectStore(store).count(range);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(0);
-    } catch {
-      resolve(0);
-    }
-  });
+  return withLiveDb<number>(
+    (db) =>
+      new Promise((resolve) => {
+        try {
+          const request = db.transaction(store, 'readonly').objectStore(store).count(range);
+          request.onsuccess = () => resolve({ value: request.result });
+          request.onerror = () => resolve({ value: 0 });
+        } catch (error) {
+          resolve(connectionGone(error) ? 'retry' : { value: 0 });
+        }
+      }),
+    0,
+  );
 }
 
 /**
@@ -402,21 +466,23 @@ export async function localPutMany(
   store: StoreName,
   entries: Array<[string, unknown]>,
 ): Promise<void> {
-  const db = await openDatabase();
-  if (!db || entries.length === 0) return;
-
-  return new Promise<void>((resolve) => {
-    try {
-      const tx = db.transaction(store, 'readwrite');
-      const objectStore = tx.objectStore(store);
-      for (const [key, value] of entries) objectStore.put(value, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-      tx.onabort = () => resolve();
-    } catch {
-      resolve();
-    }
-  });
+  if (entries.length === 0) return;
+  return withLiveDb<void>(
+    (db) =>
+      new Promise((resolve) => {
+        try {
+          const tx = db.transaction(store, 'readwrite');
+          const objectStore = tx.objectStore(store);
+          for (const [key, value] of entries) objectStore.put(value, key);
+          tx.oncomplete = () => resolve({ value: undefined });
+          tx.onerror = () => resolve({ value: undefined });
+          tx.onabort = () => resolve({ value: undefined });
+        } catch (error) {
+          resolve(connectionGone(error) ? 'retry' : { value: undefined });
+        }
+      }),
+    undefined,
+  );
 }
 
 /** Keys alongside values, for passes that have to delete what they inspect. */
