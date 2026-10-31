@@ -20,7 +20,7 @@
         Two eras of splash screen, both of which have to be right.
 
         Before Android 12 the window background is the splash: `splash.png`,
-        generated per orientation and density (and per theme, under -night) by
+        generated per orientation and density (light only) by
         scripts/icons.mjs. From Android 12, Theme.SplashScreen ignores that and
         draws its own from the two attributes below.
 

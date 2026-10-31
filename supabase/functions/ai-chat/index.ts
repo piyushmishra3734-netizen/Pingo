@@ -48,7 +48,7 @@ import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
 import { compactChat, serviceClient } from './compact.ts';
 import { firstWordsTitle, nameSideChat, nameSideChatFromMessage, sideChatNeedsTitle } from './side-chat.ts';
 import type { ChatRow } from './side-chat-title.ts';
-import { spicyAllowed, spicyConfigured, spicyTurn, type SpicyProfile } from './spicy.ts';
+import { everyoneAdult, spicyAllowed, spicyConfigured, spicyTurn, type SpicyProfile } from './spicy.ts';
 
 const DEFAULT_BASE = 'https://integrate.api.nvidia.com/v1';
 const DEFAULT_MODEL = 'meta/llama-3.1-8b-instruct';
@@ -336,6 +336,8 @@ async function runTurn(
           userId: user.id,
           conversationId,
           isGroup,
+          // Explicit in a group only when everybody there is an adult.
+          adultRoom: isGroup ? await everyoneAdult(serviceClient(supabaseUrl), conversationId, BOT_ID) : false,
           live: said.slice(0, 4000),
           profile: voice!,
           botId: BOT_ID,

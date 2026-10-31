@@ -169,12 +169,9 @@
           var prefs = raw ? JSON.parse(raw) || {} : {};
           // Nested under `appearance`; the top-level read only ever found nothing.
           var theme = (prefs.appearance && prefs.appearance.theme) || prefs.theme || 'light';
-          // Light until somebody picks dark: an `auto` saved before this was the
-          // old default, not a choice (see migrateTheme in SettingsContext).
-          if (theme === 'auto' && !localStorage.getItem('pingo:theme-light-default-v1')) theme = 'light';
-          if (theme !== 'light' && theme !== 'dark') {
-            theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          }
+          // Light unless dark was picked. The phone's own setting is not consulted:
+          // a saved `auto` is light (see migrateTheme in SettingsContext).
+          if (theme !== 'dark') theme = 'light';
           document.documentElement.setAttribute('data-theme', theme);
           if (theme === 'dark') {
             var tint = document.querySelector('meta[name="theme-color"]');
@@ -353,7 +350,6 @@
         place-items: center;
         background: #fbfbfe;
       }
-      :root[data-theme='dark'] #splash { background: #111113; }
       :root:not([data-splash]) #splash { display: none; }
       #splash .lg {
         position: relative;

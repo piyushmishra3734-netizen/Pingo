@@ -127,6 +127,7 @@ import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-int
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 import { hiddenByBlock } from '../../features/safety/blocks.js';
+import { storedUserId } from './stored-session.js';
 
 /**
  * Whether this draft carries bytes rather than only words.
@@ -188,7 +189,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 /** A direct chat that could not be named: its people were not read, so it fell back to a placeholder. */
 const hasUnnamed = (list: Conversation[]): boolean => list.some((c) => c.kind === 'direct' && c.title === 'Conversation');
 
-const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
+const USER_COLUMNS = 'id,display_name,username,avatar_url,chat_banner_url,created_at';
 
 /**
  * Exactly what `toUser` reads, so a caller cannot be asked for more.
@@ -198,7 +199,7 @@ const USER_COLUMNS = 'id,display_name,username,avatar_url,created_at';
  * fetching one. A full `ProfileRow` still satisfies this, so the screens that
  * genuinely have one pass it unchanged.
  */
-type UserRow = Pick<ProfileRow, 'id' | 'display_name' | 'username' | 'avatar_url' | 'created_at'>;
+type UserRow = Pick<ProfileRow, 'id' | 'display_name' | 'username' | 'avatar_url' | 'chat_banner_url' | 'created_at'>;
 
 /**
  * The status somebody shows everyone, if it is one of the two that are not
@@ -237,6 +238,7 @@ function toUser(row: UserRow, lastSeenAt?: number, status?: 'invisible' | 'dnd',
     name: row.display_name,
     handle: row.username,
     avatarUrl: row.avatar_url ?? undefined,
+    ...(row.chat_banner_url ? { chatBannerUrl: row.chat_banner_url } : {}),
     /*
      * Offline until Realtime says otherwise - a green dot that means nothing is
      * worse than no dot at all.
@@ -1084,6 +1086,7 @@ export class SupabaseChatService implements ChatService {
       onTyping: (conversationId, userIds, activity) => {
         this.#emit({ type: 'typing:changed', conversationId, userIds, activity });
       },
+      onRead: (conversationId, userId, upTo) => this.#readArrived(conversationId, userId, upTo),
     });
 
     /*
@@ -1295,6 +1298,17 @@ export class SupabaseChatService implements ChatService {
   #me: string | undefined;
 
   async #resolveUserId(): Promise<string | undefined> {
+    /*
+     * The session already on disk answers first.
+     *
+     * `auth.getSession()` below waits for an expired token to be refreshed,
+     * and that is a network round trip online and the whole retry window
+     * offline. It sat in front of `cachedStartup`, so the chat list that was
+     * already on disk waited for it. The id does not change while the app
+     * runs, and every request is still authorised by the token on the server.
+     */
+    const stored = storedUserId();
+    if (stored) return stored;
     try {
       const { data } = await this.#client.auth.getSession();
       if (data.session?.user.id) return data.session.user.id;
@@ -2603,6 +2617,26 @@ export class SupabaseChatService implements ChatService {
    * draws the last message's state, so nothing else is worth carrying here -
    * the thread has its own receipts stream for the rest.
    */
+  /**
+   * A live "read" from somebody with this thread open (`PresenceHub.sendRead`):
+   * the same news as their cursor moving in the database, seconds earlier.
+   *
+   * The database cursor that follows carries the server's own time, and is
+   * what anybody not watching right now catches up from.
+   */
+  #readArrived(conversationId: ConversationId, userId: UserId, upTo: number | undefined): void {
+    /*
+     * Up to the newest message the reader had - their word, in server time -
+     * never this clock or this device's newest: a message sent while the read
+     * was in flight must not turn up already seen.
+     */
+    if (!upTo) return;
+    const readAt = upTo;
+    this.#emit({ type: 'receipts:changed', conversationId, readers: [{ userId, readAt }] });
+    const patched = this.#markPreviewRead(conversationId, userId, readAt);
+    if (patched) this.#emit({ type: 'conversation:updated', conversation: patched });
+  }
+
   #markPreviewRead(
     conversationId: ConversationId,
     readerId: UserId,
@@ -6385,6 +6419,9 @@ export class SupabaseChatService implements ChatService {
       this.#publishRead(conversationId);
       return;
     }
+
+    // Seen at once for whoever has the thread open; the database write below is paced.
+    this.#presenceHub.sendRead(conversationId, this.#known.get(conversationId)?.lastMessage?.createdAt);
 
     /*
      * Through the function rather than straight at the column.

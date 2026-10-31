@@ -2,9 +2,9 @@
 <resources>
     <!--
         The app's own ground, the same colour index.html paints behind the
-        splash mark: #FBFBFE in light, #111113 in dark (values-night). The
-        system splash, the native one and the web one are then one picture, so
-        the hand-over between them cannot be seen.
+        splash mark: #FBFBFE, whatever the phone's dark setting is. There is no
+        night variant on purpose: the web splash is light too, so the system
+        splash, the native one and the web one are one picture.
     -->
     <color name="splashBackground">#FBFBFE</color>
 </resources>

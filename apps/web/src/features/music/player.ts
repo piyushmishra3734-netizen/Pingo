@@ -3,7 +3,7 @@ import { claimAudio } from '../../lib/audio-focus.js';
 import { clearNowPlaying, showNowPlaying, type ControlAction } from '../native/media-controls.js';
 
 import type { SharedSong } from './song-share.js';
-import { isYtPage, playableFor } from './ytm/page.js';
+import { isYtPage, playableFor } from './legacy-yt.js';
 
 /**
  * The one music player, for the whole app - Telegram's way.
@@ -190,7 +190,7 @@ export const musicPlayer = {
     if (state.song?.url !== song.url) {
       const token = ++loadToken;
       if (isYtPage(song.url)) {
-        // A YouTube Music song from a chat: found for this phone first, then played.
+        // A song shared from YouTube Music in an older chat: played as its JioSaavn version.
         a.pause();
         set({ song, at: 0, length: song.secs, failed: false, playing: false, loading: true });
         mediaSession(song);

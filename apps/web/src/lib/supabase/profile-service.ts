@@ -44,6 +44,7 @@ import { setBlockedHere } from '../../features/safety/blocks.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { isR2Path, r2PathFromUrl, r2Remove, r2Sign, r2Upload } from '../r2-media.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
+import { storedUserId } from './stored-session.js';
 
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
@@ -73,6 +74,7 @@ function toProfile(row: ProfileRow): Profile {
     // UI - otherwise an empty string renders as a bio-shaped gap.
     bio: row.bio?.trim() ? row.bio : undefined,
     ...(row.banner_url ? { bannerUrl: row.banner_url } : {}),
+    ...(row.chat_banner_url ? { chatBannerUrl: row.chat_banner_url } : {}),
     bannerOffset: row.banner_offset ?? 50,
     // Absent until the migration adds the columns; either way, blank is not drawn.
     ...(row.work?.trim() ? { work: row.work } : {}),
@@ -129,16 +131,6 @@ function keptAfter(ms: number): Promise<typeof KEPT> {
   return new Promise((resolve) => setTimeout(() => resolve(KEPT), ms));
 }
 
-/** The signed-in account's id, read from the session on disk without the network. */
-function storedUserId(): string | undefined {
-  try {
-    const raw = localStorage.getItem('pingo.auth.session');
-    return raw ? ((JSON.parse(raw) as { user?: { id?: string } }).user?.id ?? undefined) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function readKeptProfile(): Profile | undefined {
   try {
     const raw = localStorage.getItem(KEPT_PROFILE_KEY);
@@ -183,6 +175,10 @@ export class SupabaseProfileService implements ProfileService {
    * account's own copy (checked against the stored session), and the next
    * online read replaces it.
    */
+  peekMine(): Profile | undefined {
+    return readKeptProfile();
+  }
+
   async getMine(): Promise<Profile | null> {
     const kept = readKeptProfile();
     try {
@@ -409,6 +405,7 @@ export class SupabaseProfileService implements ProfileService {
     if ('avatarUrl' in changes) patch.avatar_url = changes.avatarUrl ?? null;
     if ('bio' in changes) patch.bio = changes.bio?.trim() || null;
     if ('bannerUrl' in changes) patch.banner_url = changes.bannerUrl ?? null;
+    if ('chatBannerUrl' in changes) patch.chat_banner_url = changes.chatBannerUrl ?? null;
     if ('work' in changes) patch.work = changes.work?.trim() || null;
     if ('location' in changes) patch.location = changes.location?.trim() || null;
     if ('song' in changes) {
@@ -531,6 +528,27 @@ export class SupabaseProfileService implements ProfileService {
 
     const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
     return data.publicUrl;
+  }
+
+  /**
+   * Your own chat banner, beside the cover on R2 and never instead of it.
+   *
+   * Not `uploadCover`: that one deletes the previous *cover* once the new file
+   * is up, and a banner going through it would have taken somebody's profile
+   * cover with it. This replaces only the previous banner - and a collection
+   * banner is the website's file, which the delete leaves alone.
+   */
+  async uploadChatBanner(file: Blob): Promise<string> {
+    const userId = await this.requireUserId();
+    const previous = await this.client
+      .from('profiles')
+      .select('chat_banner_url')
+      .eq('id', userId)
+      .maybeSingle();
+    const onR2 = await r2Upload('cover', file, file.type || 'image/jpeg');
+    if (!onR2?.url) throw new Error('The banner did not upload. Try again.');
+    void this.#deleteOwnStorageObject((previous.data as { chat_banner_url?: string | null } | null)?.chat_banner_url ?? undefined, userId);
+    return onR2.url;
   }
 
   /**

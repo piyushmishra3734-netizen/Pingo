@@ -33,6 +33,7 @@ import { useListening } from '../music/listening.js';
 import { ListeningBadge } from '../music/ListeningBadge.js';
 import { useWatching } from '../tv/watching.js';
 import { WatchingBadge } from '../tv/WatchingBadge.js';
+import { BannerBackdrop } from './BannerBackdrop.js';
 
 /**
  * One row in the conversation list.
@@ -134,8 +135,12 @@ export function ConversationRow({
   const listening = useListening(conversation.kind === 'direct' ? partner?.id : undefined);
   const watching = useWatching(conversation.kind === 'direct' ? partner?.id : undefined);
 
+  // Their chat banner behind the row, for a person; a group has no one person to show.
+  const banner = conversation.kind === 'direct' ? partner?.chatBannerUrl : undefined;
+
   const body = (
     <>
+      {banner && <BannerBackdrop src={banner} />}
       {/*
         Groups get a single avatar, not a stack. A stack is wider than one circle,
         which would push the title and preview of group rows right and break the
@@ -184,7 +189,7 @@ export function ConversationRow({
       </span>
 
       {/* The hairline sits under the text, not under the face - Telegram's row. */}
-      <div className="flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line py-2.5">
+      <div className="relative flex min-w-0 flex-1 flex-col justify-center self-stretch border-b border-line py-2.5">
         <div className="flex items-center gap-2">
           {/* Name, badge and mute as one group on the left - the approved row. */}
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -299,7 +304,7 @@ export function ConversationRow({
   );
 
   const shell = cn(
-    'group flex w-full items-center gap-3 rounded-xl px-3 py-0 text-left',
+    'group relative flex w-full items-center gap-3 overflow-hidden rounded-xl px-3 py-0 text-left',
     /*
       No system menu on a long press. Android only, and invisible everywhere else.
 

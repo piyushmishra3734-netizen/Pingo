@@ -64,6 +64,8 @@ export interface SpicyTurn {
   userId: string;
   /** A group: the last GROUP_ROWS messages from everybody, with names, and nobody's memories. */
   isGroup?: boolean;
+  /** A group where every human member is 18+ by their PINGO AI age: explicit is allowed there too. */
+  adultRoom?: boolean;
   conversationId: string;
   live: string;
   profile: SpicyProfile;
@@ -87,13 +89,25 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
-function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string): string {
+function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string, adultRoom = false): string {
   const parts = [
     group
-      ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.`
+      ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. ${adultRoom ? 'Everyone in this group is an adult, so you may be as explicit and uncensored with them as a one-to-one chat - while the rest of the room can read it, so stay playful with everyone else.' : 'Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.'}`
       : 'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
-    'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
+    ...(group && !adultRoom
+      ? []
+      : [
+          [
+            'Roleplay: when they start a scene or a game ("chalo game shuru karte hain", setting a scene, giving you a role), play it fully and stay in character.',
+            '- Move the scene forward yourself: describe what you do, what you feel and how it feels, step by step, in vivid detail. Do not stop at hints, do not fade to black, do not skip ahead, and do not ask permission at every step - they already chose this.',
+            '- When it turns sexual between you two consenting adults, write it fully and explicitly: name body parts and acts in plain, direct, uncensored words - no euphemisms, no vague "you know", no cutting away. Do not stall at foreplay: follow their lead all the way through the actual act and its finish, describing each step and sensation as it happens.',
+            '- Write actions in *asterisks* and speech as plain text, the way chat roleplay is written. Keep their language mix (Hinglish stays Hinglish).',
+            '- End each turn with something for them to answer: an action, a question, a tease.',
+            '- If they slow down, change the subject or say stop, you stop at once and follow them.',
+          ].join('\n'),
+        ]),
+    'Talk like a person in a chat, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. In ordinary chat each line you write is one message; in a roleplay scene, write it as one flowing turn.',
     'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
     'Never repeat a word, phrase or opener from your earlier replies. Every reply is fresh and makes sense on its own.',
     'You can only text: no pictures, voice notes or calls. Never pretend you sent one.',
@@ -108,7 +122,16 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
   if (known.length) {
     parts.push(['What you know about them - tease and flirt with it now and then, not every reply:', ...known].join('\n'));
   }
-  parts.push(lengthBlock(p.response_length ?? 'short'));
+  /*
+   * Not the chat-wide length rule: "short" is one or two lines, and a scene
+   * played in one or two lines is a scene that never happens - the one thing
+   * people said Spicy could not do. Short flirting stays short by itself.
+   */
+  parts.push(
+    group && !adultRoom
+      ? lengthBlock('short')
+      : 'Length: casual flirting - one to three short lines. A roleplay scene - a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.',
+  );
   const own = instructionsBlock(p);
   if (own) parts.push(own);
   parts.push('End the reply with a hidden tag for your face, one of [[mood:happy]], [[mood:excited]], [[mood:surprised]], [[mood:sleepy]] or [[mood:sad]]. It is removed before they see it.');
@@ -116,6 +139,27 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
 }
 
 type Row = { sender_id: string; body: string | null; created_at: string };
+
+/**
+ * Whether every human in a group is 18 or over by their PINGO AI age.
+ *
+ * Spicy in a group is read by the whole room, and a single member under 18 -
+ * or one whose age PINGO does not know - means nothing explicit there. Read
+ * with the service role, because one member cannot read another's AI profile.
+ * Anything that fails to answer is "no".
+ */
+export async function everyoneAdult(admin: Db, conversationId: string, botId: string): Promise<boolean> {
+  try {
+    const { data: members } = await admin.from('conversation_members').select('user_id').eq('conversation_id', conversationId);
+    const ids = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id).filter((id) => id !== botId);
+    if (!ids.length) return false;
+    const { data: ages } = await admin.from('ai_profiles').select('user_id, age').in('user_id', ids);
+    const adult = new Set(((ages ?? []) as { user_id: string; age: number | null }[]).filter((a) => typeof a.age === 'number' && a.age >= SPICY_MIN_AGE).map((a) => a.user_id));
+    return ids.every((id) => adult.has(id));
+  } catch {
+    return false;
+  }
+}
 
 export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: Record<string, unknown> }> {
   const t0 = Date.now();
@@ -193,12 +237,17 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         model,
         stream: true,
         temperature: 0.9,
-        // Texting: a few short lines is the whole reply, and the cap is what bounds a runaway one.
-        max_tokens: 300,
+        // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
+        max_tokens: t.isGroup && !t.adultRoom ? 300 : 900,
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
-        frequency_penalty: 0.4,
-        presence_penalty: 0.3,
-        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId)) }, ...history],
+        /*
+         * Light in a scene: a strong penalty on repeated words pushed a roleplay
+         * into euphemism, avoiding the plain word it had already used once.
+         * Stronger in plain chat, where it echoed its own lines ("kaamchori").
+         */
+        frequency_penalty: t.isGroup && !t.adultRoom ? 0.4 : 0.1,
+        presence_penalty: t.isGroup && !t.adultRoom ? 0.3 : 0.1,
+        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId), !!t.adultRoom) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });

@@ -46,8 +46,17 @@ export function ProfileProvider({
   service: ProfileService;
 }) {
   const { signedIn, session } = useAuth();
-  const [profile, setProfile] = useState<Profile | null | undefined>();
-  const [ready, setReady] = useState(false);
+  /*
+   * Opened from the copy this device already holds, when it has one.
+   *
+   * The guard in front of the chat list waits for `ready`, and `ready` used to
+   * wait for the network read of a profile that is nearly always the one on
+   * disk - online that was a round trip on every launch, offline it was the
+   * whole timeout. Now the kept copy is the first answer and the read below
+   * is the correction.
+   */
+  const [profile, setProfile] = useState<Profile | null | undefined>(() => service.peekMine?.());
+  const [ready, setReady] = useState(() => service.peekMine?.() !== undefined);
 
   const userId = session?.user.id;
 
@@ -59,7 +68,9 @@ export function ProfileProvider({
     }
 
     let active = true;
-    setReady(false);
+    const kept = service.peekMine?.();
+    if (kept) setProfile(kept);
+    setReady(kept !== undefined);
 
     void service
       .getMine()

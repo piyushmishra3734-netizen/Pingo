@@ -29,8 +29,22 @@ import {
   type UpdateNoticeRow,
 } from '../../lib/supabase/update-notice.js';
 import { isBehind, shouldShow, versionName } from './notice-rules.js';
+import { UpdateRequired } from './UpdateRequired.js';
 
+/**
+ * Both update screens, mounted once: the blocking one for a build the server
+ * has turned away (`UpdateRequired`), and the operator's notice.
+ */
 export function UpdateNotice() {
+  return (
+    <>
+      <UpdateRequired />
+      <Notice />
+    </>
+  );
+}
+
+function Notice() {
   const [row, setRow] = useState<UpdateNoticeRow | null>(null);
   const [behind, setBehind] = useState(false);
   const [closed, setClosed] = useState(false);

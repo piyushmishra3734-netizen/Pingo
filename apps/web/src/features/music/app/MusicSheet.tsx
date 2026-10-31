@@ -14,9 +14,8 @@ import { useMusicPlayer } from '../player.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
 import type { Song } from '../saavn/types.js';
-import { onYtmNotice, needsChoice, useMusicSource } from '../ytm/source.js';
+import { onMusicNotice } from '../saavn/notice.js';
 import { MiniPlayer } from './MiniPlayer.js';
-import { SourceChooser } from './SourceChooser.js';
 import { NowPlaying } from './NowPlaying.js';
 import { Cover, clean, names, useCoverTone } from './parts.js';
 import { closeMusic, takeMusicTarget, useMusicOpen, useMusicTargetSignal } from './sheet-store.js';
@@ -83,9 +82,8 @@ export default function MusicSheet() {
   }, [toastText]);
 
   const toast = useCallback((text: string) => setToastText((t) => ({ text, n: (t?.n ?? 0) + 1 })), []);
-  // YouTube Music handing a song to JioSaavn is said once, here.
-  useEffect(() => onYtmNotice(toast), [toast]);
-  const sourceChosen = useMusicSource();
+  // A line from the music code (a song that cannot play) is said once, here.
+  useEffect(() => onMusicNotice(toast), [toast]);
 
   const push = useCallback((kind: Route['kind'], id: string) => {
     setStack((s) => [...s, { kind, id, key: ++keyRef.current }]);
@@ -145,8 +143,7 @@ export default function MusicSheet() {
   const sendToChat = useCallback(
     async (s: Song) => {
       setActions(undefined);
-      // A YouTube Music song is sent as its page address, so there is nothing to look up first.
-      const full = s.id.startsWith('yt:') || api.streamUrl(s, 'normal') ? s : await api.song(s.id).catch(() => undefined);
+      const full = api.streamUrl(s, 'normal') ? s : await api.song(s.id).catch(() => undefined);
       const shared = full && fromSaavn(full);
       if (!shared) {
         toast("This song can't be sent");
@@ -335,8 +332,6 @@ export default function MusicSheet() {
         )}
 
         {now && <MiniPlayer song={now} onOpen={() => setNp(true)} toast={toast} />}
-
-        {sourceChosen === undefined && needsChoice() && <SourceChooser />}
 
         <NowPlaying
           open={np}
