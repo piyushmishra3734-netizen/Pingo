@@ -39,6 +39,7 @@ const collection = (id: string, title: string, names: string[]): CoverCollection
 });
 
 export const COVER_COLLECTIONS: CoverCollection[] = [
+  collection('signature', 'PINGO Signature', ['sunset-bubbles']),
   collection('gradients', 'Gradients', ['dusk', 'ocean', 'mint', 'peach', 'lavender', 'night', 'forest', 'sunset']),
 ];
 
