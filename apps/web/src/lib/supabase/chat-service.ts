@@ -99,9 +99,8 @@ import { recordMetric } from '../net-metrics.js';
 import { hasHeldRead, heldRead, holdRead, releaseRead } from '../../features/chat/read-cursor.js';
 import { startMediaReaper, uploadClaims } from '../../features/chat/media-reaper.js';
 import { toChatQuality, toStandardQuality } from '../../features/chat/media-quality.js';
-import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { putMedia } from '../../features/chat/video-vault.js';
-import { chatMediaOnR2, isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
+import { isR2Path, r2PathFromSignedUrl, r2Sign, r2SignShort, r2Upload, type R2Kind } from '../r2-media.js';
 import { mediaTooLarge, type DrawingAnchor, type MediaKind } from '@pingo/core';
 import { cachePrivacyRules, readReceiptsOn } from '../../features/settings/privacy-flags.js';
 import { refreshPresenceStatus } from '../../features/presence/status.js';
@@ -4437,47 +4436,28 @@ export class SupabaseChatService implements ChatService {
     const me = await this.#userId();
 
     /*
-     * Cloudflare R2 first, once it is switched on (`chatMediaOnR2`: an app that
-     * predates R2 cannot read these, so it is on only when enough can). Reading
-     * it costs no egress, and the bytes of every photo, voice note, document and
-     * video somebody opens are most of what this app sends. The Worker names the file, so the claim is written after
-     * the upload rather than before; the gap is the same orphan the claim exists
-     * for, and a crash inside it is the only way to lose track of one. If the
-     * Worker cannot take the file - it is down, or refuses it - Supabase does,
-     * exactly as before.
+     * R2 is the only place chat media goes now.
+     *
+     * Supabase Storage used to take it whenever the Worker could not, or a
+     * member's device had not said it could read R2, and that quiet fallback was
+     * where the egress kept coming from: whole chats, 40 MB videos included,
+     * stayed on Supabase for one old install. The database refuses the upload
+     * there as well (`chat_media_supabase_upload`), so a fallback would only
+     * fail later and less clearly. A file the Worker will not take is an error
+     * the person can see and retry.
+     *
+     * The Worker names the file, so the orphan claim is written after the upload
+     * rather than before; a crash inside that gap is the only way to lose track
+     * of one.
      */
     const r2Kind = R2_KIND[bucket];
-    const onR2 = r2Kind && (await chatMediaOnR2(conversationId)) ? await r2Upload(r2Kind, body, contentType) : null;
-    if (onR2) {
-      await Promise.resolve(uploadClaims(this.#client).insert({ path: onR2.path, bucket, user_id: me })).then(
-        undefined,
-        () => undefined,
-      );
-      return onR2.path;
-    }
-
-    /*
-     * Best effort, deliberately. A claim that fails to write must not stop
-     * somebody sending a photograph; it only means that particular orphan
-     * would have to wait for a future sweep rather than this account's own.
-     */
-    await Promise.resolve(uploadClaims(this.#client).insert({ path, bucket, user_id: me })).then(
+    const onR2 = r2Kind ? await r2Upload(r2Kind, body, contentType) : null;
+    if (!onR2) throw new Error('Could not upload that file. Check your connection and try again.');
+    await Promise.resolve(uploadClaims(this.#client).insert({ path: onR2.path, bucket, user_id: me })).then(
       undefined,
       () => undefined,
     );
-
-    const { error } = await this.#client.storage
-      .from(bucket)
-      // Every path is a fresh uuid, so the bytes behind it never change: let
-      // anything in between keep them for as long as it likes.
-      .upload(path, body, { contentType, cacheControl: IMMUTABLE_CACHE_SECONDS });
-
-    if (error) {
-      // The claim outlives a failed upload harmlessly: there is no object, so
-      // the sweeper deletes nothing and simply clears the row.
-      throw new Error(error.message || 'Could not upload that file.');
-    }
-    return path;
+    return onR2.path;
   }
 
   /** The message that owns these objects exists now; they are not orphans. */

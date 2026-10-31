@@ -13,12 +13,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Sheet } from '../../components/Sheet.js';
 import { useConfirm } from '../../components/ConfirmProvider.js';
-import { getSupabaseClient } from '../../lib/supabase/client.js';
 import { r2Upload } from '../../lib/r2-media.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { useT } from '../i18n/useT.js';
 import { useBackStep } from '../navigation/useBackStep.js';
-import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../profile/avatar-image.js';
+import { shrinkToAvatar } from '../profile/avatar-image.js';
 import { useMutuals } from '../profile/useMutuals.js';
 
 /**
@@ -154,27 +153,10 @@ export function GroupInfoSheet({
      * screen and deliberately left alone.
      */
     const prepared = kind === 'avatar' ? await shrinkToAvatar(file) : file;
-    const ext =
-      prepared.type === 'image/png'
-        ? 'png'
-        : prepared.type === 'image/webp'
-          ? 'webp'
-          : prepared.type === 'image/gif'
-            ? 'gif'
-            : 'jpg';
-    // Cloudflare R2 first (no egress on every face drawn); Supabase if it is not up.
+    // Cloudflare R2 only (no egress on every face drawn): no second home on Supabase Storage.
     const onR2 = await r2Upload(kind === 'avatar' ? 'avatar' : 'cover', prepared, prepared.type || 'image/jpeg');
-    if (onR2?.url) return onR2.url;
-    const path = `${currentUser.id}/groups/${conversation.id}/${kind}-${crypto.randomUUID()}.${ext}`;
-    const client = getSupabaseClient();
-    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared, {
-      contentType: prepared.type || 'image/jpeg',
-      upsert: false,
-      // The path carries a uuid, so these bytes can never change.
-      cacheControl: IMMUTABLE_CACHE_SECONDS,
-    });
-    if (upErr) throw new Error(upErr.message || 'Upload failed');
-    return client.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    if (!onR2?.url) throw new Error('The picture did not upload. Check your connection and try again.');
+    return onR2.url;
   };
 
   const onPickAvatar = async (file: File) => {

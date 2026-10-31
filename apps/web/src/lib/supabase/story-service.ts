@@ -421,23 +421,10 @@ export class SupabaseStoryService implements StoryService {
      * GIF / WebP / PNG stickers and custom GIFs used to be uploaded as `.jpg`
      * with a JPEG content-type, which broke animation and transparent stickers.
      */
-    const { extension, contentType } = mediaUploadMeta(draft.media, draft.kind);
-    // Per-user folder, which is what the storage policy checks.
-    // Cloudflare R2 first (no egress on every view); Supabase if it is not up.
-    const path = (await r2Upload('story', draft.media, contentType))?.path ?? `${me}/${crypto.randomUUID()}.${extension}`;
-
-    if (!isR2Path(path)) {
-      const { error: uploadError } = await this.#client.storage
-        .from(STORY_BUCKET)
-        .upload(path, draft.media, {
-          contentType,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw new Error(uploadError.message || 'Could not upload the story media.');
-      }
-    }
+    const { contentType } = mediaUploadMeta(draft.media, draft.kind);
+    // R2 only: no egress on a view, and no second home on Supabase Storage.
+    const path = (await r2Upload('story', draft.media, contentType))?.path;
+    if (!path) throw new Error('The story did not upload. Check your connection and try again.');
 
     /*
      * The sound, before the row.
@@ -450,17 +437,9 @@ export class SupabaseStoryService implements StoryService {
     const audioPaths: string[] = [];
     try {
       for (const track of draft.audio ?? []) {
-        const onR2 = isR2Path(path) ? await r2Upload('story', track.blob, 'audio/wav') : null;
-        if (onR2) {
-          audioPaths.push(onR2.path);
-          continue;
-        }
-        const audioPath = `${me}/${crypto.randomUUID()}.wav`;
-        const { error: audioError } = await this.#client.storage
-          .from(STORY_BUCKET)
-          .upload(audioPath, track.blob, { contentType: 'audio/wav', upsert: false });
-        if (audioError) throw new Error(audioError.message || 'Could not upload the sound.');
-        audioPaths.push(audioPath);
+        const onR2 = await r2Upload('story', track.blob, 'audio/wav');
+        if (!onR2) throw new Error('The sound did not upload. Check your connection and try again.');
+        audioPaths.push(onR2.path);
       }
     } catch (cause) {
       await this.#removeFiles([path, ...audioPaths]);

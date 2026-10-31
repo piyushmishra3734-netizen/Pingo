@@ -3,9 +3,8 @@ import { cn } from '@pingo/ui';
 import { Camera, Check, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { getSupabaseClient } from '../../../lib/supabase/client.js';
 import { r2Upload } from '../../../lib/r2-media.js';
-import { IMMUTABLE_CACHE_SECONDS, shrinkToAvatar } from '../../profile/avatar-image.js';
+import { shrinkToAvatar } from '../../profile/avatar-image.js';
 import type { AiPublicIdentity } from '../ai-public.js';
 import { saveAiPrefs, useAiPrefs } from '../room/ai-prefs.js';
 import { AI_STATUSES, asStatus, LIMITS, validateProfile, type AiStatus } from './ai-profile-model.js';
@@ -67,20 +66,11 @@ export function EditProfilePage({
     setUploading(true);
     setError(undefined);
     try {
-      const client = getSupabaseClient();
-      const path = `${profile.id}/ai-avatar-${Date.now()}`;
       const small = await shrinkToAvatar(file);
-      // Cloudflare R2 first; Supabase if it is not up.
+      // Cloudflare R2 only: no second home on Supabase Storage.
       const onR2 = await r2Upload('avatar', small, small.type || 'image/jpeg');
-      if (onR2?.url) {
-        setPhoto(onR2.url);
-        return;
-      }
-      const { error: upError } = await client.storage
-        .from('avatars')
-        .upload(path, small, { upsert: true, contentType: small.type || 'image/jpeg', cacheControl: IMMUTABLE_CACHE_SECONDS });
-      if (upError) throw upError;
-      setPhoto(client.storage.from('avatars').getPublicUrl(path).data.publicUrl);
+      if (!onR2?.url) throw new Error('The photo did not upload. Check your connection and try again.');
+      setPhoto(onR2.url);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not upload the photo.');
     } finally {

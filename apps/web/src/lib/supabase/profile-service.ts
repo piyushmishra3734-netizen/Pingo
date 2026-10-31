@@ -37,7 +37,6 @@ import {
   type MutualFriends,
 } from '@pingo/core';
 
-import { IMMUTABLE_CACHE_SECONDS } from '../../features/profile/avatar-image.js';
 import { toStandardQuality } from '../../features/chat/media-quality.js';
 import { cachePrivacyRules } from '../../features/settings/privacy-flags.js';
 import { setBlockedHere } from '../../features/safety/blocks.js';
@@ -454,41 +453,19 @@ export class SupabaseProfileService implements ProfileService {
      * caching, so a replaced photo appears immediately instead of showing the
      * old one until the cache expires.
      */
-    // Cloudflare R2 first (no egress on every face drawn); Supabase if it is not up.
-    const onR2 = await r2Upload('avatar', file, file.type || 'image/jpeg');
-    if (onR2?.url) {
-      void this.#deleteOwnStorageObject(previous.data?.avatar_url ?? undefined, userId);
-      return onR2.url;
-    }
-
-    const path = `${userId}/avatar-${Date.now()}`;
-
-    const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
-      upsert: true,
-      contentType: file.type || 'image/jpeg',
-      /*
-       * The path already carries a timestamp, so a new photo is a new URL and
-       * these bytes can never change. The default hour meant every unchanged
-       * face was re-downloaded hourly, on every device, on every screen that
-       * draws one - which measured at 9.5 MB per session.
-       */
-      cacheControl: IMMUTABLE_CACHE_SECONDS,
-    });
-
-    if (error) rethrow(error);
-
     /*
-     * Only after the new one is safely up, and never fatal.
+     * Cloudflare R2 only. Every face drawn was Supabase egress, and a fallback
+     * to Supabase Storage is where it kept coming from when the Worker blinked;
+     * the database refuses that upload too now. A picture that does not go up
+     * is an error to show and retry, not a quiet second place for it to live.
      *
-     * The order matters: deleting first would leave somebody with no picture at
-     * all if the upload then failed. And a delete that fails is a stale object,
-     * which is what the situation already was - so it must not fail the upload
-     * the user is actually waiting on.
+     * The previous one is removed only after the new one is up, and never
+     * fatally: deleting first would leave somebody with no picture at all.
      */
+    const onR2 = await r2Upload('avatar', file, file.type || 'image/jpeg');
+    if (!onR2?.url) throw new Error('The photo did not upload. Check your connection and try again.');
     void this.#deleteOwnStorageObject(previous.data?.avatar_url ?? undefined, userId);
-
-    const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+    return onR2.url;
   }
 
   /**
@@ -509,25 +486,11 @@ export class SupabaseProfileService implements ProfileService {
       .eq('id', userId)
       .maybeSingle();
 
+    // R2 only, like the photo: no second home on Supabase Storage.
     const onR2 = await r2Upload('cover', file, file.type || 'image/jpeg', onProgress);
-    if (onR2?.url) {
-      void this.#deleteOwnStorageObject(previous.data?.banner_url ?? undefined, userId);
-      return onR2.url;
-    }
-
-    const path = `${userId}/cover-${Date.now()}`;
-
-    const { error } = await this.client.storage.from(AVATAR_BUCKET).upload(path, file, {
-      upsert: true,
-      contentType: file.type || 'image/jpeg',
-      cacheControl: IMMUTABLE_CACHE_SECONDS,
-    });
-    if (error) rethrow(error);
-
+    if (!onR2?.url) throw new Error('The cover did not upload. Check your connection and try again.');
     void this.#deleteOwnStorageObject(previous.data?.banner_url ?? undefined, userId);
-
-    const { data } = this.client.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-    return data.publicUrl;
+    return onR2.url;
   }
 
   /**
@@ -1113,9 +1076,7 @@ export class SupabaseProfileService implements ProfileService {
 
   /** Puts the picture in the private bucket and returns its path. */
   private async uploadPostImage(image: Blob): Promise<string> {
-    const me = await this.requireUserId();
-    // The author's id leads the path, which is what the storage policy checks.
-    const path = `${me}/${crypto.randomUUID()}.jpg`;
+    await this.requireUserId();
 
     /*
      * Compressed like a chat photo, for the same reason: the editor hands back
@@ -1126,16 +1087,10 @@ export class SupabaseProfileService implements ProfileService {
       new File([image], 'post', { type: image.type || 'image/jpeg' }),
     ).catch(() => new File([image], 'post', { type: image.type || 'image/jpeg' }));
 
-    // Cloudflare R2 first (no egress on every view); Supabase if it is not up.
+    // R2 only: no egress on a view, and no second home on Supabase Storage.
     const onR2 = await r2Upload('post', sending, sending.type || 'image/jpeg');
-    if (onR2) return onR2.path;
-
-    const { error } = await this.client.storage
-      .from(POST_BUCKET)
-      .upload(path, sending, { contentType: sending.type || 'image/jpeg' });
-
-    if (error) rethrow(error);
-    return path;
+    if (!onR2) throw new Error('The picture did not upload. Check your connection and try again.');
+    return onR2.path;
   }
 
   /** Best effort. A leftover object is waste; a thrown error here is a bug. */
