@@ -38,6 +38,10 @@ export interface PoToken {
   visitorData: string;
   poToken: string;
   at: number;
+  /** The id the token is bound to — the short visitor id, not the blob. */
+  binding?: string;
+  /** False when the mint kept coming back cold. */
+  trusted?: boolean;
 }
 
 const KEY = 'pingo:ytm-pot:v2';
@@ -107,6 +111,38 @@ function asBase64(token: string): string {
   return text;
 }
 
+/**
+ * The eleven-character visitor id inside `visitorData`.
+ *
+ * A token minted against the whole `visitorData` blob is accepted at load time
+ * and refused once enforcement kicks in: GVS binds a logged-out token to the
+ * short id, and the blob is a base64url protobuf whose first field is that id
+ * (`0x0A`, length `0x0B`, then eleven bytes).
+ *
+ * Taken from Flow's `VisitorId.kt`, which mirrors yt-dlp's `_extract_visitor_id`
+ * including its fallback — when the id cannot be read, bind to the blob rather
+ * than skip attestation.
+ */
+function visitorIdFrom(visitorData: string): string {
+  try {
+    const url = visitorData.replace(/=+$/, '');
+    const padded = url + '='.repeat((4 - (url.length % 4)) % 4);
+    const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+    if (binary.length < 13) return visitorData;
+    const id = binary.slice(2, 13);
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : visitorData;
+  } catch {
+    return visitorData;
+  }
+}
+
+/**
+ * A token shorter than this is a cold one — accepted briefly, then refused
+ * mid-playback. Flow measured 88 mints: real tokens come back at 116 or 120
+ * characters, so 110 is the floor.
+ */
+const MIN_TRUSTED_TOKEN = 110;
+
 async function generate(): Promise<PoToken | null> {
   const [bgMod, wp] = await Promise.all([
     import('bgutils-js/botguard'),
@@ -117,6 +153,9 @@ async function generate(): Promise<PoToken | null> {
   const visitorData: string =
     visitor?.responseContext?.visitorData ?? visitor?.visitorData ?? '';
   if (!visitorData) throw new Error('no visitor id');
+
+  // The binding GVS actually checks, not the blob it sits inside.
+  const binding = visitorIdFrom(visitorData);
 
   const challenge = await nativeJson(
     WAA,
@@ -153,10 +192,21 @@ async function generate(): Promise<PoToken | null> {
     create: (data: Record<string, unknown>, output: unknown[]) => Promise<{ mintAsWebsafeString: (id: string) => Promise<string> }>;
   }).create({ integrityToken: asBase64(snapshot) }, signal);
 
-  const poToken = await minter.mintAsWebsafeString(visitorData);
+  /*
+   * Mint, and mint again while the answer is cold.
+   *
+   * A cold token loads and then fails minutes later, which is worse than a
+   * clean failure now, so the challenge is repeated until the token is long
+   * enough to be trusted — Flow's retry loop, same floor.
+   */
+  let poToken = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    poToken = await minter.mintAsWebsafeString(binding);
+    if (poToken.replace(/=+$/, '').length >= MIN_TRUSTED_TOKEN) break;
+  }
   if (!poToken) throw new Error('empty token');
 
-  return { visitorData, poToken, at: Date.now() };
+  return { visitorData, poToken, at: Date.now(), binding, trusted: poToken.replace(/=+$/, '').length >= MIN_TRUSTED_TOKEN };
 }
 
 /**
