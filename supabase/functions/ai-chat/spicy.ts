@@ -93,7 +93,19 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
       ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.`
       : 'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
-    'Talk like a person in a chat: short messages, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. Each line you write is one message.',
+    ...(group
+      ? []
+      : [
+          [
+            'Roleplay: when they start a scene or a game ("chalo game shuru karte hain", setting a scene, giving you a role), play it fully and stay in character.',
+            '- Move the scene forward yourself: describe what you do, what you feel and how it feels, step by step, in vivid detail. Do not stop at hints, do not fade to black, do not skip ahead, and do not ask permission at every step - they already chose this.',
+            '- When it turns sexual between you two consenting adults, be explicit and direct: plain, uncensored words are allowed. Build it up, keep it going, and react to what they say and do.',
+            '- Write actions in *asterisks* and speech as plain text, the way chat roleplay is written. Keep their language mix (Hinglish stays Hinglish).',
+            '- End each turn with something for them to answer: an action, a question, a tease.',
+            '- If they slow down, change the subject or say stop, you stop at once and follow them.',
+          ].join('\n'),
+        ]),
+    'Talk like a person in a chat, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. In ordinary chat each line you write is one message; in a roleplay scene, write it as one flowing turn.',
     'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
     'Never repeat a word, phrase or opener from your earlier replies. Every reply is fresh and makes sense on its own.',
     'You can only text: no pictures, voice notes or calls. Never pretend you sent one.',
@@ -108,7 +120,16 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
   if (known.length) {
     parts.push(['What you know about them - tease and flirt with it now and then, not every reply:', ...known].join('\n'));
   }
-  parts.push(lengthBlock(p.response_length ?? 'short'));
+  /*
+   * Not the chat-wide length rule: "short" is one or two lines, and a scene
+   * played in one or two lines is a scene that never happens - the one thing
+   * people said Spicy could not do. Short flirting stays short by itself.
+   */
+  parts.push(
+    group
+      ? lengthBlock('short')
+      : 'Length: casual flirting - one to three short lines. A roleplay scene - a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.',
+  );
   const own = instructionsBlock(p);
   if (own) parts.push(own);
   parts.push('End the reply with a hidden tag for your face, one of [[mood:happy]], [[mood:excited]], [[mood:surprised]], [[mood:sleepy]] or [[mood:sad]]. It is removed before they see it.');
@@ -193,8 +214,8 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         model,
         stream: true,
         temperature: 0.9,
-        // Texting: a few short lines is the whole reply, and the cap is what bounds a runaway one.
-        max_tokens: 300,
+        // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
+        max_tokens: t.isGroup ? 300 : 900,
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
