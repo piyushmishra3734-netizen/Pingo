@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import { AppLogo } from '../../components/AppLogo.js';
 import { useT } from '../i18n/useT.js';
+import { useSplashHold } from './splash.js';
 
 /**
  * The routes that open on a list. Copied from `#boot` in index.html, and the
@@ -40,6 +41,16 @@ const ROWS = [
  * A non-list route gets the ground alone, the same as `#boot` does there.
  */
 export function ListPaneSkeleton() {
+  /*
+   * The launch splash stays up for as long as this is on screen.
+   *
+   * The three waits after the splash (session, profile, shell) each draw this,
+   * and only the first used to hold the splash, so it left in the gap between
+   * them and the person saw a loading screen after it. Holding here means the
+   * splash hands over to the chat list itself. Swapping one of these for the
+   * next in a single commit never lets the count reach zero.
+   */
+  useSplashHold();
   const t = useT();
   const { pathname } = useLocation();
   if (!LIST_ROUTES.test(pathname)) return <div className="h-full bg-page" aria-busy="true" />;

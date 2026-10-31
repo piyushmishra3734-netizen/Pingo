@@ -44,6 +44,7 @@ import { setBlockedHere } from '../../features/safety/blocks.js';
 import { getSupabaseClient, type PingoSupabaseClient } from './client.js';
 import { isR2Path, r2PathFromUrl, r2Remove, r2Sign, r2Upload } from '../r2-media.js';
 import type { Database, PostCommentRow, PostRow, ProfileRow } from './types.js';
+import { storedUserId } from './stored-session.js';
 
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
@@ -130,16 +131,6 @@ function keptAfter(ms: number): Promise<typeof KEPT> {
   return new Promise((resolve) => setTimeout(() => resolve(KEPT), ms));
 }
 
-/** The signed-in account's id, read from the session on disk without the network. */
-function storedUserId(): string | undefined {
-  try {
-    const raw = localStorage.getItem('pingo.auth.session');
-    return raw ? ((JSON.parse(raw) as { user?: { id?: string } }).user?.id ?? undefined) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function readKeptProfile(): Profile | undefined {
   try {
     const raw = localStorage.getItem(KEPT_PROFILE_KEY);
@@ -184,6 +175,10 @@ export class SupabaseProfileService implements ProfileService {
    * account's own copy (checked against the stored session), and the next
    * online read replaces it.
    */
+  peekMine(): Profile | undefined {
+    return readKeptProfile();
+  }
+
   async getMine(): Promise<Profile | null> {
     const kept = readKeptProfile();
     try {

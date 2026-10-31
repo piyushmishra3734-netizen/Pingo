@@ -272,6 +272,15 @@ export interface ProfileService {
   getMine(): Promise<Profile | null>;
 
   /**
+   * The copy of this account's profile already on this device, answered at once
+   * and without the network, or undefined when there is none.
+   *
+   * What lets the app open on the chat list instead of waiting for a read it
+   * is about to repeat: the provider shows this, then `getMine` corrects it.
+   */
+  peekMine?(): Profile | undefined;
+
+  /**
    * One person, by handle or by id.
    *
    * Both, in one call, because a profile link can carry either: `/profile/anaya`

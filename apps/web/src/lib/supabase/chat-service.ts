@@ -127,6 +127,7 @@ import { imagePrompt } from '../../../../../supabase/functions/ai-chat/image-int
 
 import type { ConversationRow, Database, MessageRow, ProfileRow } from './types.js';
 import { hiddenByBlock } from '../../features/safety/blocks.js';
+import { storedUserId } from './stored-session.js';
 
 /**
  * Whether this draft carries bytes rather than only words.
@@ -1297,6 +1298,17 @@ export class SupabaseChatService implements ChatService {
   #me: string | undefined;
 
   async #resolveUserId(): Promise<string | undefined> {
+    /*
+     * The session already on disk answers first.
+     *
+     * `auth.getSession()` below waits for an expired token to be refreshed,
+     * and that is a network round trip online and the whole retry window
+     * offline. It sat in front of `cachedStartup`, so the chat list that was
+     * already on disk waited for it. The id does not change while the app
+     * runs, and every request is still authorised by the token on the server.
+     */
+    const stored = storedUserId();
+    if (stored) return stored;
     try {
       const { data } = await this.#client.auth.getSession();
       if (data.session?.user.id) return data.session.user.id;
