@@ -1,5 +1,6 @@
 import { MusicMark } from '../features/music/MusicMark.js';
 import { isValidUsername, normaliseUsername, useProfile, type ProfileSong } from '@pingo/core';
+import { useConfirm } from '../components/ConfirmProvider.js';
 import { Sheet } from '../components/Sheet.js';
 import { ChatMusicPicker } from '../features/music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
@@ -52,6 +53,7 @@ const WORK_CHIPS = ['Student', 'Developer', 'Designer', 'Creator', 'Gamer', 'Fou
 export function EditProfileScreen() {
   const t = useT();
   const { profile, update, service } = useProfile();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState('');
@@ -140,7 +142,11 @@ export function EditProfileScreen() {
     if (isGif(file) && !canEditGif()) {
       setError(undefined);
       void prepareAvatarGif(file).then((result) => {
-        if (!result.ok) return setError(result.reason);
+        // Said in a dialog: the form's own error sits at the foot of a long page, out of sight.
+        if (!result.ok) {
+          void confirm({ title: 'Could not use that GIF', description: result.reason, confirmLabel: 'OK', tone: 'normal' });
+          return;
+        }
         setPhoto(result.file);
         setRemovePhoto(false);
       });
