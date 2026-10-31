@@ -152,11 +152,13 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
   {
     id: 'embedwave',
     name: 'EmbedWave',
+    // Its page opens on "Multi HD" unless told otherwise, and that server mostly fails (JAV especially).
+    // `?server=` takes a server id; Cinesrc is the one that plays.
     badge: 'No ads',
     buildUrl: (type, id, s, e) =>
       type === 'movie'
-        ? `https://embedwave.cc/embed/movie/${id}`
-        : `https://embedwave.cc/embed/tv/${id}/${s}/${e}`,
+        ? `https://embedwave.cc/embed/movie/${id}?server=cinesrc`
+        : `https://embedwave.cc/embed/tv/${id}/${s}/${e}?server=cinesrc`,
   },
 
   /*
