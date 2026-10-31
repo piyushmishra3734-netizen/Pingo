@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Overlay } from '../../components/Overlay.js';
+import { useAppearance } from '../settings/SettingsContext.js';
 import { Sheet } from '../../components/Sheet.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../music/ProfileSongCard.js';
@@ -27,9 +28,9 @@ const PROMPTS = ['Ask me anything', 'Hot take:', 'Song of the day:', 'Currently:
 const QUICK_EMOJI = ['😊', '😂', '🥹', '😎', '🔥', '💗', '🎧', '✨'];
 
 /**
- * Notes are always dark, in either theme: they are drawn over the same dark
- * page the app uses at night (`--color-page` in dark mode), with its dark
- * surfaces, so they look like one thing with the story screens they start from.
+ * Notes follow the app's theme: the dark page and surfaces at night, the light
+ * ones by day. They used to be dark in both, which on a light PINGO made every
+ * note screen a black slab that ignored the rest of the app.
  */
 const DARK = {
   page: '#0c0d11',
@@ -41,10 +42,28 @@ const DARK = {
   pink: '#ff2d92',
 } as const;
 
-/** A bubble on the dark page: the chosen background, or the dark surface when none. */
-function bubbleStyle(bg: NoteBg): React.CSSProperties {
-  const look = noteBg(bg);
-  return { background: look.bg || DARK.sunken, color: look.ink || DARK.ink };
+const LIGHT = {
+  page: '#fbfbfe',
+  surface: '#ffffff',
+  sunken: '#efeff5',
+  ink: '#111113',
+  muted: '#6b6e7b',
+  line: 'rgb(17 17 19 / 0.12)',
+  pink: '#ff2d92',
+} as const;
+
+type Palette = { [K in keyof typeof DARK]: string };
+
+/** The colours for the app's current theme. */
+function usePalette(): { P: Palette; theme: 'light' | 'dark' } {
+  const { resolvedTheme } = useAppearance();
+  return { P: resolvedTheme === 'dark' ? DARK : LIGHT, theme: resolvedTheme };
+}
+
+/** A bubble on the page: the chosen background, or the sunken surface when none. */
+function bubbleStyle(bg: NoteBg, P: Palette, theme: 'light' | 'dark'): React.CSSProperties {
+  const look = noteBg(bg, theme);
+  return { background: look.bg || P.sunken, color: look.ink || P.ink };
 }
 
 /**
@@ -52,6 +71,7 @@ function bubbleStyle(bg: NoteBg): React.CSSProperties {
  * pink icon. When it is on, the border takes the icon's colour.
  */
 function Tile({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+  const { P } = usePalette();
   return (
     <button
       type="button"
@@ -59,7 +79,7 @@ function Tile({ label, active = false, onClick, children }: { label: string; act
       aria-pressed={active}
       onClick={onClick}
       className="focus-ring grid h-[50px] w-[60px] place-items-center rounded-[16px] border transition-transform duration-150 active:scale-90"
-      style={{ background: DARK.surface, borderColor: active ? DARK.pink : DARK.line, boxShadow: active ? `0 0 0 1px ${DARK.pink} inset` : undefined }}
+      style={{ background: P.surface, borderColor: active ? P.pink : P.line, boxShadow: active ? `0 0 0 1px ${P.pink} inset` : undefined }}
     >
       {children}
     </button>
@@ -87,6 +107,8 @@ export function NoteComposeSheet({
   /** The camera tile: leaves for the story camera. */
   onCamera?: () => void;
 }) {
+  const { P, theme } = usePalette();
+  const bubble = (b: NoteBg) => bubbleStyle(b, P, theme);
   const [body, setBody] = useState(mine?.body ?? '');
   const [song, setSong] = useState<ProfileSong | undefined>(mine?.song);
   const [audience, setAudience] = useState<NoteAudience>(mine?.audience ?? 'friends');
@@ -138,7 +160,7 @@ export function NoteComposeSheet({
         aria-modal="true"
         aria-label="New note"
         className="fixed inset-0 z-500 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-        style={{ background: DARK.page, color: DARK.ink }}
+        style={{ background: P.page, color: P.ink }}
       >
         <header className="flex h-14 shrink-0 items-center justify-between px-3">
           <button type="button" aria-label="Close" onClick={onClose} className="focus-ring grid size-10 place-items-center rounded-full">
@@ -150,7 +172,7 @@ export function NoteComposeSheet({
             disabled={!can}
             onClick={() => void share()}
             className="focus-ring flex h-10 items-center gap-1.5 px-2 text-[16px] font-bold disabled:opacity-40"
-            style={{ color: DARK.pink }}
+            style={{ color: P.pink }}
           >
             {busy && <Loader2 size={16} className="animate-spin" aria-hidden />}
             {busy ? 'Sharing' : 'Share'}
@@ -162,7 +184,7 @@ export function NoteComposeSheet({
             {/* The bubble is the input: you type where it will be read, and the background is what the others will see. */}
             <div
               className="relative z-10 -mb-7 w-[min(280px,80vw)] rounded-[24px] rounded-bl-none px-5 py-4 text-center transition-colors duration-200"
-              style={{ ...bubbleStyle(bg), border: `1px solid ${DARK.line}` }}
+              style={{ ...bubble(bg), border: `1px solid ${P.line}` }}
             >
               {song && (
                 <button type="button" onClick={() => setPicking(true)} className="mb-1.5 flex w-full items-center justify-center gap-1.5 text-[13px] opacity-75">
@@ -180,11 +202,11 @@ export function NoteComposeSheet({
                 aria-label="Note"
                 className="font-note block w-full resize-none bg-transparent text-center text-[20px] font-medium leading-[1.25] outline-none placeholder:opacity-45"
               />
-              <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px]" style={{ color: bubbleStyle(bg).background as string }}>
+              <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px]" style={{ color: bubble(bg).background as string }}>
                 <path d="M0 0 H18 C12.5 0 10 3.4 7 7.4 C5.2 9.8 1.6 9.8 0 6.4 Z" fill="currentColor" />
               </svg>
             </div>
-            <span className="block size-[132px] overflow-hidden rounded-full" style={{ boxShadow: `0 0 0 1px ${DARK.line}` }}>
+            <span className="block size-[132px] overflow-hidden rounded-full" style={{ boxShadow: `0 0 0 1px ${P.line}` }}>
               {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={name} id={userId} size="lg" className="!size-full" />}
             </span>
           </div>
@@ -192,7 +214,7 @@ export function NoteComposeSheet({
           {/* How much is left: a count that turns pink when it is nearly gone. */}
           <p
             className="font-note -mt-3 text-[12.5px] tabular-nums"
-            style={{ color: count >= NOTE_MAX - 10 ? DARK.pink : DARK.muted }}
+            style={{ color: count >= NOTE_MAX - 10 ? P.pink : P.muted }}
             aria-live="polite"
           >
             {count}/{NOTE_MAX}
@@ -220,7 +242,7 @@ export function NoteComposeSheet({
                   type="button"
                   onClick={() => { setBody(clampNote(text + ' ')); setPrompts(false); field.current?.focus(); }}
                   className="font-note focus-ring h-9 rounded-full border px-3.5 text-[13.5px] font-semibold"
-                  style={{ background: DARK.surface, borderColor: DARK.line }}
+                  style={{ background: P.surface, borderColor: P.line }}
                 >
                   {text}
                 </button>
@@ -229,7 +251,7 @@ export function NoteComposeSheet({
           ) : (
             <div className="flex flex-wrap justify-center gap-1.5" aria-label="Emoji">
               {QUICK_EMOJI.map((emoji) => (
-                <button key={emoji} type="button" onClick={() => add(emoji)} className="focus-ring grid size-9 place-items-center rounded-full text-[20px] active:scale-90" style={{ background: DARK.surface }}>
+                <button key={emoji} type="button" onClick={() => add(emoji)} className="focus-ring grid size-9 place-items-center rounded-full text-[20px] active:scale-90" style={{ background: P.surface }}>
                   {emoji}
                 </button>
               ))}
@@ -249,7 +271,7 @@ export function NoteComposeSheet({
                   aria-label={preset.label}
                   onClick={() => setBg(preset.id)}
                   className="focus-ring grid size-8 place-items-center rounded-full transition-transform duration-150 active:scale-90"
-                  style={{ background: preset.bg || DARK.sunken, boxShadow: on ? `0 0 0 2px ${DARK.page}, 0 0 0 4px ${DARK.pink}` : `0 0 0 1px ${DARK.line}` }}
+                  style={{ background: noteBg(preset.id, theme).bg || P.sunken, boxShadow: on ? `0 0 0 2px ${P.page}, 0 0 0 4px ${P.pink}` : `0 0 0 1px ${P.line}` }}
                 />
               );
             })}
@@ -257,7 +279,7 @@ export function NoteComposeSheet({
 
           {/* Who sees it. */}
           <div className="flex w-[min(300px,86vw)] flex-col items-center gap-2">
-            <div role="radiogroup" aria-label="Who can see this note" className="grid w-full grid-cols-2 rounded-full p-1" style={{ background: DARK.surface, border: `1px solid ${DARK.line}` }}>
+            <div role="radiogroup" aria-label="Who can see this note" className="grid w-full grid-cols-2 rounded-full p-1" style={{ background: P.surface, border: `1px solid ${P.line}` }}>
               {([['friends', 'Friends'], ['close', 'Close friends']] as const).map(([id, label]) => (
                 <button
                   key={id}
@@ -266,13 +288,13 @@ export function NoteComposeSheet({
                   aria-checked={audience === id}
                   onClick={() => setAudience(id)}
                   className="focus-ring h-9 rounded-full text-[13.5px] font-semibold transition-colors duration-150"
-                  style={audience === id ? { background: DARK.sunken, color: DARK.ink } : { color: DARK.muted }}
+                  style={audience === id ? { background: P.sunken, color: P.ink } : { color: P.muted }}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <p className="font-note text-center text-[12.5px]" style={{ color: DARK.muted }}>
+            <p className="font-note text-center text-[12.5px]" style={{ color: P.muted }}>
               {audience === 'friends' ? 'Friends you follow back' : 'Only your close friends'} · gone after 24 hours
             </p>
           </div>
@@ -294,6 +316,8 @@ export function NoteComposeSheet({
 export function NoteViewSheet({ note, onClose }: { note: Note; onClose: () => void }) {
   const { service } = useChat();
   const navigate = useNavigate();
+  const { P, theme } = usePalette();
+  const bubble = (b: NoteBg) => bubbleStyle(b, P, theme);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -331,21 +355,21 @@ export function NoteViewSheet({ note, onClose }: { note: Note; onClose: () => vo
         <div
           onClick={(event) => event.stopPropagation()}
           className="flex w-full max-w-sm flex-col items-center gap-4 rounded-t-[24px] px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-[24px]"
-          style={{ background: DARK.page, color: DARK.ink, border: `1px solid ${DARK.line}` }}
+          style={{ background: P.page, color: P.ink, border: `1px solid ${P.line}` }}
         >
-          <span aria-hidden className="h-1 w-9 rounded-full" style={{ background: DARK.line }} />
+          <span aria-hidden className="h-1 w-9 rounded-full" style={{ background: P.line }} />
           <div className="flex w-full items-center justify-between">
             <h2 className="text-[15px] font-bold">{note.name}</h2>
-            <span className="text-[12.5px]" style={{ color: DARK.muted }}>{timeLeft(note.expiresAt, now)}</span>
+            <span className="text-[12.5px]" style={{ color: P.muted }}>{timeLeft(note.expiresAt, now)}</span>
           </div>
 
-          <div className="relative max-w-[280px] rounded-[24px] rounded-bl-none px-5 py-3.5 text-center text-[17px] leading-snug" style={{ ...bubbleStyle(note.bg), border: `1px solid ${DARK.line}` }}>
+          <div className="relative max-w-[280px] rounded-[24px] rounded-bl-none px-5 py-3.5 text-center text-[17px] leading-snug" style={{ ...bubble(note.bg), border: `1px solid ${P.line}` }}>
             {note.body || <span className="opacity-70">{note.song?.name}</span>}
-            <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px]" style={{ color: bubbleStyle(note.bg).background as string }}>
+            <svg aria-hidden viewBox="0 0 18 10" className="absolute -bottom-[9px] left-0 h-[10px] w-[18px]" style={{ color: bubble(note.bg).background as string }}>
               <path d="M0 0 H18 C12.5 0 10 3.4 7 7.4 C5.2 9.8 1.6 9.8 0 6.4 Z" fill="currentColor" />
             </svg>
           </div>
-          <span className="block size-[88px] overflow-hidden rounded-full" style={{ boxShadow: `0 0 0 1px ${DARK.line}` }}>
+          <span className="block size-[88px] overflow-hidden rounded-full" style={{ boxShadow: `0 0 0 1px ${P.line}` }}>
             {note.avatarUrl ? <img src={note.avatarUrl} alt="" className="size-full object-cover" /> : <Avatar name={note.name} id={note.userId} size="lg" className="!size-full" />}
           </span>
           {note.song && <ProfileSongCard song={note.song} className="w-full" />}
@@ -357,14 +381,14 @@ export function NoteViewSheet({ note, onClose }: { note: Note; onClose: () => vo
               placeholder={`Reply to ${note.name.split(' ')[0]}…`}
               aria-label="Reply"
               className="focus-ring h-12 min-w-0 flex-1 rounded-full px-4 text-[16px] placeholder:opacity-45"
-              style={{ background: DARK.surface, border: `1px solid ${DARK.line}`, color: DARK.ink }}
+              style={{ background: P.surface, border: `1px solid ${P.line}`, color: P.ink }}
             />
             <button
               type="submit"
               aria-label="Send reply"
               disabled={!reply.trim() || busy}
               className={cn('focus-ring grid size-12 shrink-0 place-items-center rounded-full text-white transition-opacity disabled:opacity-40')}
-              style={{ background: DARK.pink }}
+              style={{ background: P.pink }}
             >
               {busy ? <Loader2 size={19} className="animate-spin" /> : <Send size={19} />}
             </button>
