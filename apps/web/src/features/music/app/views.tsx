@@ -6,9 +6,6 @@ import * as api from '../saavn/api.js';
 import * as library from '../saavn/library.js';
 import * as playback from '../saavn/playback.js';
 import * as downloads from '../saavn/downloads.js';
-import { available as ytmAvailable } from '../ytm/innertube.js';
-import { diagnose, type Step } from '../ytm/diagnose.js';
-import { setMusicSource, useMusicSource, ytmResting } from '../ytm/source.js';
 import { LANGUAGES, currentHomeLanguages, setMusicSettings, useMusicSettings, type DownloadQuality, type StreamQuality } from '../saavn/settings.js';
 import type { Item, Module, Song } from '../saavn/types.js';
 import type { Kept } from '../saavn/library.js';
@@ -933,41 +930,12 @@ function Choice<T extends string>({ options, value, onPick }: { options: { v: T;
   );
 }
 
-/** One tap to see whether YouTube Music works on this phone, and which step fails. */
-function YtmCheck() {
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="mx-[18px] mt-3">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          setSteps([]);
-          void diagnose(setSteps).finally(() => setBusy(false));
-        }}
-        className="h-10 rounded-full border border-line px-4 text-[14px] font-medium active:bg-sunken disabled:opacity-60"
-      >
-        {busy ? 'Checking...' : 'Check YouTube Music'}
-      </button>
-      {steps.map((s) => (
-        <p key={s.name} className="mt-2 flex gap-2 text-[13.5px]">
-          <span aria-hidden className={s.ok ? 'text-emerald-600' : 'text-red-600'}>{s.ok ? '✓' : '✗'}</span>
-          <span><span className="font-medium">{s.name}</span> <span className="text-text-secondary">{s.note}</span></span>
-        </p>
-      ))}
-    </div>
-  );
-}
-
 export function SettingsView() {
   const { open } = useCtx();
   const settings = useMusicSettings();
   const dl = downloads.useDownloads();
   const shareListening = useShareListening();
   const chosen = new Set(settings.languages);
-  const source = useMusicSource() ?? 'saavn';
   const toggle = (l: string) => {
     const next = chosen.has(l) ? settings.languages.filter((x) => x !== l) : [...settings.languages, l];
     setMusicSettings({ languages: next });
@@ -975,31 +943,6 @@ export function SettingsView() {
   return (
     <div className="pb-32">
       <h2 className="mx-[18px] mt-1 text-[24px] font-semibold tracking-[-0.01em]">Music settings</h2>
-
-      {!ytmAvailable() && (
-        <>
-          <Heading>Music source</Heading>
-          <p className="mx-[18px] -mt-1.5 text-[13.5px] leading-snug text-text-secondary">
-            JioSaavn. YouTube Music can be chosen in the PINGO Android app. A browser is not allowed to ask YouTube for songs, so it is not offered here.
-          </p>
-        </>
-      )}
-
-      {ytmAvailable() && (
-        <>
-          <Heading>Music source</Heading>
-          <Choice
-            options={[
-              { v: 'saavn' as const, label: 'JioSaavn', note: 'Fast and steady' },
-              { v: 'ytm' as const, label: 'YouTube Music', note: ytmResting() ? 'Not answering right now, using JioSaavn' : 'A huge catalogue' },
-            ]}
-            value={source}
-            onPick={setMusicSource}
-          />
-          <p className="mx-[18px] mt-2 text-[12.5px] text-text-tertiary">If one cannot play a song, the other plays it.</p>
-          <YtmCheck />
-        </>
-      )}
 
       <Heading>Autoplay</Heading>
       <Choice
