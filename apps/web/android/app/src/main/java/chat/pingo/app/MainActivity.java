@@ -3,6 +3,8 @@ package chat.pingo.app;
 import android.content.ClipDescription;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -285,6 +287,22 @@ public class MainActivity extends BridgeActivity {
                     }
                     callback.onReceiveValue(uris);
                 }, params);
+            }
+
+            /*
+             * The poster a WebView paints on a video that has none.
+             *
+             * By default that is a grey square with a black play-in-a-circle,
+             * drawn by Android itself - on every embedded player, on stories, on
+             * any video before its first frame. A plain black frame is what a
+             * player looks like while it loads, and the app's own spinner and
+             * controls sit on top of it.
+             */
+            @Override
+            public Bitmap getDefaultVideoPoster() {
+                Bitmap poster = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                poster.eraseColor(Color.BLACK);
+                return poster;
             }
 
             /*

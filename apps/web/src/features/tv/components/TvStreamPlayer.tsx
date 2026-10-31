@@ -1265,7 +1265,7 @@ export function TvStreamPlayer({
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* Video Frame */}
-            <div className="relative aspect-video w-full flex-1 bg-black lg:aspect-auto">
+            <div className="relative aspect-video w-full flex-none bg-black lg:aspect-auto lg:flex-1">
               {/* Notification Toast */}
               {notification && !mini && (
                 <div className="absolute left-3 top-3 z-30 flex max-w-[calc(100%-9.5rem)] items-center gap-2 rounded-xl bg-black/85 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-xl animate-fadeIn">

@@ -214,7 +214,19 @@ export function PingoTv() {
 
   const state = (m: TmdbMedia): { state: TvNavState } => ({ state: { media: m, tab } });
   const open = (m: TmdbMedia) => navigate(titlePath(m), state(m));
-  const play = (m: TmdbMedia, season = 1, episode = 1) => navigate(watchPath(m, season, episode), state(m));
+  /*
+   * The player always sits one step above its title's page.
+   *
+   * Played from the home banner or a "continue watching" card, the player used
+   * to be pushed straight onto the list, so Back (the button, the gesture or the
+   * X) skipped the title and landed on the list. The title's page goes on the
+   * stack first, in the same tick, so it is never drawn - only there to step
+   * back to.
+   */
+  const play = (m: TmdbMedia, season = 1, episode = 1) => {
+    if (route.kind !== 'title') navigate(titlePath(m), state(m));
+    navigate(watchPath(m, season, episode), state(m));
+  };
   const trailer = (m: TmdbMedia) => navigate(trailerPath(m), state(m));
   // Back goes to the page before when there is one inside the app; a link opened cold goes to the tab.
   const goBack = () => {
