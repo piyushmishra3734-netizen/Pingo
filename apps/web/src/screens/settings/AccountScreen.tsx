@@ -13,6 +13,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.js';
 import { useSignOut } from '../../features/settings/useSignOut.js';
 import { useT } from '../../features/i18n/useT.js';
+import { isGif, prepareAvatarGif } from '../../features/profile/avatar-gif.js';
 
 /**
  * Account.
@@ -107,6 +108,15 @@ export function AccountScreen() {
     setError(undefined);
 
     try {
+      // A GIF keeps moving: centred, square and shrunk rather than uploaded as picked.
+      if (isGif(file)) {
+        const result = await prepareAvatarGif(file);
+        if (!result.ok) {
+          setError(result.reason);
+          return;
+        }
+        file = result.file;
+      }
       const url = await service.uploadAvatar(file);
       await update({ avatarUrl: url });
       setStatus('Photo updated.');
