@@ -64,6 +64,8 @@ export interface SpicyTurn {
   userId: string;
   /** A group: the last GROUP_ROWS messages from everybody, with names, and nobody's memories. */
   isGroup?: boolean;
+  /** A group where every human member is 18+ by their PINGO AI age: explicit is allowed there too. */
+  adultRoom?: boolean;
   conversationId: string;
   live: string;
   profile: SpicyProfile;
@@ -87,13 +89,13 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
-function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string): string {
+function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string, adultRoom = false): string {
   const parts = [
     group
-      ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.`
+      ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. ${adultRoom ? 'Everyone in this group is an adult, so you may be as explicit and uncensored with them as a one-to-one chat - while the rest of the room can read it, so stay playful with everyone else.' : 'Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.'}`
       : 'You are PINGO AI in Spicy mode, talking one to one with an adult (18+) who chose this mode.',
     'Flirty, bold, teasing and confident. You may be romantic, sensual and sexually explicit when they want it - follow their lead and match their heat. Never pushy: read the mood, and slow down the moment they do.',
-    ...(group
+    ...(group && !adultRoom
       ? []
       : [
           [
@@ -126,7 +128,7 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
    * people said Spicy could not do. Short flirting stays short by itself.
    */
   parts.push(
-    group
+    group && !adultRoom
       ? lengthBlock('short')
       : 'Length: casual flirting - one to three short lines. A roleplay scene - a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.',
   );
@@ -137,6 +139,27 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
 }
 
 type Row = { sender_id: string; body: string | null; created_at: string };
+
+/**
+ * Whether every human in a group is 18 or over by their PINGO AI age.
+ *
+ * Spicy in a group is read by the whole room, and a single member under 18 -
+ * or one whose age PINGO does not know - means nothing explicit there. Read
+ * with the service role, because one member cannot read another's AI profile.
+ * Anything that fails to answer is "no".
+ */
+export async function everyoneAdult(admin: Db, conversationId: string, botId: string): Promise<boolean> {
+  try {
+    const { data: members } = await admin.from('conversation_members').select('user_id').eq('conversation_id', conversationId);
+    const ids = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id).filter((id) => id !== botId);
+    if (!ids.length) return false;
+    const { data: ages } = await admin.from('ai_profiles').select('user_id, age').in('user_id', ids);
+    const adult = new Set(((ages ?? []) as { user_id: string; age: number | null }[]).filter((a) => typeof a.age === 'number' && a.age >= SPICY_MIN_AGE).map((a) => a.user_id));
+    return ids.every((id) => adult.has(id));
+  } catch {
+    return false;
+  }
+}
 
 export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: Record<string, unknown> }> {
   const t0 = Date.now();
@@ -215,11 +238,11 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         stream: true,
         temperature: 0.9,
         // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
-        max_tokens: t.isGroup ? 300 : 900,
+        max_tokens: t.isGroup && !t.adultRoom ? 300 : 900,
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
-        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId)) }, ...history],
+        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId), !!t.adultRoom) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });
