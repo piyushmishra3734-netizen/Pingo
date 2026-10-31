@@ -54,8 +54,12 @@ const WEB_CLIENT = { clientName: 'WEB', clientVersion: '2.20250101.01.00', hl: '
 
 let cached: PoToken | null = null;
 let inFlight: Promise<PoToken | null> | null = null;
+/** Why the last attempt failed, for the settings self-check. */
+let lastError: string | null = null;
 
 export const poTokenSupported = (): boolean => Capacitor.isNativePlatform();
+/** The last attestation failure in plain words, or null if the last attempt worked. */
+export const poTokenError = (): string | null => lastError;
 
 function restore(): PoToken | null {
   try {
@@ -171,10 +175,16 @@ export async function poToken(): Promise<PoToken | null> {
 
   inFlight = generate()
     .then((token) => {
-      if (token) remember(token);
+      if (token) {
+        remember(token);
+        lastError = null;
+      }
       return token;
     })
-    .catch(() => null)
+    .catch((e: unknown) => {
+      lastError = e instanceof Error ? e.message : String(e);
+      return null;
+    })
     .finally(() => {
       inFlight = null;
     });
