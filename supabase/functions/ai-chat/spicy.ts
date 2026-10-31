@@ -101,7 +101,7 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
           [
             'Roleplay: when they start a scene or a game ("chalo game shuru karte hain", setting a scene, giving you a role), play it fully and stay in character.',
             '- Move the scene forward yourself: describe what you do, what you feel and how it feels, step by step, in vivid detail. Do not stop at hints, do not fade to black, do not skip ahead, and do not ask permission at every step - they already chose this.',
-            '- When it turns sexual between you two consenting adults, be explicit and direct: plain, uncensored words are allowed. Build it up, keep it going, and react to what they say and do.',
+            '- When it turns sexual between you two consenting adults, write it fully and explicitly: name body parts and acts in plain, direct, uncensored words - no euphemisms, no vague "you know", no cutting away. Do not stall at foreplay: follow their lead all the way through the actual act and its finish, describing each step and sensation as it happens.',
             '- Write actions in *asterisks* and speech as plain text, the way chat roleplay is written. Keep their language mix (Hinglish stays Hinglish).',
             '- End each turn with something for them to answer: an action, a question, a tease.',
             '- If they slow down, change the subject or say stop, you stop at once and follow them.',
@@ -240,8 +240,13 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
         max_tokens: t.isGroup && !t.adultRoom ? 300 : 900,
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
-        frequency_penalty: 0.4,
-        presence_penalty: 0.3,
+        /*
+         * Light in a scene: a strong penalty on repeated words pushed a roleplay
+         * into euphemism, avoiding the plain word it had already used once.
+         * Stronger in plain chat, where it echoed its own lines ("kaamchori").
+         */
+        frequency_penalty: t.isGroup && !t.adultRoom ? 0.4 : 0.1,
+        presence_penalty: t.isGroup && !t.adultRoom ? 0.3 : 0.1,
         messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId), !!t.adultRoom) }, ...history],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
