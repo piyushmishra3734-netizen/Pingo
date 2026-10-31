@@ -7,6 +7,7 @@ import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useT } from '../../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../../features/profile/AvatarPhotoEditor.js';
 import { SETUP_PROGRESS } from './progress.js';
+import { isGif, prepareAvatarGif } from '../../features/profile/avatar-gif.js';
 
 /**
  * Setup, step 3 - the photo.
@@ -53,6 +54,18 @@ export function PhotoScreen() {
       return;
     }
     setError(undefined);
+    /*
+     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
+     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
+     * still moves - in the profile and in every chat row.
+     */
+    if (isGif(file)) {
+      void prepareAvatarGif(file).then((result) => {
+        if (result.ok) void commitCrop(result.file).catch(() => undefined);
+        else setError(result.reason);
+      });
+      return;
+    }
     if (editorSrc) URL.revokeObjectURL(editorSrc);
     setEditorSrc(URL.createObjectURL(file));
   };

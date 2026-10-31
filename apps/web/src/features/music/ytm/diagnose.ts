@@ -1,4 +1,5 @@
 import { resolveStream, searchSongs, upNext } from './innertube.js';
+import { poToken, poTokenError, poTokenSupported } from './pot.js';
 
 /**
  * "Is YouTube Music working on this phone, and if not, which step?"
@@ -74,5 +75,23 @@ export async function diagnose(onStep: (steps: Step[]) => void): Promise<Step[]>
   } catch (e) {
     add({ name: 'Radio', ok: false, note: why(e) });
   }
+
+  /*
+   * Last, because it is the slowest and the least often needed: if the four
+   * above passed, no challenge was met and no token was required. When one of
+   * them said "sign in to confirm you're not a bot", this is the line that says
+   * whether attestation ran, and if it did not, which step stopped it.
+   */
+  if (!poTokenSupported()) {
+    add({ name: 'Attestation', ok: false, note: 'only the app can do this, not a browser' });
+  } else {
+    const token = await poToken();
+    add({
+      name: 'Attestation',
+      ok: Boolean(token),
+      note: token ? `token minted, ${token.poToken.length} chars` : (poTokenError() ?? 'no token'),
+    });
+  }
+
   return steps;
 }

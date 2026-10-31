@@ -14,6 +14,7 @@ import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
 import { CoverEditor } from '../features/profile/CoverEditor.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
+import { isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
 
 /**
  * Editing your own profile: photo, cover, name, username, bio, work, place.
@@ -129,6 +130,20 @@ export function EditProfileScreen() {
   }, [editorSrc]);
 
   const openEditor = (file: File) => {
+    /*
+     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
+     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
+     * still moves - in the profile and in every chat row.
+     */
+    if (isGif(file)) {
+      setError(undefined);
+      void prepareAvatarGif(file).then((result) => {
+        if (!result.ok) return setError(result.reason);
+        setPhoto(result.file);
+        setRemovePhoto(false);
+      });
+      return;
+    }
     if (editorSrc) URL.revokeObjectURL(editorSrc);
     setEditorSrc(URL.createObjectURL(file));
   };

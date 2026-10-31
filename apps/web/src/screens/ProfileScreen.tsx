@@ -73,6 +73,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
 import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { presenceMark, usePresenceStatus } from '../features/presence/status.js';
+import { isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
 
 /**
  * Profile - yours at `/profile`, anyone else's at `/profile/:handle`.
@@ -386,6 +387,13 @@ export function ProfileScreen() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   /** Object URL for the avatar crop editor; nothing uploads until Save. */
   const [avatarEditorSrc, setAvatarEditorSrc] = useState<string>();
+  /** Why a GIF could not be the photo, shown for a few seconds over the page. */
+  const [avatarNote, setAvatarNote] = useState<string>();
+  useEffect(() => {
+    if (!avatarNote) return;
+    const timer = window.setTimeout(() => setAvatarNote(undefined), 4500);
+    return () => window.clearTimeout(timer);
+  }, [avatarNote]);
   /** Set when the file picker was opened to replace one specific post. */
   const replaceTarget = useRef<Post | undefined>(undefined);
 
@@ -555,6 +563,18 @@ export function ProfileScreen() {
   };
 
   const openAvatarEditor = (file: File) => {
+    /*
+     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
+     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
+     * still moves - in the profile and in every chat row.
+     */
+    if (isGif(file)) {
+      void prepareAvatarGif(file).then((result) => {
+        if (result.ok) void saveAvatarCrop(result.file).catch(() => undefined);
+        else setAvatarNote(result.reason);
+      });
+      return;
+    }
     if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
     setAvatarEditorSrc(URL.createObjectURL(file));
   };
@@ -596,6 +616,11 @@ export function ProfileScreen() {
           : undefined
       }
     >
+      {avatarNote && (
+        <p role="alert" className="fixed inset-x-4 top-[max(1rem,env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-[14px] font-medium text-surface shadow-lg">
+          {avatarNote}
+        </p>
+      )}
       {avatarEditorSrc && (
         <AvatarPhotoEditor
           src={avatarEditorSrc}
