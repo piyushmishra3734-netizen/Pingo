@@ -46,8 +46,15 @@ export type { ChatActivity } from '@pingo/core';
 import { customLastSeen } from '../../features/presence/status.js';
 import type { ChatActivity } from '@pingo/core';
 
-/** How long a typing signal stands before it is assumed stale. */
-const TYPING_TIMEOUT_MS = 4_000;
+/**
+ * How long a typing signal stands before it is assumed stale.
+ *
+ * Six seconds against a two-second throttle: a signal can be up to one throttle
+ * old when it is sent and the trailing send (`#trailing`) can come a throttle
+ * later, so this leaves a pause of a couple of seconds - the kind people make in
+ * the middle of a long message - without the dots dropping.
+ */
+const TYPING_TIMEOUT_MS = 6_000;
 
 /** No tick of the sweeper for this long means the app was suspended, and every socket with it. */
 const SUSPENDED_AFTER_MS = 15_000;
@@ -62,6 +69,8 @@ export interface PresenceHandlers {
   /** What someone is watching on Pingo TV; undefined once they stop or go. */
   onWatching: (userId: UserId, tv: Watching | undefined) => void;
   onTyping: (conversationId: string, userIds: UserId[], kind: ChatActivity) => void;
+  /** Somebody in this thread read it just now - see `sendRead`. */
+  onRead?: (conversationId: string, userId: UserId, upTo: number | undefined) => void;
 }
 
 export class PresenceHub {
@@ -77,6 +86,8 @@ export class PresenceHub {
   /** The last tick of the sweeper: it stops when the app is suspended, which is how a long absence shows. */
   #lastTick = Date.now();
   #lastSent = new Map<string, number>();
+  /** Per conversation and kind: a "still typing" waiting for the throttle to open. */
+  #trailing = new Map<string, ReturnType<typeof setTimeout>>();
   #userId: UserId | undefined;
 
   constructor(client: PingoSupabaseClient, handlers: PresenceHandlers) {
@@ -174,6 +185,21 @@ export class PresenceHub {
      * turning it back on starts it again without reconnecting the channel.
      */
     window.addEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
+    /*
+     * Gone the moment the app is put away, not when the socket finally dies.
+     *
+     * A phone keeps its socket open for minutes after the app goes to the
+     * background, and Realtime only reports a leave once that socket times out
+     * - so a friend who closed PINGO stayed green, and "offline" turned up only
+     * after a refresh. Untracking on the way out is the leave, said at once;
+     * coming back is `resume`, which says "here" again.
+     */
+    document.addEventListener('visibilitychange', this.#onVisibility);
+    window.addEventListener('pagehide', this.#onAway);
+    void import('@capacitor/app')
+      .then(({ App }) => App.addListener('appStateChange', ({ isActive }) => { if (!isActive) this.#onAway(); }))
+      .then((handle) => { this.#stopAppState = () => void handle.remove(); })
+      .catch(() => undefined);
     // A new song, a pause, the Music settings switch: said again, with or without it.
     this.#stopListening = watchMyListening(() => this.#publishPresence());
     // The player opened, moved to the next episode, closed, or the Pingo TV switch was thrown.
@@ -182,6 +208,15 @@ export class PresenceHub {
 
   #stopListening: (() => void) | undefined;
   #stopWatching: (() => void) | undefined;
+  #stopAppState: (() => void) | undefined;
+
+  #onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') this.#onAway();
+  };
+
+  #onAway = (): void => {
+    void this.#presence?.untrack();
+  };
 
   #onPrivacyChanged = (): void => {
     this.#publishPresence();
@@ -264,6 +299,11 @@ export class PresenceHub {
         }
         this.#typists.set(conversationId, map);
         this.#publish(conversationId);
+      })
+      .on('broadcast', { event: 'read' }, ({ payload }) => {
+        const { userId, upTo } = payload as { userId: UserId; upTo?: number };
+        if (!userId || userId === this.#userId) return;
+        this.#handlers.onRead?.(conversationId, userId, typeof upTo === 'number' ? upTo : undefined);
       });
 
     void channel.subscribe();
@@ -298,7 +338,31 @@ export class PresenceHub {
      */
     const throttleKey = `${conversationId}|${kind}`;
     const now = Date.now();
-    if (typing && now - (this.#lastSent.get(throttleKey) ?? 0) < TYPING_THROTTLE_MS) return;
+    const pending = this.#trailing.get(throttleKey);
+    if (!typing && pending) {
+      clearTimeout(pending);
+      this.#trailing.delete(throttleKey);
+    }
+    const wait = TYPING_THROTTLE_MS - (now - (this.#lastSent.get(throttleKey) ?? 0));
+    if (typing && wait > 0) {
+      /*
+       * Throttled, but not dropped. A keystroke inside the window used to be
+       * thrown away, so the receiver's expiry ran from the last *sent* signal
+       * while the person kept writing: a two-second pause in a long message
+       * and the dots were gone. One trailing send at the end of the window
+       * carries the keystrokes that were held back.
+       */
+      if (!pending) {
+        this.#trailing.set(
+          throttleKey,
+          setTimeout(() => {
+            this.#trailing.delete(throttleKey);
+            void this.setTyping(conversationId, true, kind);
+          }, wait),
+        );
+      }
+      return;
+    }
     this.#lastSent.set(throttleKey, typing ? now : 0);
 
     await channel.send({
@@ -306,6 +370,23 @@ export class PresenceHub {
       event: 'typing',
       payload: { userId: this.#userId, typing, kind },
     });
+  }
+
+  /**
+   * "I have read this thread", to whoever has it open, at once.
+   *
+   * The read cursor in the database is written at most every few seconds and
+   * reaches the sender through `postgres_changes` after that - two, three
+   * seconds of a single tick under a message the person was already answering.
+   * Both people in a live conversation already share this thread's channel, so
+   * the seen goes over it the moment it happens; the database write still
+   * follows, and is what anyone not watching right now catches up from.
+   */
+  sendRead(conversationId: string, upTo: number | undefined): void {
+    this.watchTyping(conversationId);
+    const channel = this.#typing.get(conversationId);
+    if (!channel || !this.#userId) return;
+    void channel.send({ type: 'broadcast', event: 'read', payload: { userId: this.#userId, ...(upTo ? { upTo } : {}) } }).catch(() => undefined);
   }
 
   /**
@@ -415,6 +496,10 @@ export class PresenceHub {
     this.#stopWatching?.();
     this.#stopWatching = undefined;
     window.removeEventListener('pingo:privacy-changed', this.#onPrivacyChanged);
+    document.removeEventListener('visibilitychange', this.#onVisibility);
+    window.removeEventListener('pagehide', this.#onAway);
+    this.#stopAppState?.();
+    this.#stopAppState = undefined;
     const gone = this.#presence ? this.#client.removeChannel(this.#presence) : Promise.resolve();
     this.#presence = undefined;
     return gone.catch(() => undefined);

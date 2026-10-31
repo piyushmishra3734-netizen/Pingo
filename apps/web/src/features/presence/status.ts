@@ -48,6 +48,14 @@ export async function refreshPresenceStatus(): Promise<PresenceStatus | undefine
         : 'invisible'
       : 'online';
   cachePresenceStatus(status);
+  /*
+   * And the switch the heartbeat and the presence channel read, from the same
+   * row. It was only ever refreshed by Settings or a live change, so a phone
+   * that once cached "off" - an old status, another account signed in before -
+   * kept it for good: no last seen written, never shown online, while the
+   * account itself said on. Eddy chatted at 1 PM showing "last seen 6 AM".
+   */
+  cachePrivacyRules({ onlineStatus: data?.online_status !== false });
   return status;
 }
 

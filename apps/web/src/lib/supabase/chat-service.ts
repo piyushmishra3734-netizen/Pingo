@@ -1085,6 +1085,7 @@ export class SupabaseChatService implements ChatService {
       onTyping: (conversationId, userIds, activity) => {
         this.#emit({ type: 'typing:changed', conversationId, userIds, activity });
       },
+      onRead: (conversationId, userId, upTo) => this.#readArrived(conversationId, userId, upTo),
     });
 
     /*
@@ -2604,6 +2605,26 @@ export class SupabaseChatService implements ChatService {
    * draws the last message's state, so nothing else is worth carrying here -
    * the thread has its own receipts stream for the rest.
    */
+  /**
+   * A live "read" from somebody with this thread open (`PresenceHub.sendRead`):
+   * the same news as their cursor moving in the database, seconds earlier.
+   *
+   * The database cursor that follows carries the server's own time, and is
+   * what anybody not watching right now catches up from.
+   */
+  #readArrived(conversationId: ConversationId, userId: UserId, upTo: number | undefined): void {
+    /*
+     * Up to the newest message the reader had - their word, in server time -
+     * never this clock or this device's newest: a message sent while the read
+     * was in flight must not turn up already seen.
+     */
+    if (!upTo) return;
+    const readAt = upTo;
+    this.#emit({ type: 'receipts:changed', conversationId, readers: [{ userId, readAt }] });
+    const patched = this.#markPreviewRead(conversationId, userId, readAt);
+    if (patched) this.#emit({ type: 'conversation:updated', conversation: patched });
+  }
+
   #markPreviewRead(
     conversationId: ConversationId,
     readerId: UserId,
@@ -6386,6 +6407,9 @@ export class SupabaseChatService implements ChatService {
       this.#publishRead(conversationId);
       return;
     }
+
+    // Seen at once for whoever has the thread open; the database write below is paced.
+    this.#presenceHub.sendRead(conversationId, this.#known.get(conversationId)?.lastMessage?.createdAt);
 
     /*
      * Through the function rather than straight at the column.
