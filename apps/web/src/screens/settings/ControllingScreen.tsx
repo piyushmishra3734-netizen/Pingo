@@ -16,6 +16,7 @@ import {
   uploadOnboardingSlide,
 } from '../../lib/supabase/onboarding-slides.js';
 import { NoticeCard, UpdatePrompt } from '../../features/updates/UpdateNotice.js';
+import { OutdatedGateControl } from '../../features/updates/OutdatedGateControl.js';
 import { isOperator } from '../../lib/operator.js';
 import {
   clearUpdateNotice,
@@ -467,6 +468,8 @@ export function ControllingScreen() {
             </Button>
           ) : null}
         </section>
+
+        <OutdatedGateControl />
 
         <MissionControl />
         <ReportedMessages />
