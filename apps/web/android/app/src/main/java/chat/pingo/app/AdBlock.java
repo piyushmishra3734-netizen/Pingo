@@ -53,6 +53,25 @@ final class AdBlock {
         active = value;
     }
 
+    /**
+     * True when the top-level page is being sent somewhere else while a player is on screen.
+     *
+     * An embed's ad calls {@code window.top.location = ...}. For the WebView that
+     * is a navigation of the app's own page to a foreign site, which Capacitor
+     * hands to the system browser: the app jumps out to some web page. While a
+     * player is showing nothing legitimate does that, so it is simply refused.
+     * Loads inside the iframe itself are not main-frame requests and pass.
+     */
+    static boolean blocksTopNavigation(WebResourceRequest request, String currentUrl) {
+        if (!active || !request.isForMainFrame()) return false;
+        String target = request.getUrl().getHost();
+        if (target == null) return false;
+        String scheme = request.getUrl().getScheme();
+        if (!"http".equals(scheme) && !"https".equals(scheme)) return false;
+        String here = currentUrl == null ? null : android.net.Uri.parse(currentUrl).getHost();
+        return here == null || !target.equalsIgnoreCase(here);
+    }
+
     /** True when the request should be answered empty instead of being made. */
     static boolean blocks(WebResourceRequest request) {
         if (!active || request.isForMainFrame()) return false;
@@ -60,7 +79,10 @@ final class AdBlock {
         if (host == null) return false;
         host = host.toLowerCase();
         for (String blocked : HOSTS) {
-            if (host.equals(blocked) || host.endsWith("." + blocked)) return true;
+            if (host.equals(blocked) || host.endsWith("." + blocked)) {
+                android.util.Log.d("PingoAdBlock", "blocked " + host);
+                return true;
+            }
         }
         return false;
     }

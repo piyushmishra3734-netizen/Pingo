@@ -29,6 +29,15 @@ public class PingoWebViewClient extends BridgeWebViewClient {
     }
 
     @Override
+    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+        if (AdBlock.blocksTopNavigation(request, view.getUrl())) {
+            android.util.Log.d("PingoAdBlock", "refused top navigation to " + request.getUrl().getHost());
+            return true;
+        }
+        return super.shouldOverrideUrlLoading(view, request);
+    }
+
+    @Override
     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
         if (AdBlock.blocks(request)) {
             return AdBlock.empty();
