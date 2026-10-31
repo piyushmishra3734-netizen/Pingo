@@ -33,7 +33,6 @@ import { useListening } from '../music/listening.js';
 import { ListeningBadge } from '../music/ListeningBadge.js';
 import { useWatching } from '../tv/watching.js';
 import { WatchingBadge } from '../tv/WatchingBadge.js';
-import { BannerBackdrop } from './BannerBackdrop.js';
 
 /**
  * One row in the conversation list.
@@ -135,12 +134,8 @@ export function ConversationRow({
   const listening = useListening(conversation.kind === 'direct' ? partner?.id : undefined);
   const watching = useWatching(conversation.kind === 'direct' ? partner?.id : undefined);
 
-  // Their chat banner behind the row, for a person; a group has no one person to show.
-  const banner = conversation.kind === 'direct' ? partner?.chatBannerUrl : undefined;
-
   const body = (
     <>
-      {banner && <BannerBackdrop src={banner} />}
       {/*
         Groups get a single avatar, not a stack. A stack is wider than one circle,
         which would push the title and preview of group rows right and break the

@@ -73,7 +73,7 @@ import { useMutuals } from '../features/profile/useMutuals.js';
 import { useConfirm } from '../components/ConfirmProvider.js';
 import { ScreenHeader } from '../components/ScreenHeader.js';
 import { presenceMark, usePresenceStatus } from '../features/presence/status.js';
-import { isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
+import { canEditGif, isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
 
 /**
  * Profile - yours at `/profile`, anyone else's at `/profile/:handle`.
@@ -387,6 +387,8 @@ export function ProfileScreen() {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   /** Object URL for the avatar crop editor; nothing uploads until Save. */
   const [avatarEditorSrc, setAvatarEditorSrc] = useState<string>();
+  // The GIF being framed in the editor, when the picked photo is one.
+  const [avatarEditorGif, setAvatarEditorGif] = useState<File>();
   /** Why a GIF could not be the photo, shown for a few seconds over the page. */
   const [avatarNote, setAvatarNote] = useState<string>();
   useEffect(() => {
@@ -564,11 +566,11 @@ export function ProfileScreen() {
 
   const openAvatarEditor = (file: File) => {
     /*
-     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
-     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
-     * still moves - in the profile and in every chat row.
+     * A GIF goes through the crop editor too: the framing is applied to every
+     * frame (`cropAvatarGif`), so it still moves. Only a browser with no
+     * `ImageDecoder` has it centred and shrunk without the editor.
      */
-    if (isGif(file)) {
+    if (isGif(file) && !canEditGif()) {
       void prepareAvatarGif(file).then((result) => {
         if (result.ok) void saveAvatarCrop(result.file).catch(() => undefined);
         else setAvatarNote(result.reason);
@@ -576,12 +578,14 @@ export function ProfileScreen() {
       return;
     }
     if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
+    setAvatarEditorGif(isGif(file) ? file : undefined);
     setAvatarEditorSrc(URL.createObjectURL(file));
   };
 
   const closeAvatarEditor = () => {
     if (avatarEditorSrc) URL.revokeObjectURL(avatarEditorSrc);
     setAvatarEditorSrc(undefined);
+    setAvatarEditorGif(undefined);
   };
 
   const saveAvatarCrop = async (file: File) => {
@@ -624,6 +628,7 @@ export function ProfileScreen() {
       {avatarEditorSrc && (
         <AvatarPhotoEditor
           src={avatarEditorSrc}
+          {...(avatarEditorGif ? { gif: avatarEditorGif } : {})}
           onCancel={closeAvatarEditor}
           onChooseAnother={() => avatarFileRef.current?.click()}
           onSave={(file) => void saveAvatarCrop(file)}

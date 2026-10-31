@@ -7,7 +7,7 @@ import { AuthMessage, AuthScreen } from '../../features/auth/AuthScreen.js';
 import { useT } from '../../features/i18n/useT.js';
 import { AvatarPhotoEditor } from '../../features/profile/AvatarPhotoEditor.js';
 import { SETUP_PROGRESS } from './progress.js';
-import { isGif, prepareAvatarGif } from '../../features/profile/avatar-gif.js';
+import { canEditGif, isGif, prepareAvatarGif } from '../../features/profile/avatar-gif.js';
 
 /**
  * Setup, step 3 - the photo.
@@ -37,6 +37,8 @@ export function PhotoScreen() {
 
   const [preview, setPreview] = useState<string | undefined>(profile?.avatarUrl);
   const [editorSrc, setEditorSrc] = useState<string>();
+  // The GIF being framed in the editor, when the picked photo is one.
+  const [editorGif, setEditorGif] = useState<File>();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -55,11 +57,11 @@ export function PhotoScreen() {
     }
     setError(undefined);
     /*
-     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
-     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
-     * still moves - in the profile and in every chat row.
+     * A GIF goes through the crop editor too: the framing is applied to every
+     * frame (`cropAvatarGif`), so it still moves. Only a browser with no
+     * `ImageDecoder` has it centred and shrunk without the editor.
      */
-    if (isGif(file)) {
+    if (isGif(file) && !canEditGif()) {
       void prepareAvatarGif(file).then((result) => {
         if (result.ok) void commitCrop(result.file).catch(() => undefined);
         else setError(result.reason);
@@ -67,12 +69,14 @@ export function PhotoScreen() {
       return;
     }
     if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorGif(isGif(file) ? file : undefined);
     setEditorSrc(URL.createObjectURL(file));
   };
 
   const closeEditor = () => {
     if (editorSrc) URL.revokeObjectURL(editorSrc);
     setEditorSrc(undefined);
+    setEditorGif(undefined);
   };
 
   const commitCrop = async (file: File) => {
@@ -104,6 +108,7 @@ export function PhotoScreen() {
       {editorSrc && (
         <AvatarPhotoEditor
           src={editorSrc}
+          {...(editorGif ? { gif: editorGif } : {})}
           onCancel={closeEditor}
           onChooseAnother={() => galleryRef.current?.click()}
           onSave={(file) => void commitCrop(file)}

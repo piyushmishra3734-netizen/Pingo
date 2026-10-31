@@ -14,6 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useConfirm } from '../../components/ConfirmProvider.js';
 import { Overlay } from '../../components/Overlay.js';
 import { Sheet, SheetCancel, SheetItem } from '../../components/Sheet.js';
+import { cropAvatarGif } from './avatar-gif.js';
 import { AVATAR_PIXELS, avatarExtension, encodeAvatar } from './avatar-image.js';
 
 /**
@@ -55,6 +56,8 @@ export interface AvatarPhotoEditorProps {
   onSave: (file: File) => void | Promise<void>;
   onChooseAnother: () => void;
   onRemove?: () => void | Promise<void>;
+  /** The GIF being framed, when the picture is one: it is cut frame by frame, since a canvas keeps only the first. */
+  gif?: File;
 }
 
 export function AvatarPhotoEditor({
@@ -63,6 +66,7 @@ export function AvatarPhotoEditor({
   onSave,
   onChooseAnother,
   onRemove,
+  gif,
 }: AvatarPhotoEditorProps) {
   const titleId = useId();
   const confirm = useConfirm();
@@ -386,6 +390,16 @@ export function AvatarPhotoEditor({
   const exportCrop = async (): Promise<File> => {
     const img = imgRef.current;
     if (!img || natural.x === 0) throw new Error('Image not ready.');
+
+    // A GIF is framed the same way, but cut frame by frame so it keeps moving.
+    if (gif) {
+      const result = await cropAvatarGif(gif, { natural, cropPx, offset, rotation, displayScale });
+      if (!result.ok) {
+        await confirm({ title: 'Could not use that GIF', description: result.reason, confirmLabel: 'OK', tone: 'normal' });
+        throw new Error(result.reason);
+      }
+      return result.file;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = OUTPUT_SIZE;

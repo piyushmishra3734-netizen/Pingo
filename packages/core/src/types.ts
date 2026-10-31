@@ -45,8 +45,6 @@ export interface User {
   avatarUrl?: string;
   /** Short bio shown on the profile screen. */
   bio?: string;
-  /** The picture behind their row in other people's chat lists, when they chose one. */
-  chatBannerUrl?: string;
   presence: Presence;
 }
 

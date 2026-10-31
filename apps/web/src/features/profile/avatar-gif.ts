@@ -79,7 +79,10 @@ export async function prepareAvatarGif(file: File): Promise<AvatarGifResult> {
   }
 }
 
-async function squareAndShrink(file: File, Decoder: ImageDecoderCtor): Promise<File> {
+type FramePlan = { size: number; draw: (context: CanvasRenderingContext2D, image: DecodedImage) => void };
+
+/** Decodes every frame, draws it as the plan says, and puts the GIF back together. */
+async function encode(file: File, Decoder: ImageDecoderCtor, plan: (first: DecodedImage) => FramePlan): Promise<File> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
 
   const decoder = new Decoder({ data: await file.arrayBuffer(), type: 'image/gif' });
@@ -89,11 +92,7 @@ async function squareAndShrink(file: File, Decoder: ImageDecoderCtor): Promise<F
     if (count > MAX_FRAMES) throw new Refused(`That GIF has ${count} frames. A profile photo can have at most ${MAX_FRAMES}: try a shorter one.`);
 
     const first = (await decoder.decode({ frameIndex: 0 })).image;
-    // The centre square of the frame, the way a round face shows it anyway.
-    const crop = Math.min(first.displayWidth, first.displayHeight);
-    const sx = (first.displayWidth - crop) / 2;
-    const sy = (first.displayHeight - crop) / 2;
-    const size = Math.min(AVATAR_GIF_SIZE, crop);
+    const { size, draw } = plan(first);
     first.close();
 
     const canvas = document.createElement('canvas');
@@ -107,7 +106,7 @@ async function squareAndShrink(file: File, Decoder: ImageDecoderCtor): Promise<F
       // Each frame comes back already composited, so disposal needs no handling.
       const { image } = await decoder.decode({ frameIndex: index });
       context.clearRect(0, 0, size, size);
-      context.drawImage(image as unknown as CanvasImageSource, sx, sy, crop, crop, 0, 0, size, size);
+      draw(context, image);
       const delay = image.duration ? Math.round(image.duration / 1000) : 100;
       image.close();
 
@@ -123,5 +122,64 @@ async function squareAndShrink(file: File, Decoder: ImageDecoderCtor): Promise<F
     return new File([gif.bytes() as BlobPart], 'avatar.gif', { type: 'image/gif' });
   } finally {
     decoder.close();
+  }
+}
+
+/** The centre square of the frame, the way a round face shows it anyway. */
+function squareAndShrink(file: File, Decoder: ImageDecoderCtor): Promise<File> {
+  return encode(file, Decoder, (first) => {
+    const crop = Math.min(first.displayWidth, first.displayHeight);
+    const sx = (first.displayWidth - crop) / 2;
+    const sy = (first.displayHeight - crop) / 2;
+    const size = Math.min(AVATAR_GIF_SIZE, crop);
+    return {
+      size,
+      draw: (context, image) => context.drawImage(image as unknown as CanvasImageSource, sx, sy, crop, crop, 0, 0, size, size),
+    };
+  });
+}
+
+/** Whether this browser can cut a GIF to a framing the person chose (it needs `ImageDecoder`). */
+export const canEditGif = (): boolean => typeof (globalThis as { ImageDecoder?: unknown }).ImageDecoder === 'function';
+
+/** What the crop editor is showing: the picture's size, the frame, the pan, the turn and the scale. */
+export interface GifFraming {
+  natural: { x: number; y: number };
+  /** The side of the on-screen frame, in CSS pixels. */
+  cropPx: number;
+  offset: { x: number; y: number };
+  rotation: number;
+  displayScale: number;
+}
+
+/**
+ * The GIF cut to the framing the person chose in the editor: the same pan, zoom
+ * and turn applied to every frame, so what they saw moving is what is saved.
+ */
+export async function cropAvatarGif(file: File, framing: GifFraming): Promise<AvatarGifResult> {
+  try {
+    const Decoder = (globalThis as { ImageDecoder?: ImageDecoderCtor }).ImageDecoder;
+    if (!Decoder) return { ok: false, reason: 'This browser cannot edit GIFs. Use the PINGO app.' };
+    const out = await encode(file, Decoder, () => ({
+      size: AVATAR_GIF_SIZE,
+      draw: (context, image) => {
+        const k = AVATAR_GIF_SIZE / framing.cropPx;
+        context.save();
+        context.translate(AVATAR_GIF_SIZE / 2, AVATAR_GIF_SIZE / 2);
+        context.scale(k, k);
+        context.translate(framing.offset.x, framing.offset.y);
+        context.rotate((framing.rotation * Math.PI) / 180);
+        context.scale(framing.displayScale, framing.displayScale);
+        context.drawImage(image as unknown as CanvasImageSource, -framing.natural.x / 2, -framing.natural.y / 2, framing.natural.x, framing.natural.y);
+        context.restore();
+      },
+    }));
+    if (out.size > AVATAR_GIF_MAX_BYTES) {
+      return { ok: false, reason: `That GIF is still ${mb(out.size)} as a profile photo. The most is ${mb(AVATAR_GIF_MAX_BYTES)}: try a shorter one.` };
+    }
+    return { ok: true, file: out };
+  } catch (cause) {
+    if (cause instanceof Refused) return { ok: false, reason: cause.message };
+    return { ok: false, reason: 'That GIF could not be prepared. Try another one.' };
   }
 }
