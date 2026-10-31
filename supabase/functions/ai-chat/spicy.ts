@@ -227,7 +227,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
   const tModel = Date.now();
   let reply = '';
   try {
-    const res = await fetch(`${base}/chat/completions`, {
+    const request = (withoutReasoningField: boolean) => fetch(`${base}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${Deno.env.get('SPICY_API_KEY')}`,
@@ -235,6 +235,16 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
       },
       body: JSON.stringify({
         model,
+        /*
+         * Plain text and nothing else: no reasoning, no tools, no search.
+         *
+         * Several of these models think before they answer unless told not to -
+         * DeepSeek's default is "high", and a one-line reply cost 73 reasoning
+         * tokens on it and 192 on Grok, all billed and all added to the wait.
+         * A chat turn needs none of it. The retry below drops the field for a
+         * model that does not know it.
+         */
+        ...(withoutReasoningField ? {} : { reasoning_effort: 'none' }),
         stream: true,
         temperature: 0.9,
         // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
@@ -251,6 +261,9 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });
+    let res = await request(false);
+    // A model that rejects the reasoning field is asked again without it, rather than failing the turn.
+    if (res.status === 400) res = await request(true);
     if (!res.ok || !res.body) {
       console.error('[spicy] provider', res.status, (await res.text().catch(() => '')).slice(0, 300));
       return say(t, 'Something went wrong on my side. Say that again?', 'model_failed');
