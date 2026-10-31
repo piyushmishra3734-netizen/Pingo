@@ -155,3 +155,9 @@ verify_jwt = false
 # device's push token and action key are the check - see `functions/push-action`.
 [functions.push-action]
 verify_jwt = false
+
+# PINGO TV source lookups: the download page for a title, and the MAL id for an
+# anime. Both are CORS work a browser cannot do, and neither trusts its caller
+# with anything — no session to verify, and nothing written.
+[functions.tv-sources]
+verify_jwt = false
