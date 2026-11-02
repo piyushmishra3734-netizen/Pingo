@@ -79,12 +79,7 @@ const CREST_SIZES = [96, 48];
  * size the ring is the first thing that stops reading.
  */
 const BADGES = [
-  {
-    name: 'mythic-pioneer',
-    crestName: 'mythic-crest',
-    source: 'apps/web/assets/mythic-pioneer.png',
-    crest: { x: 280, y: 0, size: 770 },
-  },
+  // MYTHIC PIONEER is animated now: see make-animated-badge.mjs (assets/mythic-pioneer.gif).
   {
     name: 'founder',
     crestName: 'founder-crest',
@@ -103,12 +98,7 @@ const BADGES = [
      * the ring in half and read as damaged. Same framing, smaller file.
      */
   },
-  {
-    // A square of its own ink already (1254px, margin under 2%), and a face that reads small: no crop, no separate crest.
-    name: 'oni',
-    crestName: 'oni-crest',
-    source: 'apps/web/assets/oni.png',
-  },
+  // ONI is made by make-oni-badge.mjs: a dark mask needs a rim and a glow to be seen on a dark screen.
 ];
 
 /** The crest region of the source, as its own image to scale down from. */

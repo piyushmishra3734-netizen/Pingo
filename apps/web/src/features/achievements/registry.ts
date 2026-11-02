@@ -92,8 +92,9 @@ export const ACHIEVEMENTS: Achievement[] = [
     blurb: 'A rare PINGO achievement.',
     tier: 'mythic',
     art: {
-      emblem: '/badges/mythic-pioneer-512.png',
-      crest: '/badges/mythic-crest-96.png',
+      // Animated WebP with real transparency, cut from the supplied GIF by `scripts/make-animated-badge.mjs`.
+      emblem: '/badges/mythic-pioneer-512.webp',
+      crest: '/badges/mythic-crest-96.webp',
     },
   },
 ];
