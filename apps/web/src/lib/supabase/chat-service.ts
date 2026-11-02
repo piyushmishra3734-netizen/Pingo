@@ -660,13 +660,35 @@ export function toMessage(row: MessageRow, readAt: number | undefined): Message 
 }
 
 /**
+ * The cards under an AI reply, checked one by one. Written by the server from the
+ * catalogues, read as untrusted: pictures only from https, text clipped, and
+ * anything malformed simply left out.
+ */
+function aiCardsOf(raw: unknown): NonNullable<NonNullable<Message['aiMeta']>['cards']> {
+  if (!Array.isArray(raw)) return [];
+  const text = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '');
+  const https = (v: unknown) => (typeof v === 'string' && /^https:\/\//.test(v) ? v.slice(0, 300) : '');
+  const tmdbPath = (v: unknown) => (typeof v === 'string' && /^\/[\w.-]+\.(jpg|png|webp)$/i.test(v) ? v : '');
+  const out: NonNullable<NonNullable<Message['aiMeta']>['cards']> = [];
+  for (const c of raw.slice(0, 12) as Record<string, unknown>[]) {
+    if (!c || typeof c !== 'object') continue;
+    if (c.t === 'song' && typeof c.id === 'string' && /^[\w-]{1,32}$/.test(c.id) && text(c.n, 100)) {
+      out.push({ t: 'song', id: c.id, n: text(c.n, 100), a: text(c.a, 80), i: https(c.i), s: Math.max(0, Math.round(Number(c.s) || 0)) });
+    } else if (c.t === 'title' && typeof c.id === 'number' && (c.y === 'movie' || c.y === 'tv') && text(c.n, 100)) {
+      out.push({ t: 'title', id: c.id, y: c.y, n: text(c.n, 100), yr: Number(c.yr) || 0, b: tmdbPath(c.b), p: tmdbPath(c.p), r: Math.round((Number(c.r) || 0) * 10) / 10, o: text(c.o, 140) });
+    }
+  }
+  return out;
+}
+
+/**
  * `meta.ai`, checked. Written by the server, but read as untrusted: only
  * http(s) links become sources, so a bad row can never put a `javascript:` URL
  * under a reply.
  */
 export function aiMetaOf(meta: unknown): Message['aiMeta'] {
   const ai = (meta as { ai?: unknown } | null)?.ai as
-    | { sources?: unknown; actions?: unknown; image?: { revisedPrompt?: unknown; model?: unknown } }
+    | { sources?: unknown; actions?: unknown; cards?: unknown; image?: { revisedPrompt?: unknown; model?: unknown } }
     | undefined;
   if (!ai || typeof ai !== 'object') return undefined;
   const sources = Array.isArray(ai.sources)
@@ -692,12 +714,14 @@ export function aiMetaOf(meta: unknown): Message['aiMeta'] {
   const actions = Array.isArray(ai.actions)
     ? ai.actions.filter((id): id is string => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 4)
     : [];
-  if (!sources.length && !image && !mood && !actions.length) return undefined;
+  const cards = aiCardsOf(ai.cards);
+  if (!sources.length && !image && !mood && !actions.length && !cards.length) return undefined;
   return {
     ...(sources.length ? { sources } : {}),
     ...(image ? { image } : {}),
     ...(mood ? { mood } : {}),
     ...(actions.length ? { actions } : {}),
+    ...(cards.length ? { cards } : {}),
   };
 }
 

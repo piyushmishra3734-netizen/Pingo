@@ -1,9 +1,11 @@
 import { useChat } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { BellOff, BellRing, CalendarClock, Check, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
+import { BellOff, BellRing, CalendarClock, Check, ListMusic, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAppLanguage } from '../i18n/useT.js';
+import { openMusic } from '../music/app/sheet-store.js';
+import { createPlaylist } from '../music/saavn/library.js';
 import { usePreferences } from '../settings/SettingsContext.js';
 import { applySetting, describeSetting } from './applySetting.js';
 import { approve, cancel, decline, loadAction, sayError, whenLabel, type MasterAction } from './master.js';
@@ -23,6 +25,9 @@ function describeMute(mode: 'mute' | 'unmute' | undefined, minutes = 0): string 
   if (mode === 'unmute') return minutes > 0 ? `Unmuted for ${span}, then muted again` : 'Unmuted';
   return minutes > 0 ? `Muted for ${span}` : 'Muted until you unmute it';
 }
+
+/** Playlists already saved from a card this session, so a second tap on a settled card cannot save twice. */
+const savedPlaylists = new Set<string>();
 
 export function MasterActionCard({ id }: { id: string }) {
   const [action, setAction] = useState<MasterAction | null | undefined>();
@@ -56,6 +61,11 @@ export function MasterActionCard({ id }: { id: string }) {
           if (next.kind === 'set_setting' && next.status === 'done' && next.params.key && next.params.value) {
             setUndo(() => applySetting(api.current, next.params.key!, next.params.value!));
           }
+          // A playlist is saved here, by the app, into the person's own library: the row that was approved, once.
+          if (next.kind === 'create_playlist' && next.status === 'done' && next.params.name && next.params.songs?.length && !savedPlaylists.has(next.id)) {
+            savedPlaylists.add(next.id);
+            createPlaylist(next.params.name, next.params.songs);
+          }
         } else {
           setAction(await loadAction(id));
         }
@@ -74,13 +84,18 @@ export function MasterActionCard({ id }: { id: string }) {
 
   const isMessage = action.kind === 'send_message';
   const isMute = action.kind === 'mute_chat';
+  const isPlaylist = action.kind === 'create_playlist';
   const chat = isMessage || isMute ? conversations.find((c) => c.id === action.params.conversation_id) : undefined;
-  const title = isMute
+  const title = isPlaylist
+    ? `Create playlist${action.params.name ? ` "${action.params.name}"` : ''}`
+    : isMute
     ? `${action.params.mode === 'unmute' ? 'Unmute' : 'Mute'} ${chat ? chat.title : 'a chat'}`
     : isMessage
       ? `Message ${chat ? chat.title : 'a chat'}`
       : 'Change a setting';
-  const Icon = isMute
+  const Icon = isPlaylist
+    ? ListMusic
+    : isMute
     ? action.params.mode === 'unmute'
       ? BellRing
       : BellOff
@@ -93,7 +108,7 @@ export function MasterActionCard({ id }: { id: string }) {
 
   const state =
     action.status === 'done'
-      ? { text: isMessage ? 'Sent' : 'Done', tone: 'text-brand' }
+      ? { text: isMessage ? 'Sent' : isPlaylist ? 'Saved to your library' : 'Done', tone: 'text-brand' }
       : action.status === 'scheduled'
         ? { text: `Scheduled for ${whenLabel(action.run_at)}`, tone: 'text-brand' }
         : action.status === 'pending' && !pending
@@ -114,14 +129,26 @@ export function MasterActionCard({ id }: { id: string }) {
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="truncate text-[14.5px] font-semibold">{title}</span>
           <span className="text-caption text-text-secondary">
-            {isMessage ? `Sends ${whenLabel(action.run_at)}` : 'Applies right away'} · {action.credits} credits
+            {isMessage ? `Sends ${whenLabel(action.run_at)}` : isPlaylist ? 'Saved to your PINGO Music' : 'Applies right away'} · {action.credits} credits
           </span>
         </span>
       </div>
 
-      <p className="whitespace-pre-wrap break-words rounded-xl bg-hover px-3 py-2 text-[14.5px] leading-snug">
-        {isMute ? describeMute(action.params.mode, action.params.minutes) : isMessage ? action.params.text : describeSetting(action.params.key, action.params.value)}
-      </p>
+      {isPlaylist ? (
+        <ul className="flex flex-col gap-1 rounded-xl bg-hover px-3 py-2 text-[14px] leading-snug">
+          {(action.params.songs ?? []).slice(0, 5).map((song) => (
+            <li key={song.id} className="flex min-w-0 gap-1.5">
+              <span className="truncate font-medium">{song.name}</span>
+              <span className="shrink-0 truncate text-text-secondary">{song.artists[0]?.name}</span>
+            </li>
+          ))}
+          {(action.params.songs?.length ?? 0) > 5 && <li className="text-text-secondary">and {(action.params.songs?.length ?? 0) - 5} more</li>}
+        </ul>
+      ) : (
+        <p className="whitespace-pre-wrap break-words rounded-xl bg-hover px-3 py-2 text-[14.5px] leading-snug">
+          {isMute ? describeMute(action.params.mode, action.params.minutes) : isMessage ? action.params.text : describeSetting(action.params.key, action.params.value)}
+        </p>
+      )}
 
       {pending && (
         <div className="flex gap-2">
@@ -150,6 +177,11 @@ export function MasterActionCard({ id }: { id: string }) {
           {action.status === 'scheduled' && (
             <button type="button" disabled={busy} onClick={() => void decide(async () => void (await cancel(id)))} className="rounded-full px-2.5 py-1 text-caption font-medium text-danger hover:bg-hover focus-ring">
               Cancel
+            </button>
+          )}
+          {isPlaylist && action.status === 'done' && (
+            <button type="button" onClick={openMusic} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-medium text-brand hover:bg-hover focus-ring">
+              <ListMusic size={13} aria-hidden /> Open
             </button>
           )}
           {undo && action.status === 'done' && (

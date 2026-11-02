@@ -46,6 +46,7 @@ import {
   type Tool,
 } from './openai.ts';
 import { asMood, MoodFilter, stripCitations, takeMood, type Mood } from './responses-events.ts';
+import { describeCards, findSongs, findTitles, keptFrom, wantsMedia, type AiCard, type TitleAsk } from './ai-media.ts';
 import { cleanTitle, firstWordsTitle, sideChatNeedsTitle, TITLE_NOTE, type ChatRow } from './side-chat-title.ts';
 
 // deno-lint-ignore no-explicit-any
@@ -104,6 +105,8 @@ export interface AiMeta {
   image?: { revisedPrompt?: string; model?: string };
   /** PINGO Master tasks this reply proposed, shown as Approve cards. */
   actions?: string[];
+  /** Songs and titles the reply found, drawn as cards that play. See ai-media.ts. */
+  cards?: AiCard[];
 }
 
 export type LunaStage =
@@ -501,6 +504,70 @@ const REACT_NOTE =
   'You can react to their message with react_to_message (an emoji), like a friend would: sparingly, when it fits (thanks, good news, a joke, a celebration, sad news, a plain ok). You may react and also reply, or only react when nothing needs saying. In a group you can only react to the message that tagged you.';
 
 /** Their goals list. Not offered in groups: a goal is private to its owner. */
+/**
+ * Songs and films as cards. Offered only on a turn that looks like it wants
+ * them (`wantsMedia`), so every other turn pays nothing for these. The model
+ * names what it knows; ai-media.ts checks it exists and draws it.
+ */
+const MUSIC_TOOL: FunctionTool = {
+  type: 'function',
+  name: 'suggest_music',
+  description: 'Show songs to the person as tappable cards that play in PINGO Music. Use it whenever they ask for a song, music, a vibe or a mood. Give real songs you are sure exist, each as "song title + artist" (up to 6). The cards appear under your message, so do not list the songs again.',
+  parameters: {
+    type: 'object',
+    properties: {
+      queries: { type: 'array', items: { type: 'string' }, description: 'Up to 6 searches, each "Song title Artist", for example "Tum Hi Ho Arijit Singh".' },
+    },
+    required: ['queries'],
+    additionalProperties: false,
+  },
+};
+
+const WATCH_TOOL: FunctionTool = {
+  type: 'function',
+  name: 'suggest_watch',
+  description: 'Show films or series to the person as tappable cards that play in PINGO TV. Use it whenever they ask what to watch, or for a film, series, anime or genre. Give real titles you are sure exist (up to 4). The cards appear under your message, so do not list them again.',
+  parameters: {
+    type: 'object',
+    properties: {
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            type: { type: 'string', enum: ['movie', 'tv'] },
+            year: { type: 'integer', description: 'Release year if you know it, otherwise 0.' },
+          },
+          required: ['title', 'type', 'year'],
+          additionalProperties: false,
+        },
+        description: 'Up to 4 titles.',
+      },
+    },
+    required: ['items'],
+    additionalProperties: false,
+  },
+};
+
+const PLAYLIST_TOOL: FunctionTool = {
+  type: 'function',
+  name: 'make_playlist',
+  description: 'Propose a whole playlist for the person, for a mood, a trip, a workout or any theme. It only PROPOSES: they approve it in the app (5 credits) and it is saved to their PINGO Music library. Give a short name and 8 to 12 real songs, each as "song title + artist". The songs also appear as cards, so do not list them again.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'A short playlist name, under 40 characters.' },
+      queries: { type: 'array', items: { type: 'string' }, description: '8 to 12 searches, each "Song title Artist".' },
+    },
+    required: ['name', 'queries'],
+    additionalProperties: false,
+  },
+};
+
+const MEDIA_NOTE =
+  'Songs and titles: show them with the tools, which draw tappable cards under your message. Write one or two warm lines (why these fit them), never a numbered list of the same items. Only name real songs and titles you are sure of. If they gave a mood, pick for the mood and for their language. If nothing was found, say so briefly.';
+
 const GOAL_TOOLS: FunctionTool[] = [
   {
     type: 'function',
@@ -741,7 +808,15 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     );
   }
   /* What changes from turn to turn goes after the history, so it never breaks the cached opening. */
+  // The last two things they said decide whether song and film tools are worth offering this turn.
+  const intent = t.spoken ? { music: false, watch: false } : wantsMedia(history.filter((m) => m.role === 'user').slice(-2).map((m) => m.content).join(' \n '));
+  const mediaTools: FunctionTool[] = [
+    ...(intent.music ? [MUSIC_TOOL] : []),
+    ...(intent.watch ? [WATCH_TOOL] : []),
+    ...(intent.music && t.master && !t.isGroup ? [PLAYLIST_TOOL] : []),
+  ];
   const now: string[] = [`Today is ${new Date().toISOString().slice(0, 10)}.`];
+  if (mediaTools.length) now.push(MEDIA_NOTE);
   if (t.creditsLeft !== undefined && t.creditsLeft < 5) {
     now.push('Their free credits for today are used up (15 a day; a web search, a picture or /think costs 5). You cannot search or draw now: if they ask, say so kindly and that credits reset at midnight. Plain chat still works.');
   }
@@ -858,8 +933,10 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
     ...(t.master && !t.isGroup && !t.spoken ? [...MASTER_TOOLS, ...WORLD_TOOLS] : []),
     // Each tool call is a second round trip to the model, and in a busy group nearly every reply paid it for a reaction.
     ...(reactionsOn && !t.isGroup ? [REACT_TOOL] : []),
+    ...mediaTools,
     ...builtinTools(t, p),
   ];
+  const cards: AiCard[] = [];
   const imageOffered = tools.some((x) => x.type === 'image_generation');
 
   stage(attached.files ? 'reading_file' : attached.photos ? 'looking' : 'thinking');
@@ -941,7 +1018,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
         input.push(item as InputItem);
       }
       for (const call of s.calls) {
-        input.push({ type: 'function_call_output', call_id: call.call_id, output: await runTool(call, t, d, memoryOn, oldestInView) });
+        input.push({ type: 'function_call_output', call_id: call.call_id, output: await runTool(call, t, d, memoryOn, oldestInView, cards) });
       }
     }
   } catch (err) {
@@ -980,7 +1057,7 @@ export async function lunaTurn(t: LunaTurn, d: LunaDeps): Promise<{ status: numb
   }
   // The model's own choice; happy when it forgot to choose.
   const mood: Mood = asMood(tagged.mood ?? moods.mood, 'happy');
-  const meta: AiMeta = { ...(sources.length ? { sources } : {}), ...(proposed.length ? { actions: proposed } : {}), mood };
+  const meta: AiMeta = { ...(sources.length ? { sources } : {}), ...(proposed.length ? { actions: proposed } : {}), ...(cards.length ? { cards } : {}), mood };
 
   /*
    * No picture where one was meant to be. A refusal by the safety filter is
@@ -1293,8 +1370,17 @@ function unlink(sentence: string): string {
   return sentence.replace(/\s*\(\[[^\]]*\]\([^)]*\)\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
 }
 
-async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: boolean, oldestInView: string): Promise<string> {
-  let args: { handle?: string; text?: string; query?: string; title?: string; goal?: string; name?: string; emoji?: string; conversation_id?: string; send_at?: string; key?: string; value?: string; ask?: string; mode?: string; minutes?: number } = {};
+/** Cards for this reply, without repeats and never more than a message's meta has room for. */
+function addCards(into: AiCard[], more: AiCard[]): void {
+  for (const c of more) {
+    if (into.length >= 12) return;
+    if (into.some((x) => x.t === c.t && x.id === c.id)) continue;
+    into.push(c);
+  }
+}
+
+async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: boolean, oldestInView: string, cards: AiCard[]): Promise<string> {
+  let args: { handle?: string; text?: string; query?: string; title?: string; goal?: string; name?: string; emoji?: string; conversation_id?: string; send_at?: string; key?: string; value?: string; ask?: string; mode?: string; minutes?: number; queries?: string[]; items?: TitleAsk[] } = {};
   try {
     args = JSON.parse(call.arguments || '{}');
   } catch {
@@ -1412,6 +1498,38 @@ async function runTool(call: FunctionCall, t: LunaTurn, d: LunaDeps, memoryOn: b
     }
     if (['my_people', 'get_person', 'get_posts', 'my_groups', 'group_members'].includes(call.name) && t.master && !t.isGroup) {
       return await worldTool(call.name, args, t);
+    }
+    if (call.name === 'suggest_music' || call.name === 'make_playlist') {
+      const playlist = call.name === 'make_playlist';
+      if (playlist && !(t.master && !t.isGroup && !t.spoken)) return 'Not available.';
+      const queries = Array.isArray(args.queries) ? args.queries.filter((q): q is string => typeof q === 'string') : [];
+      const songs = await findSongs(queries, { base: Deno.env.get('SAAVN_URL') ?? 'https://pingo-saavn.dubesminecraft.workers.dev', max: playlist ? 12 : 6 });
+      addCards(cards, songs);
+      if (!playlist || songs.length < 3) return describeCards(songs) + (playlist && songs.length ? '\nToo few songs were found to make a playlist.' : '');
+      const name = (args.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'PINGO AI mix';
+      const { data, error } = await t.db.rpc('master_propose', {
+        p_kind: 'create_playlist',
+        p_params: { name, songs: songs.map(keptFrom) },
+        p_run_at: null,
+      });
+      if (error || !data) {
+        console.warn('[luna] master propose refused', call.name, error?.message ?? 'no row');
+        return error?.message?.replace(/^.*?ERROR:\s*/, '').slice(0, 200) || 'That could not be proposed.';
+      }
+      const row = data as { id: string };
+      console.log('[luna] master proposed', call.name, row.id);
+      t.emitAction?.({ id: row.id, kind: 'create_playlist' });
+      return `${describeCards(songs)}\nProposed as a playlist called "${name}". It is waiting for the person to tap Approve in the app (5 credits). It is NOT saved yet. Tell them that, briefly.`;
+    }
+    if (call.name === 'suggest_watch') {
+      const token = Deno.env.get('TMDB_TOKEN') || Deno.env.get('TMDB_API_KEY');
+      if (!token) return 'Titles cannot be looked up right now. Say so briefly.';
+      const asks = (Array.isArray(args.items) ? args.items : [])
+        .filter((x): x is TitleAsk => !!x && typeof x.title === 'string')
+        .map((x) => ({ title: x.title, ...(x.type === 'movie' || x.type === 'tv' ? { type: x.type } : {}), ...(typeof x.year === 'number' && x.year > 1900 ? { year: x.year } : {}) }));
+      const found = await findTitles(asks, { token, max: 4 });
+      addCards(cards, found);
+      return describeCards(found);
     }
     if (call.name === 'react_to_message') {
       const emoji = (args.emoji ?? '').trim();

@@ -275,6 +275,35 @@ export type AiMood =
   | 'listening'
   | 'talking';
 
+/**
+ * A song or a title PINGO AI found, drawn under its reply as a card that plays.
+ * Short keys because a reply can carry a dozen; the server writes them from the
+ * catalogues' own answers (supabase/functions/ai-chat/ai-media.ts) and the app
+ * reads them as untrusted.
+ */
+export interface AiSongCard {
+  t: 'song';
+  id: string;
+  n: string;
+  a: string;
+  i: string;
+  s: number;
+}
+
+export interface AiTitleCard {
+  t: 'title';
+  id: number;
+  y: 'movie' | 'tv';
+  n: string;
+  yr: number;
+  b: string;
+  p: string;
+  r: number;
+  o: string;
+}
+
+export type AiCard = AiSongCard | AiTitleCard;
+
 export interface AiMeta {
   sources?: AiSource[];
   /** The face the assistant chose for this reply. */
@@ -282,6 +311,8 @@ export interface AiMeta {
   image?: { revisedPrompt?: string; model?: string };
   /** PINGO Master tasks this reply proposed; each is drawn as an Approve card. */
   actions?: string[];
+  /** Songs and titles it found, as cards that play. */
+  cards?: AiCard[];
 }
 
 /*

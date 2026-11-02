@@ -31,6 +31,7 @@ import { PINGO_AI_USER_ID } from '../ai/ai-mentions.js';
 import { AchievementMark } from '../achievements/AchievementArt.js';
 import { useAchievements } from '../achievements/useAchievements.js';
 import { AiMessageActions } from './AiMessageActions.js';
+import { AiCards } from '../ai/AiCards.js';
 import { AiSources } from '../ai/AiSources.js';
 import { FileBubble } from './FileBubble.js';
 import { MessageText } from './MessageText.js';
@@ -819,6 +820,7 @@ export function MessageBubble({
         */}
         {/* Where the reply came from, when it searched the web. Plain for now: styled by the chat redesign. */}
         {message.aiMeta?.sources?.length ? <AiSources sources={message.aiMeta.sources} /> : null}
+        {message.aiMeta?.cards?.length ? <AiCards cards={message.aiMeta.cards} /> : null}
         {message.aiMeta?.actions?.map((id) => <MasterActionCard key={id} id={id} />)}
 
         {isAiReply && !streaming && !room && (
