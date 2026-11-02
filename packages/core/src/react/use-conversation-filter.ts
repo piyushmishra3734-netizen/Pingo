@@ -117,6 +117,16 @@ export function conversationMatchesQuery(
   if (conversation.id.toLowerCase().includes(q)) return true;
   if (conversation.lastMessage?.body?.toLowerCase().includes(q)) return true;
 
+  /*
+   * Members only identify a one-to-one thread.
+   *
+   * A group matched whenever anybody in it matched, so searching for a person's
+   * @handle or id put every group they are in on screen, and nothing about the
+   * person: the group answered a search that was for them. A group is found by
+   * its own name, id or last message; the person is found as a person.
+   */
+  if (conversation.kind === 'group' || conversation.kind === 'community') return false;
+
   for (const participantId of conversation.participantIds) {
     if (participantId.toLowerCase().includes(q)) return true;
     const person = peopleById?.get(participantId);

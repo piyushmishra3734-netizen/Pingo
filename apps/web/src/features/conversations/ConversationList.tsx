@@ -331,8 +331,12 @@ export function ConversationList({
            * the same person twice, once as a chat and once as a stranger, reads
            * as two different people.
            */
+          // Only a one-to-one thread stands in for its person. A group in the results says nothing about the people in it.
           const shown = new Set(
-            ordered.flatMap((c) => c.participantIds ?? []).concat(profile?.id ? [profile.id] : []),
+            ordered
+              .filter((c) => c.kind !== 'group' && c.kind !== 'community')
+              .flatMap((c) => c.participantIds ?? [])
+              .concat(profile?.id ? [profile.id] : []),
           );
           setPeople(found.filter((person) => !shown.has(person.id)));
         })
