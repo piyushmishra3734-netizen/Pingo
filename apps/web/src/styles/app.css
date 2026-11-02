@@ -815,9 +815,21 @@ video {
  * needs to be clipped. The cost is a repaint rather than a composite, over an
  * area the size of a dock or a send button, for a third of a second.
  *
- * `--lit-spread` is registered below so the radius itself can be animated;
- * without `@property` a custom property jumps from one value to the next and
- * the light would appear at full size.
+ * ## Only opacity and transform move
+ *
+ * The light used to bloom by animating a registered custom property
+ * (`--lit-spread`) inside the gradient's radius. A custom property cannot be
+ * composited, so every frame of every press re-rasterised the gradient on the
+ * main thread. Measured on one press-light with 6x CPU throttling, six presses
+ * cost about 430 ms of paint over ~500 paints; the version below, which paints
+ * the gradient once at its full size and only fades and scales that layer, costs
+ * about 30 ms over ~55. The bloom is the scale, from the touch point
+ * (`transform-origin` is the same --lit-x / --lit-y), and the layer never leaves
+ * its own box, so nothing needs clipping.
+ *
+ * Not on a text field: pressing the message input does not light the panel it
+ * sits in. And not at all on a phone running without glass (`data-glass="0"`),
+ * which is the setting weak devices get.
  *
  * ## No blend mode
  *
@@ -828,12 +840,6 @@ video {
  * instead. It is the conservative half of the idea; the blend mode is the
  * upgrade if it ever proves safe here.
  */
-@property --lit-spread {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}
-
 .glass-lit {
   position: relative;
 }
@@ -848,31 +854,22 @@ video {
    * Positioned by the two properties the pointer handler writes, and falling
    * back to the middle so a keyboard activation still lights something
    * sensible rather than the top-left corner.
-   */
-  /*
-   * The accent in light, plain white in dark, and the reason is physics rather
-   * than taste.
    *
-   * White light on a near-white panel is invisible: the dock's glass already
-   * sits around #fff, so "brighter" has nowhere to go. Verified on the live
-   * app - a white bloom at full strength produced a dock indistinguishable
-   * from its resting state.
-   *
-   * Dark glass has the headroom, so there white is exactly right. Light glass
-   * does not, so the light carries the accent instead - which also means it
-   * follows whatever accent the person has chosen rather than introducing a
-   * colour of its own.
+   * The accent in light, plain white in dark: white light on a near-white panel
+   * is invisible (verified on the live app), dark glass has the headroom.
    */
   background: radial-gradient(
     circle at var(--lit-x, 50%) var(--lit-y, 50%),
     color-mix(in srgb, var(--color-brand) 24%, transparent),
-    color-mix(in srgb, var(--color-brand) 8%, transparent) calc(var(--lit-spread) * 0.5),
-    transparent var(--lit-spread)
+    color-mix(in srgb, var(--color-brand) 8%, transparent) 62%,
+    transparent 125%
   );
   opacity: 0;
+  transform: scale(0.6);
+  transform-origin: var(--lit-x, 50%) var(--lit-y, 50%);
   transition:
     opacity 360ms var(--ease-standard),
-    --lit-spread 360ms var(--ease-standard);
+    transform 360ms var(--ease-standard);
 }
 
 /*
@@ -887,8 +884,19 @@ video {
  */
 .glass-lit:active::after {
   opacity: 1;
-  --lit-spread: 125%;
+  transform: scale(1);
   transition-duration: 90ms, 300ms;
+}
+
+/* Typing is not a press on the panel: a field inside a lit surface does not light it. */
+.glass-lit:has(:is(textarea, input, [contenteditable='true']):active)::after {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+/* A phone without glass has no light either. */
+:root[data-glass='0'] .glass-lit::after {
+  display: none;
 }
 
 /* Dark glass has room for light, and takes it as light. */
@@ -896,8 +904,8 @@ video {
   background: radial-gradient(
     circle at var(--lit-x, 50%) var(--lit-y, 50%),
     rgb(255 255 255 / 0.2),
-    rgb(255 255 255 / 0.07) calc(var(--lit-spread) * 0.5),
-    transparent var(--lit-spread)
+    rgb(255 255 255 / 0.07) 62%,
+    transparent 125%
   );
 }
 

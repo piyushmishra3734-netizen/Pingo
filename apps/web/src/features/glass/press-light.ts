@@ -1,7 +1,7 @@
 /**
  * Where the finger landed, handed to the stylesheet.
  *
- * `.glass-lit` draws a soft light at `--lit-x` / `--lit-y` and spreads it on
+ * `.glass-lit` draws a soft light at `--lit-x` / `--lit-y` and scales it up on
  * `:active`. Everything about how that looks lives in CSS; the only thing CSS
  * cannot know is the coordinate, and this is the whole of the code that tells
  * it.
@@ -41,6 +41,9 @@ export function startPressLight(): () => void {
   const onPointerDown = (event: PointerEvent) => {
     const from = event.target;
     if (!(from instanceof Element)) return;
+
+    // Typing into a field is not a press on the surface around it: nothing to light, nothing to write.
+    if (from.closest('textarea, input, [contenteditable="true"]')) return;
 
     /*
      * The nearest lit surface, which may be several levels up: pressing a dock
