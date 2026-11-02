@@ -1,5 +1,6 @@
 import { MusicMark } from '../features/music/MusicMark.js';
 import { isValidUsername, normaliseUsername, useProfile, type ProfileSong } from '@pingo/core';
+import { useConfirm } from '../components/ConfirmProvider.js';
 import { Sheet } from '../components/Sheet.js';
 import { ChatMusicPicker } from '../features/music/ChatMusicPicker.js';
 import { ProfileSongCard } from '../features/music/ProfileSongCard.js';
@@ -14,8 +15,7 @@ import { AvatarPhotoEditor } from '../features/profile/AvatarPhotoEditor.js';
 import { ProfileCover } from '../features/profile/ProfileCover.js';
 import { CoverEditor } from '../features/profile/CoverEditor.js';
 import { prepareCover } from '../features/profile/cover-gif.js';
-import { ChatBannerSection } from '../features/profile/ChatBannerSection.js';
-import { isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
+import { canEditGif, isGif, prepareAvatarGif } from '../features/profile/avatar-gif.js';
 
 /**
  * Editing your own profile: photo, cover, name, username, bio, work, place.
@@ -53,6 +53,7 @@ const WORK_CHIPS = ['Student', 'Developer', 'Designer', 'Creator', 'Gamer', 'Fou
 export function EditProfileScreen() {
   const t = useT();
   const { profile, update, service } = useProfile();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState('');
@@ -69,6 +70,8 @@ export function EditProfileScreen() {
   const [removePhoto, setRemovePhoto] = useState(false);
   /** Object URL for the file currently open in the crop editor. */
   const [editorSrc, setEditorSrc] = useState<string>();
+  // The GIF being framed in the editor, when the picked photo is one.
+  const [editorGif, setEditorGif] = useState<File>();
 
   const [available, setAvailable] = useState<boolean>();
   const [checking, setChecking] = useState(false);
@@ -132,26 +135,32 @@ export function EditProfileScreen() {
 
   const openEditor = (file: File) => {
     /*
-     * A GIF skips the crop editor: a canvas keeps only its first frame. It is
-     * cut to a centred square and shrunk instead (`avatar-gif.ts`), so it
-     * still moves - in the profile and in every chat row.
+     * A GIF goes through the crop editor too: the framing is applied to every
+     * frame (`cropAvatarGif`), so it still moves. Only a browser with no
+     * `ImageDecoder` has it centred and shrunk without the editor.
      */
-    if (isGif(file)) {
+    if (isGif(file) && !canEditGif()) {
       setError(undefined);
       void prepareAvatarGif(file).then((result) => {
-        if (!result.ok) return setError(result.reason);
+        // Said in a dialog: the form's own error sits at the foot of a long page, out of sight.
+        if (!result.ok) {
+          void confirm({ title: 'Could not use that GIF', description: result.reason, confirmLabel: 'OK', tone: 'normal' });
+          return;
+        }
         setPhoto(result.file);
         setRemovePhoto(false);
       });
       return;
     }
     if (editorSrc) URL.revokeObjectURL(editorSrc);
+    setEditorGif(isGif(file) ? file : undefined);
     setEditorSrc(URL.createObjectURL(file));
   };
 
   const closeEditor = () => {
     if (editorSrc) URL.revokeObjectURL(editorSrc);
     setEditorSrc(undefined);
+    setEditorGif(undefined);
   };
 
   const handle = normaliseUsername(username);
@@ -257,6 +266,7 @@ export function EditProfileScreen() {
       {editorSrc && (
         <AvatarPhotoEditor
           src={editorSrc}
+          {...(editorGif ? { gif: editorGif } : {})}
           onCancel={closeEditor}
           onChooseAnother={() => fileRef.current?.click()}
           onSave={(file) => {
@@ -383,12 +393,8 @@ export function EditProfileScreen() {
             if (!file) return;
             setError(undefined);
             setCoverError(undefined);
-            // A video becomes an animated cover, which is premium like any GIF cover.
+            // A video becomes an animated cover, like any GIF cover.
             if (file.type.startsWith('video/')) {
-              if (profile?.isPremium !== true) {
-                setCoverError('Animated covers are part of PINGO premium. Pick a photo instead.');
-                return;
-              }
               setCoverEditing(file);
               return;
             }
@@ -398,7 +404,7 @@ export function EditProfileScreen() {
               return;
             }
             setPreparingCover(true);
-            void prepareCover(file, profile?.isPremium === true).then((result) => {
+            void prepareCover(file).then((result) => {
               setPreparingCover(false);
               if (!result.ok) {
                 setCoverError(result.reason);
@@ -423,8 +429,6 @@ export function EditProfileScreen() {
             if (file) openEditor(file);
           }}
         />
-
-        <ChatBannerSection />
 
         {/* Form hierarchy: display name primary, then username, then bio. */}
         <section className="space-y-4 rounded-[28px] bg-surface p-[18px]">

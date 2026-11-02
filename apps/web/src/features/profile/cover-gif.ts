@@ -1,5 +1,5 @@
 /**
- * A GIF for the cover: premium only, and never taller than 480p.
+ * A GIF for the cover: for everybody, and never taller than 480p.
  *
  * ## Why a GIF is re-encoded rather than resized like a photo
  *
@@ -16,17 +16,14 @@
  *
  * A cover is fetched by everybody who opens the profile, over and over, and
  * this project's plan is paid for in bytes served. So 480p, a frame limit, and
- * a size limit on what comes out - premium unlocks the animation, not an
- * unbounded download for every visitor.
+ * a size limit on what comes out - the animation is allowed, an unbounded
+ * download for every visitor is not.
  *
  * ## Where it cannot be done
  *
  * `ImageDecoder` is Chromium's - the Android app and Chrome have it, Safari
  * does not. There, a GIF already at 480p or under still goes up untouched, and
  * a bigger one is refused with a reason rather than uploaded at full size.
- *
- * The premium check here is for the message. The database refuses a GIF cover
- * from anybody else whatever this code does - see `profiles_cover_rules`.
  */
 
 import { shrinkCoverPhoto } from './cover-image.js';
@@ -125,9 +122,8 @@ async function shrink(file: File, Decoder: ImageDecoderCtor): Promise<File> {
  *
  * A photo is shrunk to cover size (see `cover-image`); a GIF is checked here.
  */
-export async function prepareCover(file: File, premium: boolean): Promise<CoverResult> {
+export async function prepareCover(file: File): Promise<CoverResult> {
   if (file.type !== 'image/gif') return { ok: true, file: await shrinkCoverPhoto(file) };
-  if (!premium) return { ok: false, reason: 'GIF covers are part of PINGO premium.' };
 
   try {
     const { height } = await firstFrameSize(file);

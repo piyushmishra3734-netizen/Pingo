@@ -1,6 +1,7 @@
 import { cn } from '@pingo/ui';
 import { Music2 } from 'lucide-react';
 
+import { useAppearance } from '../settings/SettingsContext.js';
 import { noteBg, type Note } from './notes.js';
 
 /**
@@ -26,10 +27,11 @@ export function NoteBubble({
   mine?: boolean;
   onClick: () => void;
 }) {
+  const { resolvedTheme } = useAppearance();
   // Nothing to show: the space is kept so every face sits on one line. A note is started from the story `+`.
   if (!note) return <span aria-hidden style={{ height: NOTE_SLOT }} className="block" />;
   // A chosen background tints the bubble and its tail together; "plain" leaves the theme's own surface.
-  const look = noteBg(note.bg);
+  const look = noteBg(note.bg, resolvedTheme);
   const tint = look.bg ? ({ ['--note-bg' as string]: look.bg, color: look.ink } as React.CSSProperties) : undefined;
 
   return (

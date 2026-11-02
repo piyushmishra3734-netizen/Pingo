@@ -89,11 +89,59 @@ function exportDrawing(strokes: DrawStroke[], w: number, h: number, content: HTM
   return new Promise((resolve) => out.toBlob((blob) => resolve(blob ? { blob, anchor: placement } : null), 'image/png'));
 }
 
+/*
+ * A drawing in progress outlives the page.
+ *
+ * It lived only in React state, so a phone that reloaded the page - iOS Safari
+ * does when a tab has been in the background and memory is short - took the whole
+ * drawing with it, and "I had drawn it and it was gone" was all anybody could
+ * say. The strokes are kept as they are drawn (per conversation, for half an
+ * hour) and put back when the pad is opened again. Closing the pad with the
+ * cross, or sending the drawing, is what clears them.
+ */
+const DRAFT_MAX_AGE = 30 * 60_000;
+const DRAFT_MAX_BYTES = 900_000;
+const draftKey = () => `pingo:sketch-draft:v1:${location.pathname}`;
+
+function loadDraft(): DrawStroke[] {
+  try {
+    const raw = localStorage.getItem(draftKey());
+    if (!raw) return [];
+    const kept = JSON.parse(raw) as { at?: number; strokes?: DrawStroke[] };
+    if (!kept || typeof kept.at !== 'number' || Date.now() - kept.at > DRAFT_MAX_AGE || !Array.isArray(kept.strokes)) return [];
+    return kept.strokes.filter((s) => s && Array.isArray(s.points) && s.points.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function keepDraft(strokes: DrawStroke[]): void {
+  try {
+    if (strokes.length === 0) {
+      localStorage.removeItem(draftKey());
+      return;
+    }
+    const text = JSON.stringify({ at: Date.now(), strokes });
+    // A drawing too big to keep is not kept at all, rather than cut off.
+    if (text.length <= DRAFT_MAX_BYTES) localStorage.setItem(draftKey(), text);
+  } catch {
+    // Storage full or blocked: the drawing just is not kept.
+  }
+}
+
+function clearDraft(): void {
+  try {
+    localStorage.removeItem(draftKey());
+  } catch {
+    // Nothing to clear.
+  }
+}
+
 export function SketchPad({ content, onCancel, onDone, onActivity }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void; /** Told true while the pad is open, so the other person sees "is drawing". */ onActivity?: (on: boolean) => void }) {
   const { brush, size, setBrush, setSize } = useBrush();
   // Not white: it lands on the other person's wallpaper, light or dark.
   const [colour, setColour] = useState('#ff3b5c');
-  const [strokes, setStrokes] = useState<DrawStroke[]>([]);
+  const [strokes, setStrokes] = useState<DrawStroke[]>(loadDraft);
   const [redo, setRedo] = useState<DrawStroke[]>([]);
   const [busy, setBusy] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
@@ -141,6 +189,32 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
     paintStrokes(context, strokes, box.w, box.h);
   }, [strokes, box]);
 
+  // Kept as it is drawn (a moment after the last stroke), so a page that is reloaded mid-drawing gets it back.
+  const latest = useRef(strokes);
+  latest.current = strokes;
+  useEffect(() => {
+    const timer = window.setTimeout(() => keepDraft(strokes), 400);
+    return () => window.clearTimeout(timer);
+  }, [strokes]);
+  // And at once when the page is leaving or going to the background, which is when iOS may drop it.
+  useEffect(() => {
+    const now = () => keepDraft(latest.current);
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') now();
+    };
+    window.addEventListener('pagehide', now);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      window.removeEventListener('pagehide', now);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, []);
+
+  const cancel = () => {
+    clearDraft();
+    onCancel();
+  };
+
   const at = (event: { clientX: number; clientY: number }) => {
     const rect = surface.current!.getBoundingClientRect();
     return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
@@ -149,7 +223,7 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
   const round = 'grid size-10 place-items-center rounded-full bg-surface/85 text-text-primary ring-1 ring-line backdrop-blur disabled:opacity-35';
 
   return (
-    <Overlay onDismiss={onCancel}>
+    <Overlay onDismiss={cancel}>
       <div className="fixed inset-0 z-500 bg-surface/30">
         <div
           ref={surface}
@@ -174,7 +248,7 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
 
         <div className="absolute inset-x-3 top-3 z-10 flex items-center justify-between pt-[env(safe-area-inset-top)]">
           <div className="flex gap-2">
-            <button type="button" aria-label="Close" onClick={onCancel} className={round}>
+            <button type="button" aria-label="Close" onClick={cancel} className={round}>
               ✕
             </button>
             <button
@@ -214,7 +288,10 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
               setBusy(true);
               void exportDrawing(strokes, box.w, box.h, content).then((made) => {
                 setBusy(false);
-                if (made) onDone(new File([made.blob], 'drawing.png', { type: 'image/png' }), made.anchor);
+                if (made) {
+                  clearDraft();
+                  onDone(new File([made.blob], 'drawing.png', { type: 'image/png' }), made.anchor);
+                }
               });
             }}
             className="rounded-full bg-brand px-5 py-1.5 text-[15px] font-bold text-on-brand disabled:opacity-40"

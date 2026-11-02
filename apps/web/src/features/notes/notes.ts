@@ -16,19 +16,24 @@ export type NoteAudience = 'friends' | 'close';
 /**
  * The few looks a note's bubble can have. The database stores only the id (and
  * refuses any other); what each one looks like is decided here. Quiet on
- * purpose: a tint of one colour over the app's dark surface, never a gradient.
- * `default` is no tint at all: the bubble as the theme draws it.
+ * purpose: a tint of one colour, never a gradient, dark over a dark page and
+ * pale over a light one so it follows the app's theme. `default` is no tint at
+ * all: the bubble as the theme draws it.
  */
 export type NoteBg = 'default' | 'rose' | 'ocean' | 'forest' | 'amber' | 'violet';
-export const NOTE_BGS: { id: NoteBg; label: string; bg: string; ink: string }[] = [
-  { id: 'default', label: 'Plain', bg: '', ink: '' },
-  { id: 'rose', label: 'Rose', bg: '#3a1b2c', ink: '#ffd9ea' },
-  { id: 'ocean', label: 'Ocean', bg: '#16293a', ink: '#d6ecff' },
-  { id: 'forest', label: 'Forest', bg: '#16301f', ink: '#d9f5df' },
-  { id: 'amber', label: 'Amber', bg: '#3a2d14', ink: '#ffeccb' },
-  { id: 'violet', label: 'Violet', bg: '#271f3d', ink: '#e6dcff' },
+export const NOTE_BGS: { id: NoteBg; label: string; bg: string; ink: string; lightBg: string; lightInk: string }[] = [
+  { id: 'default', label: 'Plain', bg: '', ink: '', lightBg: '', lightInk: '' },
+  { id: 'rose', label: 'Rose', bg: '#3a1b2c', ink: '#ffd9ea', lightBg: '#ffdceb', lightInk: '#5c1c3a' },
+  { id: 'ocean', label: 'Ocean', bg: '#16293a', ink: '#d6ecff', lightBg: '#d9edff', lightInk: '#123552' },
+  { id: 'forest', label: 'Forest', bg: '#16301f', ink: '#d9f5df', lightBg: '#d8f3df', lightInk: '#154a2a' },
+  { id: 'amber', label: 'Amber', bg: '#3a2d14', ink: '#ffeccb', lightBg: '#ffecc7', lightInk: '#5a410d' },
+  { id: 'violet', label: 'Violet', bg: '#271f3d', ink: '#e6dcff', lightBg: '#e8deff', lightInk: '#33255f' },
 ];
-export const noteBg = (id: string | undefined) => NOTE_BGS.find((b) => b.id === id) ?? NOTE_BGS[0]!;
+/** A background as it looks in the given theme (dark unless said otherwise). */
+export function noteBg(id: string | undefined, theme: 'light' | 'dark' = 'dark') {
+  const preset = NOTE_BGS.find((b) => b.id === id) ?? NOTE_BGS[0]!;
+  return theme === 'light' ? { ...preset, bg: preset.lightBg, ink: preset.lightInk } : preset;
+}
 
 /** "21h left", "40m left", "ending now": what is left of a note's 24 hours. */
 export function timeLeft(expiresAt: number, now = Date.now()): string {

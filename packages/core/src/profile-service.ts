@@ -35,8 +35,6 @@ export interface Profile {
    * default and not a gap - the same way an absent avatar means the monogram.
    */
   bannerUrl?: string;
-  /** The picture behind their row in other people's chat lists. Absent means none. */
-  chatBannerUrl?: string;
   /**
    * Which part of that band to show, as a vertical percent. 50 is centred.
    *
@@ -85,7 +83,6 @@ export interface ProfileDraft {
   bio?: string;
   bannerUrl?: string;
   bannerOffset?: number;
-  chatBannerUrl?: string;
   work?: string;
   location?: string;
   /** Present and undefined clears it, like the other optional fields. */
@@ -344,8 +341,6 @@ export interface ProfileService {
    * `onProgress` is told how much has gone up, 0 to 1, when the store can say.
    */
   uploadCover(file: Blob, onProgress?: (fraction: number) => void): Promise<string>;
-  /** Your own chat banner (premium), replacing the previous upload; the cover is untouched. */
-  uploadChatBanner(file: Blob): Promise<string>;
 
   /*
    * `listRecentPeople` was here: everybody else on PINGO, newest first. It fed

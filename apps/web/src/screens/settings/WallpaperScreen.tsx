@@ -23,7 +23,7 @@ import {
   type WallpaperScope,
 } from '../../features/chat/wallpaper.js';
 import { rainSoundEnabled, setRainSoundEnabled } from '../../features/chat/rain-sound.js';
-import { getSupabaseClient } from '../../lib/supabase/client.js';
+import { r2Upload } from '../../lib/r2-media.js';
 
 /**
  * Choosing what sits behind a conversation.
@@ -194,25 +194,15 @@ export function WallpaperScreen() {
       };
     }
 
-    const client = getSupabaseClient();
-    // Long cache: members keep a local copy; URL is only the first hop.
-    const path = `${currentUser.id}/wallpapers/${conversationId}/${crypto.randomUUID()}.${prepared.ext}`;
-    const { error: upErr } = await client.storage.from('avatars').upload(path, prepared.blob, {
-      contentType: prepared.contentType,
-      cacheControl: '31536000',
-      upsert: false,
-    });
-    if (upErr) {
+    // Cloudflare R2 (public, like a cover): members keep a local copy, the link is only the first hop.
+    const onR2 = await r2Upload('cover', prepared.blob, prepared.contentType);
+    if (!onR2?.url) {
       return {
         ok: false,
-        reason:
-          upErr.message ||
-          'Saved on this device, but upload failed — check your connection and try again.',
+        reason: 'Saved on this device, but upload failed — check your connection and try again.',
       };
     }
-
-    const { data } = client.storage.from('avatars').getPublicUrl(path);
-    const url = data.publicUrl;
+    const url = onR2.url;
     try {
       await service.setGroupWallpaper(conversationId, 'custom', url);
     } catch (cause) {
