@@ -103,6 +103,12 @@ const BADGES = [
      * the ring in half and read as damaged. Same framing, smaller file.
      */
   },
+  {
+    // A square of its own ink already (1254px, margin under 2%), and a face that reads small: no crop, no separate crest.
+    name: 'oni',
+    crestName: 'oni-crest',
+    source: 'apps/web/assets/oni.png',
+  },
 ];
 
 /** The crest region of the source, as its own image to scale down from. */
