@@ -72,13 +72,29 @@ export const ACHIEVEMENTS: Achievement[] = [
     },
   },
   {
+    /*
+     * Third badge, after FOUNDER and MYTHIC PIONEER: the red oni crest.
+     * Standard tier, like FOUNDER - an indicator beside a name and a place in
+     * the cabinet, without the aura. Given by id from the database, not earned.
+     */
+    id: 'oni',
+    title: 'ONI',
+    tier: 'standard',
+    blurb: 'A rare PINGO achievement.',
+    art: {
+      emblem: '/badges/oni-512.png',
+      crest: '/badges/oni-crest-96.png',
+    },
+  },
+  {
     id: 'mythic_pioneer',
     title: 'MYTHIC PIONEER',
     blurb: 'A rare PINGO achievement.',
     tier: 'mythic',
     art: {
-      emblem: '/badges/mythic-pioneer-512.png',
-      crest: '/badges/mythic-crest-96.png',
+      // Animated WebP with real transparency, cut from the supplied GIF by `scripts/make-animated-badge.mjs`.
+      emblem: '/badges/mythic-pioneer-512.webp',
+      crest: '/badges/mythic-crest-96.webp',
     },
   },
 ];

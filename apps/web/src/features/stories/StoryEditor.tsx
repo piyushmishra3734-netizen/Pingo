@@ -4,7 +4,7 @@ import { cn } from '@pingo/ui';
 import {
   AlignCenter, AlignLeft, AlignRight, ALargeSmall, AtSign, Baseline, Brush, ChevronLeft, CircleCheck, Circle,
   Download, Ellipsis, Link as LinkIcon, MapPin, Music2, Pause, Play, Search, Sparkles, Star,
-  Sticker, Type, Undo2, Redo2, Send, Settings2, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
+  Sticker, Type, Undo2, Volume2, VolumeX, Redo2, Send, Settings2, AlarmClock, Clock, Timer, File as FileIcon, Infinity as InfinityIcon, Bot, MessageCircleOff, UsersRound, Check,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -122,6 +122,24 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   // Instagram shows the tools' names first, then folds them down to icons.
   useEffect(() => { const t = window.setTimeout(() => setRail((r) => (r === 'labels' ? 'icons' : r)), 2800); return () => window.clearTimeout(t); }, []);
   useEffect(() => () => player.current?.pause(), []);
+
+  /*
+   * The clip's own sound, Instagram's way: on by default, one tap on the speaker
+   * to mute it. A browser may refuse to start a video with sound before anybody
+   * has tapped, so a refusal falls back to muted playback with the speaker showing
+   * "off" - tapping it is the gesture that lets the sound in. Taking the speaker
+   * pauses whatever else was playing (a song from the music player), and a song
+   * chosen for the story replaces the clip's sound rather than playing over it.
+   */
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => {
+    const el = mediaEl.current;
+    if (kind !== 'video' || !el) return;
+    const loud = soundOn && !song;
+    el.muted = !loud;
+    if (loud) claimAudio(el);
+    void el.play().catch(() => { if (loud) setSoundOn(false); });
+  }, [kind, soundOn, song, src]);
   useEffect(() => { if (!fname) return; const t = window.setTimeout(() => setFname(undefined), 900); return () => window.clearTimeout(t); }, [fname, filterI]);
 
   const filter = FILTERS[filterI]![1];
@@ -467,6 +485,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
   };
 
   const railTools: [string, ReactNode, () => void][] = [
+    ...(kind === 'video' && !song ? [[soundOn ? 'Mute' : 'Unmute', soundOn ? <Volume2 key="v" /> : <VolumeX key="v" />, () => setSoundOn(!soundOn)] as [string, ReactNode, () => void]] : []),
     ['Text', <Type key="t" />, () => { setEditingText(undefined); setMode('text'); }],
     ['Stickers', <Sticker key="s" />, () => setSheet('stickers')],
     ['Audio', <Music2 key="a" />, () => setSheet('music')],
@@ -492,7 +511,7 @@ export function StoryEditor({ src, kind, media, initialStickers = [], bg, onClos
           <div ref={stage} className="absolute inset-x-0 top-0 bottom-[76px] overflow-hidden rounded-b-[16px]" style={{ background: bg ?? (wash ? washOf(wash) : '#111') }}
             onWheel={(e) => { if (!bg && frame) setFrame({ ...frame, s: clampScale(frame.s * Math.exp(-e.deltaY * 0.0015)) }); }}>
             {kind === 'video'
-              ? <video ref={mediaEl} data-story-media src={src} onLoadedData={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} autoPlay loop muted playsInline />
+              ? <video ref={mediaEl} data-story-media src={src} onLoadedData={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} autoPlay loop muted={!soundOn || !!song} playsInline />
               : !bg && <img ref={mediaEl} data-story-media src={src} alt="" onLoad={(e) => learnMedia(e.currentTarget)} className={cn('absolute', !placed && 'inset-0 size-full object-cover')} style={{ filter, ...(placed ? { left: placed.left, top: placed.top, width: placed.width, height: placed.height, maxWidth: 'none' } : {}) }} draggable={false} crossOrigin="anonymous" />}
             <canvas ref={ink} width={W} height={H} className="pointer-events-none absolute inset-0 size-full" />
             <div ref={layer} className="sk-layer inset-0">
