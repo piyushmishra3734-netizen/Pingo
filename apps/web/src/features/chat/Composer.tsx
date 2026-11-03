@@ -13,6 +13,7 @@ import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { songBody } from '../music/song-share.js';
+import { ExplorePicker } from '../explore/ExplorePicker.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 import { PolishPanel } from '../polish/PolishPanel.js';
 
@@ -185,7 +186,7 @@ export function Composer({
    * everybody's memory of the app.
    */
   useBackStep(pickerOpen, () => setPickerOpen(false));
-  const [tab, setTab] = useState<'emoji' | 'stickers' | 'music'>('emoji');
+  const [tab, setTab] = useState<'emoji' | 'stickers' | 'music' | 'explore'>('emoji');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = value.trim().length > 0;
   const [polishOpen, setPolishOpen] = useState(false);
@@ -606,6 +607,15 @@ export function Composer({
                 // A song is the whole message, like a sticker: sent straight away.
                 setPickerOpen(false);
                 void Promise.resolve(onSend(songBody(song))).catch(() => setError('That song could not be sent.'));
+              }}
+            />
+          ) : tab === 'explore' ? (
+            <ExplorePicker
+              onSelect={(item) => {
+                // Sent the way a sticker is: the whole message, no bubble. The words are what shows where the picture cannot.
+                const words = item.kind === 'photo' ? `Photo${item.by ? ` by ${item.by.name}` : ''} · Pexels` : item.kind === 'gif' ? 'GIF' : 'Sticker';
+                void onSendSticker?.({ id: item.id, name: words, category: 'meme', url: item.url, format: 'webp', keywords: [] });
+                setPickerOpen(false);
               }}
             />
           ) : (
@@ -1091,8 +1101,8 @@ function PickerTabs({
   onTab,
   showStickers,
 }: {
-  tab: 'emoji' | 'stickers' | 'music';
-  onTab: (next: 'emoji' | 'stickers' | 'music') => void;
+  tab: 'emoji' | 'stickers' | 'music' | 'explore';
+  onTab: (next: 'emoji' | 'stickers' | 'music' | 'explore') => void;
   showStickers: boolean;
 }) {
   if (!showStickers) return null;
@@ -1101,6 +1111,7 @@ function PickerTabs({
     { id: 'emoji' as const, label: 'Emoji' },
     { id: 'stickers' as const, label: 'Stickers' },
     { id: 'music' as const, label: 'Music' },
+    { id: 'explore' as const, label: 'Explore' },
   ];
 
   return (

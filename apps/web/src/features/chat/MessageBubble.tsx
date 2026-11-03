@@ -588,7 +588,13 @@ export function MessageBubble({
             alt={message.body}
             draggable={false}
             // 160px: the packs carry words now ("vibes only", "caught in 4K"), and they have to be read.
-            className="pointer-events-none size-40 select-none object-contain"
+            className={cn(
+              'pointer-events-none select-none',
+              // A photo from Explore is a picture, not a sticker: it gets room, rounded, and keeps its shape.
+              /^https:\/\/images\.pexels\.com\//.test(message.sticker.url)
+                ? 'max-h-80 w-60 max-w-full rounded-2xl object-cover'
+                : 'size-40 object-contain',
+            )}
             onError={(event) => {
               // Pack gone, or offline. The emoji is a better fallback than a
               // broken-image icon, and it is already in `body`.
