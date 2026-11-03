@@ -15,9 +15,9 @@ import { explore, ExploreError, type ExploreItem, type ExploreSource } from './e
  */
 
 const SOURCES: { id: ExploreSource; label: string }[] = [
-  { id: 'photos', label: 'Photos' },
   { id: 'gifs', label: 'GIFs' },
   { id: 'stickers', label: 'Stickers' },
+  { id: 'photos', label: 'Photos' },
 ];
 
 /** Where the next tile goes: the column that is shorter so far, by the tile's own shape. */
@@ -33,7 +33,8 @@ function split(items: ExploreItem[], columns = 2): ExploreItem[][] {
 }
 
 export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => void }) {
-  const [source, setSource] = useState<ExploreSource>('photos');
+  // GIFs first: they need only the GIPHY key, and Photos stays one tap away.
+  const [source, setSource] = useState<ExploreSource>('gifs');
   const [query, setQuery] = useState('');
   const [typed, setTyped] = useState('');
   const [items, setItems] = useState<ExploreItem[]>([]);

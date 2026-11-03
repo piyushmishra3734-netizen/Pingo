@@ -47,7 +47,7 @@ export async function explore(source: ExploreSource, q: string, page: number, si
   const body = data as { items?: unknown[]; next?: unknown; error?: string } | null;
   if (error || !body || !Array.isArray(body.items)) {
     const text = (body as { error?: string } | null)?.error;
-    throw new ExploreError(text === 'not_configured' ? 'Explore is not set up yet.' : 'Could not load. Try again.');
+    throw new ExploreError(text === 'not_configured' ? (source === 'photos' ? 'Photos are coming soon.' : 'Explore is not set up yet.') : 'Could not load. Try again.');
   }
 
   // The answer is read as untrusted: https pictures only, and sizes that are real numbers.
