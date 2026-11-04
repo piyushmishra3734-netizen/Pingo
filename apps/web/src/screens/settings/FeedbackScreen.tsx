@@ -126,7 +126,7 @@ export function FeedbackScreen() {
               aria-pressed={kind === k.id}
               className={cn(
                 'rounded-full px-3.5 py-2 text-[14px] transition-colors duration-instant ease-standard',
-                kind === k.id ? 'bg-accent text-white' : 'bg-hover text-ink hover:opacity-80',
+                kind === k.id ? 'bg-brand text-on-brand' : 'bg-sunken text-text-secondary hover:bg-hover hover:text-ink',
               )}
             >
               {k.label}
@@ -144,7 +144,7 @@ export function FeedbackScreen() {
             maxLength={MAX_LENGTH}
             placeholder={hint}
             aria-label="Your message"
-            className="block w-full resize-none rounded-md border border-line bg-page px-3 py-3 text-[16px] leading-snug text-ink outline-none placeholder:text-text-tertiary focus:border-accent"
+            className="block w-full resize-none rounded-md border border-line bg-page px-3 py-3 text-[16px] leading-snug text-ink outline-none placeholder:text-text-tertiary focus:border-brand"
           />
           <div className="mt-1.5 flex items-center justify-between px-1 text-caption text-text-tertiary">
             <span aria-live="polite" className={cn(error && 'text-[#ef4444]', sent && 'text-[#22b35e]')}>

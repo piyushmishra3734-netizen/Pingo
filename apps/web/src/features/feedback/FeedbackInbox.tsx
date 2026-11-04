@@ -77,7 +77,7 @@ export function FeedbackInbox() {
             aria-pressed={filter === f.id}
             className={cn(
               'rounded-full px-3 py-1.5 text-[13px]',
-              filter === f.id ? 'bg-accent text-white' : 'bg-hover text-ink',
+              filter === f.id ? 'bg-brand text-on-brand' : 'bg-sunken text-text-secondary hover:bg-hover hover:text-ink',
             )}
           >
             {f.label}
