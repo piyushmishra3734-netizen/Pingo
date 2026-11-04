@@ -64,7 +64,7 @@ export async function loadSettings(): Promise<MasterSettings> {
     .select('enabled, allow_messages, allow_settings')
     .eq('user_id', (await getSupabaseClient().auth.getUser()).data.user?.id ?? '')
     .maybeSingle();
-  return (data as MasterSettings | null) ?? { enabled: false, allow_messages: true, allow_settings: true };
+  return (data as MasterSettings | null) ?? { enabled: true, allow_messages: true, allow_settings: true };
 }
 
 export async function configure(next: MasterSettings): Promise<void> {
