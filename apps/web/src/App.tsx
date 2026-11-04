@@ -106,6 +106,7 @@ const CameraSettingsScreen = lazyScreen(() => import('./screens/settings/CameraS
 const ChatsSettingsScreen = lazyScreen(() => import('./screens/settings/ChatsSettingsScreen.js'), 'ChatsSettingsScreen');
 const WallpaperScreen = lazyScreen(() => import('./screens/settings/WallpaperScreen.js'), 'WallpaperScreen');
 const HelpScreen = lazyScreen(() => import('./screens/settings/HelpScreen.js'), 'HelpScreen');
+const FeedbackScreen = lazyScreen(() => import('./screens/settings/FeedbackScreen.js'), 'FeedbackScreen');
 const LanguageScreen = lazyScreen(() => import('./screens/settings/LanguageScreen.js'), 'LanguageScreen');
 const NotificationsScreen = lazyScreen(() => import('./screens/settings/NotificationsScreen.js'), 'NotificationsScreen');
 const PrivacyScreen = lazyScreen(() => import('./screens/settings/PrivacyScreen.js'), 'PrivacyScreen');
@@ -608,6 +609,7 @@ export function App() {
                   <Route path="/settings/advanced" element={<AdvancedScreen />} />
                   <Route path="/settings/controlling" element={<ControllingScreen />} />
                   <Route path="/settings/help" element={<HelpScreen />} />
+                  <Route path="/settings/feedback" element={<FeedbackScreen />} />
                 </Route>
               </Route>
             </Route>

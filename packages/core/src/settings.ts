@@ -268,6 +268,9 @@ export const SETTINGS_REGISTRY: SettingsEntry[] = [
   entry('advanced.beta', 'Beta Features', 'Advanced', ['beta', 'preview', 'early']),
   entry('advanced.logs', 'Debug Logs', 'Advanced', ['debug', 'log', 'logs', 'diagnostic']),
 
+  // -- Feedback --------------------------------------------------------------
+  entry('feedback.send', 'Wishes & Feedback', 'Feedback', ['feedback', 'wish', 'idea', 'suggestion', 'request', 'feature', 'bug', 'report']),
+
   // -- Help ------------------------------------------------------------------
   entry('help.about', 'About PINGO', 'Help', ['about', 'version', 'build']),
   entry('help.contact', 'Contact Support', 'Help', ['support', 'contact', 'help', 'problem']),

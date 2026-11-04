@@ -9,6 +9,7 @@ import {
   Gift,
   Globe,
   HardDrive,
+  Lightbulb,
   LifeBuoy,
   Lock,
   LogOut,
@@ -220,6 +221,8 @@ export function SettingsScreen() {
                   }}
                 />
               )}
+              {/* Above Help on purpose: "I wish it had..." is asked far more often than "I am stuck". */}
+              <SettingsRow tone="green" icon={<Lightbulb size={18} />} label="Wishes & feedback" to="/settings/feedback" />
               <SettingsRow tone="sky" icon={<LifeBuoy size={18} />} label={t('settings.help')} to="/settings/help" />
               <SettingsRow tone="gray" icon={<SlidersHorizontal size={18} />} label={t('settings.advanced')} to="/settings/advanced" />
               {/*

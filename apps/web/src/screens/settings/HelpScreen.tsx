@@ -1,4 +1,5 @@
 import { useAuth } from '@pingo/core';
+import { useNavigate } from 'react-router-dom';
 
 import { useT } from '../../features/i18n/useT.js';
 import { useAppVersion } from '../../features/updates/useAppVersion.js';
@@ -17,6 +18,7 @@ import { Group, InfoRow, SettingsPage } from '../../features/settings/controls.j
  */
 export function HelpScreen() {
   const t = useT();
+  const navigate = useNavigate();
   const { session } = useAuth();
   const app = useAppVersion();
 
@@ -56,6 +58,7 @@ export function HelpScreen() {
         requirement.
       */}
       <Group title="Get in touch">
+        <InfoRow label="Wishes & feedback" value="Write" onClick={() => navigate('/settings/feedback')} />
         <InfoRow
           label="Email"
           value="piyushmishra3734@gmail.com"
