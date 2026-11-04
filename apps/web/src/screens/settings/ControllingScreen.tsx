@@ -28,8 +28,8 @@ import {
   type UpdateNoticeRow,
 } from '../../lib/supabase/update-notice.js';
 
-/** The newest APK's versionCode (2.26.40.1), filled in so a card can be published straight away. */
-const LATEST_BUILD = '2604001';
+/** The newest APK's versionCode (2.26.44.4), filled in so a card can be published straight away. */
+const LATEST_BUILD = '2604404';
 
 /**
  * Operator-only: upload original-quality intro art (PC + mobile).

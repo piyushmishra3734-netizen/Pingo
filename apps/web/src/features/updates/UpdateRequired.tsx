@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AppLogo } from '../../components/AppLogo.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
 import { isUpdateRequired, onUpdateRequired } from '../../lib/update-required.js';
+import { APK_URL } from './update-link.js';
 
 /**
  * "A new version is out, and this one is outdated" - over everything, with no
@@ -43,13 +44,13 @@ export function UpdateRequired() {
         A new version of PINGO is here
       </h1>
       <p id="update-required-body" className="mt-3 max-w-xs text-[15.5px] leading-relaxed text-text-secondary">
-        You are using an outdated version that no longer works. Update to keep chatting - your chats, photos and account stay
-        as they are.
+        You are using an outdated version that no longer works. Tap Update now, open the file and tap Install - your chats,
+        photos and account stay as they are.
       </p>
       <div className="mt-8 w-full max-w-xs">
         {native ? (
           <a
-            href={downloadUrl}
+            href={APK_URL}
             className="focus-ring bg-sweep flex h-12 w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_-8px_rgba(139,93,255,0.65)] active:scale-[0.98]"
           >
             <ArrowDownToLine size={19} aria-hidden />
@@ -72,7 +73,7 @@ export function UpdateRequired() {
             rel="noopener"
             className="focus-ring mt-3 block truncate text-[13px] font-medium text-brand underline underline-offset-2"
           >
-            {downloadUrl.replace(/^https?:\/\//, '').replace(/\?.*$/, '')}
+            Having trouble? Open {downloadUrl.replace(/^https?:\/\//, '').replace(/\?.*$/, '')}
           </a>
         )}
       </div>

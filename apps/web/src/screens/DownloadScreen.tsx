@@ -7,6 +7,7 @@ import { AppLogo } from '../components/AppLogo.js';
 import { PlatformLogo, type PlatformLogoId } from '../features/install/PlatformLogo.js';
 import { useInstall } from '../features/install/useInstall.js';
 import { versionName } from '../features/updates/notice-rules.js';
+import { APK_URL } from '../features/updates/update-link.js';
 import { publicAppUrl } from '../lib/public-origin.js';
 import { applyPageSeo } from '../lib/seo.js';
 import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
@@ -26,7 +27,7 @@ import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
  * It will become download.pingo.chat once pingo.chat is a zone in the
  * Cloudflare account; only this constant changes.
  */
-const ANDROID_APK = 'https://pingo-download.dubesminecraft.workers.dev/android';
+const ANDROID_APK = APK_URL;
 /** The Windows installer, from the same Worker and bucket. Built from `desktop/`. */
 const WINDOWS_EXE = 'https://pingo-download.dubesminecraft.workers.dev/windows';
 

@@ -12,7 +12,7 @@
  * before it, and only then raise the gate to match.
  */
 
-export const CLIENT_GENERATION = 1;
+export const CLIENT_GENERATION = 2;
 
 const EVENT = 'pingo:update-required';
 let required = false;

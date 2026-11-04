@@ -22,6 +22,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { AppLogo } from '../../components/AppLogo.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
+import { APK_URL } from './update-link.js';
 
 import {
   loadUpdateNotice,
@@ -139,8 +140,9 @@ export function UpdatePrompt({
   const [picture, setPicture] = useState(image);
 
   const downloadUrl = publicAppUrl('/download?update=1');
+  // The file itself: one tap downloads it and Android offers to install it over this app.
   const update = () => {
-    window.location.href = downloadUrl;
+    window.location.href = APK_URL;
   };
 
   return (
@@ -178,7 +180,7 @@ export function UpdatePrompt({
             Update PINGO
           </h2>
           <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
-            A new version is ready on the download page. It installs over this one, so nothing is lost.
+            Tap Update now, then open the file and tap Install. It installs over this one, so nothing is lost.
           </p>
 
           <ul className="mt-4 flex flex-col gap-2.5">
