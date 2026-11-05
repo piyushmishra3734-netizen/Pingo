@@ -137,22 +137,15 @@ export function DownloadScreen() {
         {android || updating ? (
           <DuckUpdate android={android} updating={updating} />
         ) : (
-        <section
-          aria-labelledby="download-title"
-          className="relative overflow-hidden rounded-[32px] bg-surface px-6 pb-7 pt-9 text-center shadow-[0_1px_3px_rgba(16,17,20,0.06),0_12px_40px_rgba(16,17,20,0.06)]"
-        >
-          <span aria-hidden className="bg-sweep pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl" />
-          <div className="relative flex flex-col items-center">
-            <AppLogo size={92} alt="" tile fetchPriority="high" className="motion-safe:animate-qr-in" />
-            <h1 id="download-title" className="mt-5 text-balance text-[28px] leading-tight font-bold tracking-[-0.01em] text-ink">
-              Get PINGO
-            </h1>
-            <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-text-secondary">
-              Private messaging with Pings that disappear, stories that expire, and no feed to scroll.
-            </p>
-
-            <NotOnAndroid windows={platform === 'windows'} />
-          </div>
+        <section aria-labelledby="download-title" className="px-2 pb-2 pt-4 text-center">
+          <Walk along={0.5} percent={null} track={false} />
+          <h1 id="download-title" className="mt-4 text-[30px] font-bold leading-tight tracking-[-0.04em] text-ink">
+            Get PINGO
+          </h1>
+          <p className="mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug text-text-secondary">
+            Private messaging with Pings that disappear, and stories that expire.
+          </p>
+          <NotOnAndroid windows={platform === 'windows'} />
         </section>
         )}
 
@@ -231,13 +224,13 @@ function NotOnAndroid({ windows }: { windows: boolean }) {
   };
 
   return (
-    <div className="mt-6 flex w-full max-w-xs flex-col items-stretch gap-3">
+    <div className="mx-auto mt-7 flex w-full max-w-xs flex-col items-stretch gap-3">
       {windows && (
         <>
           <a
             href={WINDOWS_EXE}
             rel="noopener noreferrer"
-            className="focus-ring bg-sweep flex h-13 items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
+            className="focus-ring flex h-[54px] items-center justify-center gap-2 rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]"
           >
             <ArrowDownToLine size={20} />
             Download for Windows
@@ -255,10 +248,8 @@ function NotOnAndroid({ windows }: { windows: boolean }) {
       <Link
         to="/chats"
         className={cn(
-          'focus-ring flex h-13 items-center justify-center rounded-full text-[16px] font-semibold active:scale-[0.98]',
-          windows
-            ? 'bg-sunken text-ink'
-            : 'bg-sweep text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)]',
+          'focus-ring flex h-[54px] items-center justify-center rounded-full text-[16.5px] font-semibold transition-transform duration-instant active:scale-[0.98]',
+          windows ? 'bg-sunken text-ink' : 'bg-ink text-page',
         )}
       >
         Open PINGO in your browser
