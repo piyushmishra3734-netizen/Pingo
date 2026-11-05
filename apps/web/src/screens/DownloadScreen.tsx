@@ -146,6 +146,9 @@ export function DownloadScreen() {
 
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 pb-24 pt-5">
         {/* ---- hero ---------------------------------------------------- */}
+        {updating && android ? (
+          <DuckUpdate />
+        ) : (
         <section
           aria-labelledby="download-title"
           className="relative overflow-hidden rounded-[32px] bg-surface px-6 pb-7 pt-9 text-center shadow-[0_1px_3px_rgba(16,17,20,0.06),0_12px_40px_rgba(16,17,20,0.06)]"
@@ -188,9 +191,10 @@ export function DownloadScreen() {
             )}
           </div>
         </section>
+        )}
 
         {/* ---- install steps (Android) ------------------------------------ */}
-        {android && (
+        {android && !updating && (
           <Section title={updating ? 'Update in three steps' : 'Install in three steps'} id="steps">
             <ol className="grid gap-3 sm:grid-cols-3">
               <Step n={1} icon={<ArrowDownToLine size={20} />} title="Download">
@@ -218,6 +222,7 @@ export function DownloadScreen() {
         )}
 
         {/* ---- other devices -------------------------------------------- */}
+        {!(updating && android) && (
         <Section title={android ? 'On your other devices' : 'Every device'} id="devices">
           <ul className="overflow-hidden rounded-2xl bg-surface shadow-[0_1px_3px_rgba(16,17,20,0.06)]">
             {!android && (
@@ -228,6 +233,7 @@ export function DownloadScreen() {
             ))}
           </ul>
         </Section>
+        )}
 
         {/* ---- faq ------------------------------------------------------ */}
         <Section title="Questions" id="faq">
@@ -389,6 +395,57 @@ function Section({ title, id, children }: { title: string; id: string; children:
         {title}
       </h2>
       {children}
+    </section>
+  );
+}
+
+/**
+ * The page for somebody updating on Android - the one every older build opens
+ * from its own "Update now", because an installed app's own screens cannot be
+ * changed after it is out and this page can.
+ *
+ * The same calm as the in-app update screen: the duck, a few plain words, one
+ * black button, and the three things to do in order. No store card, no chips,
+ * no other devices.
+ */
+function DuckUpdate() {
+  return (
+    <section aria-labelledby="download-title" className="px-2 pb-2 pt-4 text-center">
+      <picture>
+        <source media="(prefers-reduced-motion: reduce)" srcSet="/update/duck-still.webp" />
+        <img src="/update/duck.webp" alt="" width={190} height={223} draggable={false} className="mx-auto select-none" />
+      </picture>
+      <h1 id="download-title" className="mt-4 text-[30px] font-bold leading-tight tracking-[-0.04em] text-ink">
+        A fresh PINGO is ready
+      </h1>
+      <p className="mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug text-text-secondary">Your chats and photos stay just as they are.</p>
+
+      <a
+        href={ANDROID_APK}
+        rel="noopener noreferrer"
+        className="focus-ring mx-auto mt-7 flex h-[54px] w-full max-w-xs items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]"
+      >
+        Download update
+      </a>
+
+      <ol className="mx-auto mt-9 flex max-w-xs flex-col gap-3 border-t border-line pt-6 text-left">
+        {[
+          'Tap Download update.',
+          'Open the file. If Android asks, allow your browser to install apps.',
+          'Tap Update. PINGO opens with everything as you left it.',
+        ].map((line, i) => (
+          <li key={line} className="flex items-start gap-3 text-[15px] leading-snug text-ink">
+            <span aria-hidden className="mt-px grid size-6 shrink-0 place-items-center rounded-full bg-sunken text-[12.5px] font-semibold tabular-nums text-text-secondary">
+              {i + 1}
+            </span>
+            <span className="min-w-0">{line}</span>
+          </li>
+        ))}
+      </ol>
+
+      <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">
+        Already have PINGO? Install over it. Please do not uninstall first, or chats kept on this phone go with the old app.
+      </p>
     </section>
   );
 }
