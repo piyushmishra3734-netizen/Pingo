@@ -44,7 +44,7 @@ export interface LatestBuild {
   notes: string[];
 }
 
-const LATEST_URL = 'https://pingo-download.dubesminecraft.workers.dev/latest.json';
+const LATEST_URL = 'https://download.pingochat.xyz/latest.json';
 
 /** Read as untrusted: only a well-formed file is believed, and everything is clipped. */
 export function parseLatest(raw: unknown): LatestBuild | null {

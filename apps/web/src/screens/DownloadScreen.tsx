@@ -28,7 +28,7 @@ import { applyPageSeo } from '../lib/seo.js';
  */
 const ANDROID_APK = APK_URL;
 /** The Windows installer, from the same Worker and bucket. Built from `desktop/`. */
-const WINDOWS_EXE = 'https://pingo-download.dubesminecraft.workers.dev/windows';
+const WINDOWS_EXE = 'https://download.pingochat.xyz/windows';
 
 /**
  * The page PINGO sends people to for the app, and back to for every update.
@@ -470,6 +470,15 @@ function DuckUpdate({ android, updating }: { android: boolean; updating: boolean
           </li>
         ))}
       </ol>
+
+      <div className="mx-auto mt-6 max-w-xs rounded-2xl bg-sunken px-4 py-3 text-left text-[13.5px] leading-snug text-text-secondary">
+        <p className="font-semibold text-ink">A warning is normal</p>
+        <p className="mt-1">
+          Your browser or Google Play Protect may say this file could harm your device. It says that about every app that does not come from the Play Store. Tap{' '}
+          <b className="font-semibold text-ink">Keep</b> or <b className="font-semibold text-ink">Download anyway</b>, and if Play Protect asks, tap{' '}
+          <b className="font-semibold text-ink">More details</b> then <b className="font-semibold text-ink">Install anyway</b>.
+        </p>
+      </div>
 
       {updating ? (
         <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">

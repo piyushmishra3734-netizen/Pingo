@@ -8,24 +8,31 @@ name = "pingo-download"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
 
+# The branded endpoint: download.pingochat.xyz.
+#
+# A custom domain is DNS plus a certificate, and Cloudflare can only issue
+# either for a zone it controls. pingochat.xyz is one (its nameservers are
+# Cloudflare's), so this works; pingo.chat was never added to the account, and
+# that is why an earlier attempt deployed and created nothing - no error, just a
+# hostname that did not resolve. If this ever stops working, check that first.
+#
+# Why bother: an APK served from a shared *.workers.dev name carries that
+# domain's reputation, and Chrome and Google Safe Browsing are warier of it than
+# of an address on the app's own domain. The workers.dev name keeps working, so
+# builds already installed (which point at it) are not affected.
+# (Top level, before any [table]: placed after [[r2_buckets]] TOML reads it as a field
+# of the bucket, wrangler warns "unexpected field" and the route is silently ignored.)
+routes = [
+  { pattern = "download.pingochat.xyz", custom_domain = true }
+]
+
+# Keep the old address alive. Adding `routes` switches workers.dev OFF unless it is asked for,
+# and every installed build, and the website, still points at it.
+workers_dev = true
+
 # The bucket holds one object, `PINGO.apk`, and the Worker always serves that
 # name. Shipping a new version is a single upload with no deployment and no
 # change to the website -- which is the entire point of the indirection.
 [[r2_buckets]]
 binding = "APKS"
 bucket_name = "pingo"
-
-# The branded endpoint, waiting on one thing.
-#
-# A custom domain is DNS plus a certificate, and Cloudflare can only issue
-# either for a zone it controls. pingo.chat is not in this account -- wrangler
-# accepted the route, deployed, and created nothing, which is exactly how that
-# failure presents: no error, just a hostname that does not resolve.
-#
-# Add the zone (dashboard -> Add a site -> pingo.chat, then point the registrar
-# at the nameservers it gives you), uncomment this, and redeploy. The website
-# reads the endpoint from a single constant, so nothing else has to change.
-#
-# routes = [
-#   { pattern = "download.pingo.chat", custom_domain = true }
-# ]

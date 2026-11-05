@@ -8,7 +8,10 @@
  * steps to read first. The page stays one link below for anybody the file does
  * not open for.
  *
- * It will become download.pingo.chat once pingo.chat is a zone in the
- * Cloudflare account; only this constant changes.
+ * download.pingochat.xyz, the app's own domain, rather than the shared
+ * *.workers.dev name it is served from underneath: Chrome and Google Safe
+ * Browsing are warier of an APK on a shared domain than of one on the app's own.
+ * The workers.dev address still works (builds already installed use it), so
+ * nothing that points there breaks.
  */
-export const APK_URL = 'https://pingo-download.dubesminecraft.workers.dev/android';
+export const APK_URL = 'https://download.pingochat.xyz/android';
