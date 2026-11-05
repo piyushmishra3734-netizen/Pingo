@@ -1,11 +1,16 @@
 package chat.pingo.app;
 
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
-import androidx.core.content.FileProvider;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -60,7 +65,12 @@ public class AppUpdatePlugin extends Plugin {
     /** Progress is reported at most this often; a bar cannot show more. */
     private static final long PROGRESS_EVERY_MS = 120;
 
+    /** The broadcast the installer reports its progress to. */
+    private static final String RESULT_ACTION = "chat.pingo.app.UPDATE_INSTALL_RESULT";
+
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private volatile PluginCall installCall;
+    private BroadcastReceiver receiver;
     private volatile boolean cancelled = false;
     private volatile HttpURLConnection live;
 
@@ -227,23 +237,102 @@ public class AppUpdatePlugin extends Plugin {
         }
     }
 
-    /** Hands the downloaded file to Android's installer. */
+    /**
+     * Hands the downloaded file to Android's installer, as an install SESSION.
+     *
+     * Not an ACTION_VIEW on the file. That works, but on a phone with more than
+     * one app that opens APKs (a store, a file manager, a terminal) Android asks
+     * "Open with" first, which is a baffling thing to see in the middle of an
+     * update. A session goes to the system installer alone, and the person gets
+     * the system's own "Do you want to update this app?" and nothing else.
+     *
+     * {@code setAppPackageName} also means the installer refuses a file that is
+     * not PINGO, whatever it is called.
+     */
     @PluginMethod
-    public void install(PluginCall call) {
-        File file = new File(folder(), FINAL_NAME);
+    public void install(final PluginCall call) {
+        final File file = new File(folder(), FINAL_NAME);
         if (!file.exists()) {
             call.reject("There is no downloaded update to install.");
             return;
         }
-        try {
-            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file);
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(uri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
-            call.resolve();
-        } catch (Exception e) {
-            call.reject("Could not open the installer.");
+        worker.execute(() -> {
+            try {
+                Context context = getContext();
+                PackageInstaller installer = context.getPackageManager().getPackageInstaller();
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                params.setAppPackageName(context.getPackageName());
+                int id = installer.createSession(params);
+                try (PackageInstaller.Session session = installer.openSession(id)) {
+                    try (InputStream in = new FileInputStream(file);
+                         OutputStream out = session.openWrite("PINGO.apk", 0, file.length())) {
+                        byte[] buffer = new byte[64 * 1024];
+                        int read;
+                        while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
+                        session.fsync(out);
+                    }
+                    // Explicit by package: Android 14 refuses a mutable PendingIntent that is not.
+                    Intent callback = new Intent(RESULT_ACTION).setPackage(context.getPackageName());
+                    int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0);
+                    PendingIntent pending = PendingIntent.getBroadcast(context, id, callback, flags);
+                    installCall = call;
+                    session.commit(pending.getIntentSender());
+                }
+            } catch (Exception e) {
+                installCall = null;
+                call.reject("Could not open the installer.");
+            }
+        });
+    }
+
+    /** What the installer says back: the confirmation to show, a success, or why it failed. */
+    @Override
+    public void load() {
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+                PluginCall call = installCall;
+                if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                    Intent confirm = confirmationOf(intent);
+                    if (confirm != null) {
+                        confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        context.startActivity(confirm);
+                    }
+                    if (call != null) {
+                        installCall = null;
+                        call.resolve();
+                    }
+                } else if (status == PackageInstaller.STATUS_SUCCESS) {
+                    if (call != null) {
+                        installCall = null;
+                        call.resolve();
+                    }
+                } else if (call != null) {
+                    installCall = null;
+                    String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                    call.reject(message != null ? message : "The install did not finish.");
+                }
+            }
+        };
+        ContextCompat.registerReceiver(getContext(), receiver, new IntentFilter(RESULT_ACTION), ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Intent confirmationOf(Intent intent) {
+        if (Build.VERSION.SDK_INT >= 33) return intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class);
+        return intent.getParcelableExtra(Intent.EXTRA_INTENT);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (receiver != null) {
+            try {
+                getContext().unregisterReceiver(receiver);
+            } catch (IllegalArgumentException ignored) {
+                // Already gone.
+            }
+            receiver = null;
         }
     }
 }

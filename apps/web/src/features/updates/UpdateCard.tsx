@@ -1,6 +1,7 @@
 import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 
+import { AppLogo } from '../../components/AppLogo.js';
 import type { UpdateStage } from './app-update.js';
 
 /**
@@ -65,6 +66,7 @@ export function UpdateCard(props: UpdateCardProps) {
       >
         <div className="relative max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[34px] bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(16,17,20,0.16)] motion-safe:animate-panel-in sm:rounded-[34px]">
           <span aria-hidden className="mx-auto mt-2.5 block h-1 w-9 rounded-full bg-line" />
+          <Brand className="absolute left-5 top-5" size={26} />
           <Content {...props} compact />
           {props.onLater ? (
             <button type="button" onClick={props.onLater} className="focus-ring mx-auto mt-1 block h-11 rounded-full px-6 text-[15px] font-medium text-text-secondary active:bg-sunken">
@@ -78,6 +80,7 @@ export function UpdateCard(props: UpdateCardProps) {
 
   return (
     <div className="fixed inset-0 z-[2000] overflow-y-auto bg-page" role="alertdialog" aria-modal="true" aria-labelledby="update-title" aria-describedby="update-body">
+      <Brand className="absolute left-5 top-[max(1.25rem,env(safe-area-inset-top))]" size={32} />
       <div className="relative mx-auto flex min-h-full w-full max-w-sm flex-col justify-center py-8 motion-safe:animate-panel-in">
         <Content {...props} />
       </div>
@@ -85,7 +88,17 @@ export function UpdateCard(props: UpdateCardProps) {
   );
 }
 
-/** What each stage says. Plain words, no numbers. */
+/** PINGO's mark and name, in the top left corner, the way a header introduces the app. */
+function Brand({ className, size }: { className?: string; size: number }) {
+  return (
+    <div className={cn('z-[1] flex items-center gap-2', className)}>
+      <AppLogo size={size} alt="" />
+      <span className="text-[18px] font-bold tracking-[-0.04em] text-ink">PINGO</span>
+    </div>
+  );
+}
+
+/** What each stage says. Plain words, no numbers in them: the percentage sits beside the line. */
 function wording(stage: UpdateStage, screen: boolean, web: boolean | undefined): { title: string; line: string } {
   switch (stage.kind) {
     case 'downloading':
@@ -112,7 +125,7 @@ function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow,
 
   return (
     <div className="px-7 pb-3 pt-5 text-center">
-      <Walk along={along} track={stage.kind === 'downloading' || stage.kind === 'install'} compact={compact} />
+      <Walk along={along} percent={stage.kind === 'install' ? 100 : pct} track={stage.kind === 'downloading' || stage.kind === 'install'} compact={compact} />
 
       <h1 id="update-title" className="mt-4 text-[28px] font-bold leading-tight tracking-[-0.04em] text-ink">
         {title}
@@ -139,17 +152,35 @@ function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow,
  * values rather than jumping. The line only exists while there is something
  * to measure; the rest of the time the duck's own shadow is the ground.
  */
-function Walk({ along, track, compact }: { along: number; track: boolean; compact?: boolean | undefined }) {
+function Walk({ along, percent, track, compact }: { along: number; percent: number | null; track: boolean; compact?: boolean | undefined }) {
   const width = compact ? 124 : 172;
   const height = Math.round((width * 281) / 240);
+  // The room the line leaves at its right for the percentage, and the margin before it on the left.
+  const LABEL = 64;
+  const EDGE = 8;
+  // The picture has empty room either side of the duck; the duck, not the picture, walks the line's whole length.
+  const PAD = Math.round(width * 0.18);
   return (
-    <div className="relative mx-auto w-full" style={{ height: height + 14 }} aria-hidden>
+    <div className="relative mx-auto w-full" style={{ height: height + 14 }}>
       {track ? (
-        <div className="absolute inset-x-2 flex items-center" style={{ bottom: 12 }}>
-          <div className="h-[3px] w-full overflow-hidden rounded-full bg-ink/10">
-            <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.round(along * 100)}%`, background: BEAK }} />
+        <>
+          <div aria-hidden className="absolute flex items-center" style={{ bottom: 12, left: EDGE, right: LABEL }}>
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-ink/10">
+              <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.round(along * 100)}%`, background: BEAK }} />
+            </div>
           </div>
-        </div>
+          {percent !== null ? (
+            <span
+              role="status"
+              aria-label={`${percent} percent`}
+              className="absolute right-1 text-[16px] font-semibold tabular-nums leading-none tracking-[-0.02em] text-ink"
+              style={{ bottom: 5 }}
+            >
+              {percent}
+              <span className="ml-px text-[12px] font-medium text-text-tertiary">%</span>
+            </span>
+          ) : null}
+        </>
       ) : null}
       <picture>
         <source media="(prefers-reduced-motion: reduce)" srcSet="/update/duck-still.webp" />
@@ -161,7 +192,7 @@ function Walk({ along, track, compact }: { along: number; track: boolean; compac
           draggable={false}
           decoding="async"
           className="absolute bottom-0 select-none transition-[left] duration-500 ease-out"
-          style={{ left: `calc((100% - ${width}px) * ${along})` }}
+          style={{ left: track ? `calc(${EDGE - PAD}px + (100% - ${EDGE + LABEL}px - ${width - 2 * PAD}px) * ${along})` : `calc((100% - ${width}px) * 0.5)` }}
         />
       </picture>
     </div>
