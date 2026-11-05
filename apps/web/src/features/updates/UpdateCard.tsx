@@ -1,25 +1,27 @@
 import { cn } from '@pingo/ui';
-import { Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import type { UpdateStage } from './app-update.js';
 
 /**
- * The update screen, in PINGO AI's world.
+ * The update screen: a duck in a cap, walking, and almost nothing else.
  *
  * ## What it is trying to be
  *
- * Friendly, not technical. Nobody updating a chat app wants to read a size, a
- * version, a checksum or the name of an Android setting; they want to be told
- * something nice is ready, press one button, and have it be over. So this is
- * Pingo - the mascot from PINGO AI - floating on its clouds over the same soft
- * lavender, a few plain words, one big button, and a short "what is new" for
- * anybody curious. Everything the update does that is not their business (the
- * download's size, the signature check, the install permission's real name)
- * still happens; it just is not on the screen.
+ * Friendly and quiet. Nobody updating a chat app wants a size, a version, a
+ * checksum or the name of an Android setting; they want to be told something
+ * nice is ready, press one button, and have it be over. So the page is the app's
+ * own background, the duck, a few plain words and one black button - and the
+ * duck IS the progress: while the update downloads it walks along a thin line
+ * from one end to the other, and the line fills in behind it.
  *
- * The look is `.pingo-pastel`, the palette PINGO AI's own pages use, so it is
- * light by day and a deep indigo at night with no extra work.
+ * The one accent is the duck's own beak yellow, used for that line and for the
+ * dots in "What is new". Everything else is the app's ink on its page, so the
+ * screen is light by day and dark at night with nothing extra to maintain.
+ *
+ * The duck (`/update/duck.webp`) is a transparent animated WebP made from the
+ * supplied GIF by `scripts/make-update-duck.mjs`; with reduced motion it stands
+ * still (`duck-still.webp`).
  *
  * One layout, two jobs:
  *
@@ -49,24 +51,23 @@ export interface UpdateCardProps {
   fallbackHref: string;
 }
 
+/** The duck's beak. */
+const BEAK = '#f4b81f';
+
 export function UpdateCard(props: UpdateCardProps) {
   if (props.mode === 'sheet') {
     return (
       <div
-        className="fixed inset-0 z-[900] flex items-end justify-center bg-black/35 backdrop-blur-[2px] sm:items-center sm:p-5"
+        className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="update-title"
       >
-        <div className="pingo-pastel relative max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[34px] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(30,26,80,0.18)] motion-safe:animate-panel-in sm:rounded-[34px]">
-          <span aria-hidden className="mx-auto mt-2.5 block h-1 w-9 rounded-full bg-[var(--pp-line)]" />
+        <div className="relative max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[34px] bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(16,17,20,0.16)] motion-safe:animate-panel-in sm:rounded-[34px]">
+          <span aria-hidden className="mx-auto mt-2.5 block h-1 w-9 rounded-full bg-line" />
           <Content {...props} compact />
           {props.onLater ? (
-            <button
-              type="button"
-              onClick={props.onLater}
-              className="focus-ring mx-auto mt-1 block h-11 rounded-full px-6 text-[15px] font-medium text-[var(--pp-sub)] active:bg-[var(--pp-accent-soft)]"
-            >
+            <button type="button" onClick={props.onLater} className="focus-ring mx-auto mt-1 block h-11 rounded-full px-6 text-[15px] font-medium text-text-secondary active:bg-sunken">
               Not now
             </button>
           ) : null}
@@ -76,13 +77,7 @@ export function UpdateCard(props: UpdateCardProps) {
   }
 
   return (
-    <div
-      className="pingo-pastel fixed inset-0 z-[2000] overflow-y-auto"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="update-title"
-      aria-describedby="update-body"
-    >
+    <div className="fixed inset-0 z-[2000] overflow-y-auto bg-page" role="alertdialog" aria-modal="true" aria-labelledby="update-title" aria-describedby="update-body">
       <div className="relative mx-auto flex min-h-full w-full max-w-sm flex-col justify-center py-8 motion-safe:animate-panel-in">
         <Content {...props} />
       </div>
@@ -102,30 +97,32 @@ function wording(stage: UpdateStage, screen: boolean, web: boolean | undefined):
     case 'error':
       return { title: 'Hmm, that did not work', line: stage.message };
     default:
-      if (web) return { title: 'PINGO just got better', line: 'Reload to see the latest version.' };
+      if (web) return { title: 'A fresh PINGO is ready', line: 'Reload to see the latest version.' };
       return screen
         ? { title: 'Time for a quick update', line: 'PINGO needs a refresh to keep working. Your chats and photos stay just as they are.' }
-        : { title: 'PINGO just got better', line: 'A fresh version is ready. Your chats and photos stay just as they are.' };
+        : { title: 'A fresh PINGO is ready', line: 'Your chats and photos stay just as they are.' };
   }
 }
 
 function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow, onCancel, fallbackHref, compact }: UpdateCardProps & { compact?: boolean }) {
   const { title, line } = wording(stage, mode === 'screen', web);
   const pct = stage.kind === 'downloading' && stage.total > 0 ? Math.min(100, Math.max(0, Math.round((stage.received / stage.total) * 100))) : null;
+  // Where the duck stands along its line: all the way along when done, the middle when there is nothing to measure.
+  const along = stage.kind === 'install' ? 1 : stage.kind === 'downloading' ? (pct ?? 0) / 100 : 0.5;
 
   return (
-    <div className="px-7 pb-3 pt-4 text-center">
-      <Hero compact={compact} />
+    <div className="px-7 pb-3 pt-5 text-center">
+      <Walk along={along} track={stage.kind === 'downloading' || stage.kind === 'install'} compact={compact} />
 
-      <h1 id="update-title" className="mt-3 text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-[var(--pp-ink)]">
+      <h1 id="update-title" className="mt-4 text-[28px] font-bold leading-tight tracking-[-0.04em] text-ink">
         {title}
       </h1>
-      <p id="update-body" className={cn('mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug', stage.kind === 'error' ? 'text-danger' : 'text-[var(--pp-sub)]')}>
+      <p id="update-body" className={cn('mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug', stage.kind === 'error' ? 'text-danger' : 'text-text-secondary')}>
         {line}
       </p>
 
       {/* The one control. A fixed-height slot, so nothing moves as the stages change. */}
-      <div className="mt-7 flex h-[96px] flex-col justify-start">
+      <div className="mt-7 flex h-[84px] flex-col justify-start">
         <Action stage={stage} pct={pct} inApp={inApp} web={web} onUpdate={onUpdate} onInstall={onInstall} onAllow={onAllow} onCancel={onCancel} fallbackHref={fallbackHref} />
       </div>
 
@@ -134,22 +131,39 @@ function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow,
   );
 }
 
-/** Pingo, floating over its clouds, with a few stars - the same sky as PINGO AI's profile. */
-function Hero({ compact }: { compact?: boolean | undefined }) {
+/**
+ * The duck, and the line it walks along.
+ *
+ * `along` is 0 to 1: how far down the line the duck is. The duck's position is
+ * one number - so "standing in the middle" is just 0.5 - and it glides between
+ * values rather than jumping. The line only exists while there is something
+ * to measure; the rest of the time the duck's own shadow is the ground.
+ */
+function Walk({ along, track, compact }: { along: number; track: boolean; compact?: boolean | undefined }) {
+  const width = compact ? 124 : 172;
+  const height = Math.round((width * 281) / 240);
   return (
-    <div className={cn('relative mx-auto', compact ? 'h-[168px] w-[250px]' : 'h-[214px] w-[290px]')} aria-hidden>
-      {/* Not clipped: a cloud with a hard edge is a white box. They sit inside the hero and fade out on their own. */}
-      <div className="absolute inset-0">
-        <span className="pp-cloud bottom-[8%] left-[4%] h-[26%] w-[40%] opacity-80" />
-        <span className="pp-cloud bottom-[2%] left-[30%] h-[22%] w-[38%] opacity-70" />
-        <span className="pp-cloud bottom-[10%] right-[4%] h-[28%] w-[40%] opacity-80" />
-      </div>
-      <Sparkles className="pp-twinkle absolute left-[10%] top-[26%] text-[var(--pp-gold)]" size={compact ? 20 : 24} fill="currentColor" strokeWidth={1.2} />
-      <Sparkles className="pp-twinkle absolute right-[8%] top-[46%] text-[var(--pp-gold)] [animation-delay:0.9s]" size={compact ? 24 : 28} fill="currentColor" strokeWidth={1.2} />
-      <Sparkles className="pp-twinkle absolute right-[22%] top-[10%] text-[#d9a8f0] [animation-delay:0.4s]" size={14} fill="currentColor" strokeWidth={1.2} />
-      <span className={cn('pingo-float absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[52%]', compact ? 'size-[128px]' : 'size-[168px]')}>
-        <img src="/ai/pingo.webp" alt="" draggable={false} decoding="async" className="size-full select-none object-contain" />
-      </span>
+    <div className="relative mx-auto w-full" style={{ height: height + 14 }} aria-hidden>
+      {track ? (
+        <div className="absolute inset-x-2 flex items-center" style={{ bottom: 12 }}>
+          <div className="h-[3px] w-full overflow-hidden rounded-full bg-ink/10">
+            <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.round(along * 100)}%`, background: BEAK }} />
+          </div>
+        </div>
+      ) : null}
+      <picture>
+        <source media="(prefers-reduced-motion: reduce)" srcSet="/update/duck-still.webp" />
+        <img
+          src="/update/duck.webp"
+          alt=""
+          width={width}
+          height={height}
+          draggable={false}
+          decoding="async"
+          className="absolute bottom-0 select-none transition-[left] duration-500 ease-out"
+          style={{ left: `calc((100% - ${width}px) * ${along})` }}
+        />
+      </picture>
     </div>
   );
 }
@@ -157,7 +171,6 @@ function Hero({ compact }: { compact?: boolean | undefined }) {
 /** The one thing to do right now, whichever stage the update is at. */
 function Action({
   stage,
-  pct,
   inApp,
   web,
   onUpdate,
@@ -169,21 +182,9 @@ function Action({
   switch (stage.kind) {
     case 'downloading':
       return (
-        <div className="pt-3">
-          <div
-            role="progressbar"
-            aria-label="Updating PINGO"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            {...(pct !== null ? { 'aria-valuenow': pct } : {})}
-            className="h-2.5 overflow-hidden rounded-full bg-[var(--pp-accent-soft)]"
-          >
-            <div className="h-full rounded-full bg-[var(--pp-accent)] transition-[width] duration-300 ease-standard" style={{ width: `${pct ?? 8}%` }} />
-          </div>
-          <button type="button" onClick={onCancel} className="focus-ring mx-auto mt-4 rounded-md px-2 py-1 text-[14px] font-medium text-[var(--pp-faint)]">
-            Cancel
-          </button>
-        </div>
+        <button type="button" onClick={onCancel} className="focus-ring mx-auto mt-2 rounded-md px-3 py-2 text-[14.5px] font-medium text-text-tertiary">
+          Cancel
+        </button>
       );
     case 'install':
       return <PillButton onClick={onInstall}>Install</PillButton>;
@@ -191,9 +192,9 @@ function Action({
       return <PillButton onClick={onAllow}>Continue</PillButton>;
     case 'error':
       return (
-        <div className="flex flex-col items-center gap-2.5">
+        <div className="flex flex-col items-center gap-2">
           <PillButton onClick={onUpdate}>Try again</PillButton>
-          <a href={fallbackHref} target="_blank" rel="noopener" className="focus-ring rounded-md px-1 py-0.5 text-[13px] font-medium text-[var(--pp-sub)] underline underline-offset-2">
+          <a href={fallbackHref} target="_blank" rel="noopener" className="focus-ring rounded-md px-1 py-0.5 text-[13px] font-medium text-text-secondary underline underline-offset-2">
             Get it another way
           </a>
         </div>
@@ -204,15 +205,15 @@ function Action({
   }
 }
 
-/** What changed: a few friendly lines on a white card, the way PINGO AI shows a list. */
+/** What changed: plain lines under a hairline, no box. */
 function WhatsNew({ notes }: { notes: string[] }) {
   return (
-    <section className="pp-card mt-5 px-5 py-4 text-left" aria-label="What is new">
-      <h2 className="text-[13px] font-bold text-[var(--pp-sub)]">What is new</h2>
-      <ul className="mt-2.5 flex flex-col gap-2.5">
+    <section className="mt-6 border-t border-line pt-5 text-left" aria-label="What is new">
+      <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">What is new</h2>
+      <ul className="mt-3 flex flex-col gap-3">
         {notes.map((note) => (
-          <li key={note} className="flex min-w-0 items-start gap-2.5 text-[15px] leading-snug text-[var(--pp-ink)]">
-            <Sparkles size={15} fill="currentColor" strokeWidth={1.2} aria-hidden className="mt-[3px] shrink-0 text-[var(--pp-gold)]" />
+          <li key={note} className="flex min-w-0 items-start gap-3 text-[15px] leading-snug text-ink">
+            <span aria-hidden className="mt-[8px] size-1.5 shrink-0 rounded-full" style={{ background: BEAK }} />
             <span className="min-w-0">{note}</span>
           </li>
         ))}
@@ -226,7 +227,7 @@ function PillButton({ onClick, children }: { onClick: () => void; children: Reac
     <button
       type="button"
       onClick={onClick}
-      className="focus-ring flex h-[56px] w-full items-center justify-center rounded-full bg-[var(--pp-accent)] text-[17px] font-bold text-[var(--pp-accent-ink)] shadow-[var(--pp-shadow)] transition-transform duration-instant active:scale-[0.98]"
+      className="focus-ring flex h-[54px] w-full items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]"
     >
       {children}
     </button>
