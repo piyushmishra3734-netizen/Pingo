@@ -17,12 +17,11 @@
 
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { ArrowDownToLine, MessagesSquare, Timer } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
-import { AppLogo } from '../../components/AppLogo.js';
 import { publicAppUrl } from '../../lib/public-origin.js';
-import { APK_URL } from './update-link.js';
+import { loadLatest, useAppUpdate, type LatestBuild, type UpdateStage } from './app-update.js';
+import { UpdateCard } from './UpdateCard.js';
 
 import {
   loadUpdateNotice,
@@ -49,6 +48,8 @@ function Notice() {
   const [row, setRow] = useState<UpdateNoticeRow | null>(null);
   const [behind, setBehind] = useState(false);
   const [closed, setClosed] = useState(false);
+  // The newest build as Cloudflare describes it, when that is what found us behind.
+  const [latest, setLatest] = useState<LatestBuild | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,10 +69,30 @@ function Notice() {
        * moment ago — so the web is current by definition.
        */
       const native = Capacitor.isNativePlatform();
-      const [info, notice] = await Promise.all([
-        native ? App.getInfo().catch(() => null) : Promise.resolve(null),
-        loadUpdateNotice(),
-      ]);
+      const info = native ? await App.getInfo().catch(() => null) : null;
+
+      /*
+       * Cloudflare first, and the database only if that has nothing to say.
+       *
+       * The newest build is described by a small file next to the APK itself
+       * (`app-update.ts`), so asking whether this phone is behind costs the
+       * database nothing. When it is behind, that is the whole answer: no
+       * request to Supabase at all. When it is not, or the file cannot be read,
+       * everything below runs as it always did - it is still where the
+       * operator's announcement card comes from.
+       */
+      const newest = native ? await loadLatest() : null;
+      if (cancelled) return;
+      if (newest && isBehind(info?.build, newest.versionCode)) {
+        if (!shouldShow(true, readSeen(), 'latest', readPromptAt())) return;
+        writePromptAt();
+        setLatest(newest);
+        setBehind(true);
+        setRow({ storage_path: '', content_type: null, min_build: newest.versionCode, updated_at: 'latest' });
+        return;
+      }
+
+      const notice = await loadUpdateNotice();
       if (cancelled || !notice) return;
 
       const isOld = isBehind(info?.build, notice.min_build);
@@ -101,13 +122,7 @@ function Notice() {
 
   // Somebody who can act on it is asked to; everybody else is shown the news.
   if (behind) {
-    return (
-      <UpdatePrompt
-        version={versionName(row.min_build)}
-        {...(row.storage_path ? { image: updateNoticeUrl(row) } : {})}
-        onLater={close}
-      />
-    );
+    return <UpdatePrompt version={latest?.versionName ?? versionName(row.min_build)} latest={latest} onLater={close} />;
   }
   // A text-only notice is for people who are behind; there is no news card to show anyone else.
   if (!row.storage_path) return null;
@@ -118,117 +133,60 @@ function Notice() {
  * "A new version is ready", for somebody on an APK that is behind.
  *
  * A sideloaded app has no store to update it, so this is the only thing that
- * ever will. It used to be the operator's picture with a cross and nothing to
- * press - the one person who had something to do was given no way to do it.
+ * ever will. It is the profile's card - see `UpdateCard` - and in the Android
+ * app it does the whole update on the spot: download with a progress bar, check
+ * it, hand it to Android's installer (`app-update.ts`). Anywhere that cannot,
+ * the button downloads the file in the browser as before. "Not now" closes it
+ * for this launch only; it is back next time, until the build on the phone is
+ * current.
  *
- * Update opens the download page in the phone's browser: the address is on the
- * public site, so the app's web view hands it to Chrome instead of loading it,
- * and Chrome is what downloads and installs an APK. Later closes it for this
- * launch only; it is back next time, until the build on the phone is current.
- *
- * The operator's picture, when there is one, sits on top as the "what's new".
+ * Dev only: `?update-preview` shows it, and `=progress`, `=install`,
+ * `=permission` or `=error` show those stages.
  */
+const DEMO: LatestBuild = {
+  versionCode: 2604405,
+  versionName: '2.26.44.5',
+  bytes: 65_039_316,
+  sha256: '',
+  notes: ['PINGO Feedback: tell us what to build', 'The chat list opens faster', 'A calmer update screen'],
+};
+
+function previewStage(): UpdateStage['kind'] | undefined {
+  if (!import.meta.env.DEV) return undefined;
+  const params = new URLSearchParams(location.search);
+  if (!params.has('update-preview')) return undefined;
+  const value = params.get('update-preview');
+  return value === 'progress' ? 'downloading' : value === 'install' || value === 'permission' || value === 'error' ? value : 'ready';
+}
+
 export function UpdatePrompt({
   version,
-  image,
+  latest,
   onLater,
 }: {
   version: string | undefined;
-  image?: string;
+  latest?: LatestBuild | null;
   onLater: () => void;
 }) {
-  const [picture, setPicture] = useState(image);
-
-  const downloadUrl = publicAppUrl('/download?update=1');
-  // The file itself: one tap downloads it and Android offers to install it over this app.
-  const update = () => {
-    window.location.href = APK_URL;
-  };
+  const preview = previewStage();
+  const build = latest ?? (preview ? DEMO : null);
+  const update = useAppUpdate(build, preview);
 
   return (
-    <div
-      className="fixed inset-0 z-[900] flex items-end justify-center bg-black/55 backdrop-blur-[2px] sm:items-center sm:p-5"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="update-title"
-    >
-      <style>{'@keyframes up-rise { from { transform: translateY(24px); opacity: 0 } } @media (prefers-reduced-motion: reduce) { .up-rise { animation: none !important } }'}</style>
-      <div
-        className="up-rise w-full max-w-md overflow-hidden rounded-t-[28px] bg-surface shadow-[0_-8px_40px_rgba(16,17,20,0.18)] sm:rounded-[28px]"
-        style={{ animation: 'up-rise .38s cubic-bezier(.2,.8,.2,1)' }}
-      >
-        {picture ? (
-          <img
-            src={picture}
-            alt="What is new in this version"
-            className="block max-h-56 w-full object-cover"
-            // No picture is better than a broken one; the prompt stands on its own.
-            onError={() => setPicture(undefined)}
-          />
-        ) : (
-          <div className="relative grid place-items-center overflow-hidden pt-8 pb-2">
-            <span aria-hidden className="bg-sweep absolute top-6 size-28 rounded-full opacity-25 blur-2xl" />
-            <AppLogo size={72} tile alt="" className="relative" />
-          </div>
-        )}
-
-        <div className="px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <p className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.06em] text-brand uppercase">
-            New version{version && <span className="rounded-full bg-brand/10 px-2 py-0.5 tracking-normal normal-case tabular-nums">{version}</span>}
-          </p>
-          <h2 id="update-title" className="mt-1.5 text-[22px] leading-tight font-bold text-ink">
-            Update PINGO
-          </h2>
-          <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">
-            Tap Update now, then open the file and tap Install. It installs over this one, so nothing is lost.
-          </p>
-
-          <ul className="mt-4 flex flex-col gap-2.5">
-            <Fact icon={<MessagesSquare size={18} />}>Your chats, photos and account stay as they are</Fact>
-            <Fact icon={<Timer size={18} />}>Takes about a minute</Fact>
-          </ul>
-
-          <button
-            type="button"
-            onClick={update}
-            className="focus-ring bg-sweep mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_6px_18px_rgba(139,93,255,0.35)] active:scale-[0.98]"
-          >
-            <ArrowDownToLine size={19} />
-            Update now
-          </button>
-          {/*
-           * The address itself, as a link, for when the button's hand-off to
-           * the browser does not happen - and so it can be copied or shared.
-           */}
-          <a
-            href={downloadUrl}
-            target="_blank"
-            rel="noopener"
-            className="focus-ring mt-3 block truncate text-center text-[13px] font-medium text-brand underline underline-offset-2"
-          >
-            {downloadUrl.replace(/^https?:\/\//, '').replace(/\?.*$/, '')}
-          </a>
-          <button
-            type="button"
-            onClick={onLater}
-            className="focus-ring mt-2 h-11 w-full rounded-full text-[15px] font-medium text-text-secondary active:bg-sunken"
-          >
-            Later
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <li className="flex items-center gap-3 text-[14px] text-ink">
-      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-brand">
-        {icon}
-      </span>
-      {children}
-    </li>
+    <UpdateCard
+      mode="sheet"
+      version={build?.versionName ?? version}
+      bytes={build?.bytes}
+      notes={build?.notes}
+      stage={update.stage}
+      inApp={update.inApp}
+      onUpdate={update.start}
+      onInstall={update.install}
+      onAllow={update.allow}
+      onCancel={update.cancel}
+      onLater={onLater}
+      fallbackHref={publicAppUrl('/download?update=1')}
+    />
   );
 }
 

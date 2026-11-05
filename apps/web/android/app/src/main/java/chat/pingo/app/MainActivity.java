@@ -191,6 +191,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PushActions.class);
         registerPlugin(MediaControlsPlugin.class);
         registerPlugin(PopupGuardPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
 
         super.onCreate(savedInstanceState);
 

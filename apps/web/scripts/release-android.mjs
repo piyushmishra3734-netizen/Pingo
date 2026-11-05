@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 /**
  * Ships an Android build to GitHub Releases.
@@ -167,6 +168,41 @@ run('npx', [
   'application/vnd.android.package-archive',
   '--remote',
 ], { shell: true });
+
+/*
+ * What the app reads to update itself: `latest.json`, beside the APK in R2.
+ *
+ * The app downloads the APK from the Worker and checks it against the SHA-256
+ * written here before Android is asked to install it. It goes up AFTER the APK:
+ * a description of a build that is not there yet would send every phone to
+ * download the previous one and call it the new one.
+ *
+ * The notes are the lines in android/release-notes.txt, one per line, kept short.
+ */
+{
+  const gradle = readFileSync('android/app/build.gradle', 'utf8');
+  const versionCode = Number(/versionCode\s+(\d+)/.exec(gradle)?.[1] ?? 0);
+  const bytes = readFileSync(asset);
+  const notes = existsSync('android/release-notes.txt')
+    ? readFileSync('android/release-notes.txt', 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 4)
+    : [];
+  const latest = {
+    versionCode,
+    versionName: tag.replace(/^v/, ''),
+    bytes: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    notes,
+  };
+  if (!versionCode) throw new Error('Could not read versionCode from build.gradle; latest.json not written.');
+  const latestFile = '../../.tools/release/latest.json';
+  writeFileSync(latestFile, JSON.stringify(latest));
+  run('npx', ['wrangler', 'r2', 'object', 'put', 'pingo/latest.json', '--file', latestFile, '--content-type', 'application/json; charset=utf-8', '--remote'], { shell: true });
+  console.log('\n▸ latest.json', latest.versionName, latest.versionCode, latest.sha256.slice(0, 12));
+}
 
 /*
  * GitHub keeps every version and the generated notes. `--latest` costs nothing

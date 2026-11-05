@@ -23,9 +23,16 @@ interface Env {
 
 /** The single object this endpoint is about. */
 /** Each download the Worker serves: one object per platform, always the latest. */
-const FILES: Record<string, { key: string; type: string }> = {
+const FILES: Record<string, { key: string; type: string; inline?: boolean }> = {
   '/': { key: 'PINGO.apk', type: 'application/vnd.android.package-archive' },
   '/android': { key: 'PINGO.apk', type: 'application/vnd.android.package-archive' },
+  /*
+   * What the newest Android build is: version, size, SHA-256, a few lines on what
+   * changed. Written by the release script next to the APK. The app reads it to
+   * learn whether it is behind and to update itself (apps/web/src/features/updates/
+   * app-update.ts) - from here, so none of it touches the database.
+   */
+  '/latest.json': { key: 'latest.json', type: 'application/json; charset=utf-8', inline: true },
   // PINGO for Windows: the installer built from `desktop/`.
   '/windows': { key: 'PINGO-Setup.exe', type: 'application/vnd.microsoft.portable-executable' },
 };
@@ -95,7 +102,7 @@ export default {
   },
 };
 
-function headersFor(object: R2Object, file: { key: string; type: string }): Headers {
+function headersFor(object: R2Object, file: { key: string; type: string; inline?: boolean }): Headers {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
 
@@ -106,7 +113,7 @@ function headersFor(object: R2Object, file: { key: string; type: string }): Head
    * `attachment` is what makes the phone download instead of trying to render
    * it, and the filename is what it lands in the downloads folder as.
    */
-  headers.set('content-disposition', `attachment; filename="${file.key}"`);
+  if (!file.inline) headers.set('content-disposition', `attachment; filename="${file.key}"`);
 
   // Resumable downloads need the server to say it supports them.
   headers.set('accept-ranges', 'bytes');
@@ -118,7 +125,8 @@ function headersFor(object: R2Object, file: { key: string; type: string }): Head
    * what long caching assumes. Short enough that a new release reaches people
    * quickly; long enough that a retry does not re-fetch from origin.
    */
-  headers.set('cache-control', 'public, max-age=300');
+  // A description of the latest build is read at every launch, so it is allowed to be a minute old, not five.
+  headers.set('cache-control', file.inline ? 'public, max-age=60' : 'public, max-age=300');
 
   /*
    * The download page asks for the size with a cross-origin HEAD, so the

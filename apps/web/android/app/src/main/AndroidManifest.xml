@@ -217,6 +217,14 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
+        Lets PINGO hand its own update to Android's installer (AppUpdatePlugin).
+        Declaring it is not permission: the person still has to switch it on for
+        PINGO once, on Android's own page, and confirm every install. PINGO is
+        installed from its own site, not the Play Store, whose policy limits this.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!--
         Asking to be left out of battery optimisation, with the system's own
         one-tap dialog. Without it many phones stop PINGO soon after it leaves
         the screen: late messages, music that stops with the screen. See
