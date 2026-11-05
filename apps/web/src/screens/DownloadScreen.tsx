@@ -98,7 +98,8 @@ export function DownloadScreen() {
   const { platform } = useInstall();
   const [params] = useSearchParams();
   const updating = params.has('update');
-  const android = platform === 'android';
+  // `?as=android` shows the Android page on any device, so it can be looked at from a computer.
+  const android = platform === 'android' || params.get('as') === 'android';
 
   /** The version on offer, from the build number the operator last published. */
   const [version, setVersion] = useState<string>();
@@ -147,8 +148,8 @@ export function DownloadScreen() {
 
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 pb-24 pt-5">
         {/* ---- hero ---------------------------------------------------- */}
-        {updating && android ? (
-          <DuckUpdate />
+        {updating ? (
+          <DuckUpdate android={android} />
         ) : (
         <section
           aria-labelledby="download-title"
@@ -223,7 +224,7 @@ export function DownloadScreen() {
         )}
 
         {/* ---- other devices -------------------------------------------- */}
-        {!(updating && android) && (
+        {!updating && (
         <Section title={android ? 'On your other devices' : 'Every device'} id="devices">
           <ul className="overflow-hidden rounded-2xl bg-surface shadow-[0_1px_3px_rgba(16,17,20,0.06)]">
             {!android && (
@@ -427,7 +428,7 @@ type Phase =
 const MB = 1024 * 1024;
 const megabytes = (bytes: number) => `${bytes / MB < 10 ? (bytes / MB).toFixed(1) : Math.round(bytes / MB)} MB`;
 
-function DuckUpdate() {
+function DuckUpdate({ android }: { android: boolean }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const controller = useRef<AbortController | null>(null);
   const kept = useRef<string | null>(null);
@@ -476,6 +477,8 @@ function DuckUpdate() {
       else setPhase({ kind: 'error' });
     }
   };
+
+  if (!android) return <DuckElsewhere />;
 
   const pct = phase.kind === 'downloading' && phase.total > 0 ? Math.min(100, Math.round((phase.received / phase.total) * 100)) : null;
   const walking = phase.kind === 'downloading' || phase.kind === 'done';
@@ -554,6 +557,36 @@ function DuckUpdate() {
 
       <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">
         Already have PINGO? Install over it. Please do not uninstall first, or chats kept on this phone go with the old app.
+      </p>
+    </section>
+  );
+}
+
+/** The update page opened somewhere that is not an Android phone: the APK is for the phone, so point there. */
+function DuckElsewhere() {
+  const [copied, setCopied] = useState(false);
+  const link = publicAppUrl('/download?update=1');
+  return (
+    <section aria-labelledby="download-title" className="px-2 pb-2 pt-4 text-center">
+      <Walk along={0.5} percent={null} track={false} />
+      <h1 id="download-title" className="mt-4 text-[30px] font-bold leading-tight tracking-[-0.04em] text-ink">
+        A fresh PINGO is ready
+      </h1>
+      <p className="mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug text-text-secondary">
+        The Android app updates on your phone. Open this page there and tap Download update.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(link).then(() => setCopied(true)).catch(() => undefined);
+        }}
+        className="focus-ring mx-auto mt-7 flex h-[54px] w-full max-w-xs items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]"
+      >
+        {copied ? 'Link copied' : 'Copy link for your phone'}
+      </button>
+      <p className="mx-auto mt-4 max-w-xs break-all text-[13px] leading-snug text-text-tertiary">{link.replace(/^https?:\/\//, '')}</p>
+      <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">
+        To see the Android version of this page here, add <span className="font-semibold text-text-secondary">&amp;as=android</span> to the address.
       </p>
     </section>
   );
