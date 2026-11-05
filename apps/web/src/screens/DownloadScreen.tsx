@@ -1,6 +1,6 @@
 import { ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
 import { ArrowDownToLine, Check, Copy, PackageCheck, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
@@ -8,6 +8,7 @@ import { PlatformLogo, type PlatformLogoId } from '../features/install/PlatformL
 import { useInstall } from '../features/install/useInstall.js';
 import { versionName } from '../features/updates/notice-rules.js';
 import { APK_URL } from '../features/updates/update-link.js';
+import { Walk } from '../features/updates/UpdateCard.js';
 import { publicAppUrl } from '../lib/public-origin.js';
 import { applyPageSeo } from '../lib/seo.js';
 import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
@@ -404,35 +405,143 @@ function Section({ title, id, children }: { title: string; id: string; children:
  * from its own "Update now", because an installed app's own screens cannot be
  * changed after it is out and this page can.
  *
- * The same calm as the in-app update screen: the duck, a few plain words, one
- * black button, and the three things to do in order. No store card, no chips,
- * no other devices.
+ * ## The whole download happens here
+ *
+ * Not a link that hands the file to the browser's download bar, where nothing
+ * says how far along it is. The page fetches the APK itself, so the duck can walk
+ * the line with a percentage beside it, and when the last byte is in, the file is
+ * shown on the page - name, size, one Install button. That button saves the
+ * finished file (it is already on the phone, so it is instant) and the browser
+ * offers to open it; Android then asks "update this app?". A web page cannot
+ * start the installer itself, and neither should it: that last tap is Android's.
+ *
+ * Where the browser cannot stream a download, the button is the plain link it
+ * used to be.
  */
+type Phase =
+  | { kind: 'idle' }
+  | { kind: 'downloading'; received: number; total: number }
+  | { kind: 'done'; url: string; bytes: number }
+  | { kind: 'error' };
+
+const MB = 1024 * 1024;
+const megabytes = (bytes: number) => `${bytes / MB < 10 ? (bytes / MB).toFixed(1) : Math.round(bytes / MB)} MB`;
+
 function DuckUpdate() {
+  const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
+  const controller = useRef<AbortController | null>(null);
+  const kept = useRef<string | null>(null);
+  const canStream = typeof ReadableStream !== 'undefined' && typeof fetch === 'function';
+
+  // Leaving the page stops the download and gives the finished file's memory back.
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+      if (kept.current) URL.revokeObjectURL(kept.current);
+    },
+    [],
+  );
+
+  const start = async () => {
+    controller.current?.abort();
+    const own = new AbortController();
+    controller.current = own;
+    setPhase({ kind: 'downloading', received: 0, total: 0 });
+    try {
+      const response = await fetch(ANDROID_APK, { signal: own.signal });
+      if (!response.ok || !response.body) throw new Error('The download did not start.');
+      const total = Number(response.headers.get('content-length')) || 0;
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let received = 0;
+      let shown = -1;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as unknown as BlobPart);
+        received += value.length;
+        // Repaint when the percentage moves: more often than that is not visible.
+        const pct = total > 0 ? Math.floor((received / total) * 100) : 0;
+        if (pct !== shown) {
+          shown = pct;
+          setPhase({ kind: 'downloading', received, total });
+        }
+      }
+      if (total > 0 && received !== total) throw new Error('The download ended early.');
+      const url = URL.createObjectURL(new Blob(chunks, { type: 'application/vnd.android.package-archive' }));
+      kept.current = url;
+      setPhase({ kind: 'done', url, bytes: received });
+    } catch {
+      if (own.signal.aborted) setPhase({ kind: 'idle' });
+      else setPhase({ kind: 'error' });
+    }
+  };
+
+  const pct = phase.kind === 'downloading' && phase.total > 0 ? Math.min(100, Math.round((phase.received / phase.total) * 100)) : null;
+  const walking = phase.kind === 'downloading' || phase.kind === 'done';
+  const along = phase.kind === 'done' ? 1 : pct !== null ? pct / 100 : 0.5;
+
+  const heading =
+    phase.kind === 'downloading'
+      ? { title: 'Downloading PINGO', line: 'Keep this page open. It takes about a minute.' }
+      : phase.kind === 'done'
+        ? { title: 'Downloaded', line: 'The update is on your phone. One tap to install it.' }
+        : phase.kind === 'error'
+          ? { title: 'Hmm, that did not work', line: 'The download did not finish. Check your internet and try again.' }
+          : { title: 'A fresh PINGO is ready', line: 'Your chats and photos stay just as they are.' };
+
+  const pill =
+    'focus-ring mx-auto flex h-[54px] w-full max-w-xs items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]';
+
   return (
     <section aria-labelledby="download-title" className="px-2 pb-2 pt-4 text-center">
-      <picture>
-        <source media="(prefers-reduced-motion: reduce)" srcSet="/update/duck-still.webp" />
-        <img src="/update/duck.webp" alt="" width={190} height={223} draggable={false} className="mx-auto select-none" />
-      </picture>
+      <Walk along={along} percent={phase.kind === 'done' ? 100 : pct} track={walking} />
       <h1 id="download-title" className="mt-4 text-[30px] font-bold leading-tight tracking-[-0.04em] text-ink">
-        A fresh PINGO is ready
+        {heading.title}
       </h1>
-      <p className="mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug text-text-secondary">Your chats and photos stay just as they are.</p>
+      <p className={cn('mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug', phase.kind === 'error' ? 'text-danger' : 'text-text-secondary')}>{heading.line}</p>
 
-      <a
-        href={ANDROID_APK}
-        rel="noopener noreferrer"
-        className="focus-ring mx-auto mt-7 flex h-[54px] w-full max-w-xs items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]"
-      >
-        Download update
-      </a>
+      <div className="mt-7 min-h-[92px]">
+        {phase.kind === 'downloading' ? (
+          <button type="button" onClick={() => controller.current?.abort()} className="focus-ring mx-auto mt-2 rounded-md px-3 py-2 text-[14.5px] font-medium text-text-tertiary">
+            Cancel
+          </button>
+        ) : phase.kind === 'done' ? (
+          <div className="mx-auto flex max-w-xs flex-col gap-3">
+            <div className="flex items-center gap-3 rounded-2xl bg-sunken px-4 py-3 text-left">
+              <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface text-ink">
+                <PackageCheck size={20} />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] font-semibold text-ink">PINGO.apk</span>
+                <span className="block text-[13px] text-text-secondary">{megabytes(phase.bytes)} · ready to install</span>
+              </span>
+            </div>
+            <a href={phase.url} download="PINGO.apk" className={pill}>
+              Install
+            </a>
+          </div>
+        ) : !canStream ? (
+          <a href={ANDROID_APK} rel="noopener noreferrer" className={pill}>
+            Download update
+          </a>
+        ) : (
+          <button type="button" onClick={() => void start()} className={pill}>
+            {phase.kind === 'error' ? 'Try again' : 'Download update'}
+          </button>
+        )}
+        {phase.kind === 'error' ? (
+          <a href={ANDROID_APK} rel="noopener noreferrer" className="focus-ring mt-3 inline-block rounded-md px-1 py-0.5 text-[13px] font-medium text-text-secondary underline underline-offset-2">
+            Get it another way
+          </a>
+        ) : null}
+      </div>
 
-      <ol className="mx-auto mt-9 flex max-w-xs flex-col gap-3 border-t border-line pt-6 text-left">
+      <ol className="mx-auto mt-6 flex max-w-xs flex-col gap-3 border-t border-line pt-6 text-left">
         {[
-          'Tap Download update.',
-          'Open the file. If Android asks, allow your browser to install apps.',
-          'Tap Update. PINGO opens with everything as you left it.',
+          'Tap Download update and wait for it to finish.',
+          'Tap Install, then open the file your browser offers.',
+          'If Android asks, allow your browser to install apps. Then tap Update.',
         ].map((line, i) => (
           <li key={line} className="flex items-start gap-3 text-[15px] leading-snug text-ink">
             <span aria-hidden className="mt-px grid size-6 shrink-0 place-items-center rounded-full bg-sunken text-[12.5px] font-semibold tabular-nums text-text-secondary">

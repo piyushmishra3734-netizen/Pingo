@@ -152,7 +152,7 @@ function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow,
  * values rather than jumping. The line only exists while there is something
  * to measure; the rest of the time the duck's own shadow is the ground.
  */
-function Walk({ along, percent, track, compact }: { along: number; percent: number | null; track: boolean; compact?: boolean | undefined }) {
+export function Walk({ along, percent, track, compact }: { along: number; percent: number | null; track: boolean; compact?: boolean | undefined }) {
   const width = compact ? 124 : 172;
   const height = Math.round((width * 281) / 240);
   // The room the line leaves at its right for the percentage, and the margin before it on the left.
