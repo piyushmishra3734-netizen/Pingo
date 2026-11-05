@@ -200,7 +200,8 @@ run('npx', [
   if (!versionCode) throw new Error('Could not read versionCode from build.gradle; latest.json not written.');
   const latestFile = '../../.tools/release/latest.json';
   writeFileSync(latestFile, JSON.stringify(latest));
-  run('npx', ['wrangler', 'r2', 'object', 'put', 'pingo/latest.json', '--file', latestFile, '--content-type', 'application/json; charset=utf-8', '--remote'], { shell: true });
+  // No `; charset=` in the type: the arguments go through a shell, and a semicolon ends the command. The Worker sets the charset itself.
+  run('npx', ['wrangler', 'r2', 'object', 'put', 'pingo/latest.json', '--file', latestFile, '--content-type', 'application/json', '--remote'], { shell: true });
   console.log('\n▸ latest.json', latest.versionName, latest.versionCode, latest.sha256.slice(0, 12));
 }
 
