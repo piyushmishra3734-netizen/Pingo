@@ -1,17 +1,15 @@
 import { ChevronLeftIcon, IconButton, cn } from '@pingo/ui';
-import { ArrowDownToLine, Check, Copy, PackageCheck, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowDownToLine, Check, Copy, PackageCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AppLogo } from '../components/AppLogo.js';
 import { PlatformLogo, type PlatformLogoId } from '../features/install/PlatformLogo.js';
 import { useInstall } from '../features/install/useInstall.js';
-import { versionName } from '../features/updates/notice-rules.js';
 import { APK_URL } from '../features/updates/update-link.js';
 import { Walk } from '../features/updates/UpdateCard.js';
 import { publicAppUrl } from '../lib/public-origin.js';
 import { applyPageSeo } from '../lib/seo.js';
-import { loadUpdateNotice } from '../lib/supabase/update-notice.js';
 
 /**
  * The official Android download.
@@ -101,18 +99,6 @@ export function DownloadScreen() {
   // `?as=android` shows the Android page on any device, so it can be looked at from a computer.
   const android = platform === 'android' || params.get('as') === 'android';
 
-  /** The version on offer, from the build number the operator last published. */
-  const [version, setVersion] = useState<string>();
-  useEffect(() => {
-    let live = true;
-    void loadUpdateNotice().then((row) => {
-      if (live) setVersion(versionName(row?.min_build));
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-
   /*
    * This page is the one part of PINGO meant to be found by search, so it sets
    * its own title, description, canonical and social tags rather than
@@ -148,8 +134,8 @@ export function DownloadScreen() {
 
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 pb-24 pt-5">
         {/* ---- hero ---------------------------------------------------- */}
-        {updating ? (
-          <DuckUpdate android={android} />
+        {android || updating ? (
+          <DuckUpdate android={android} updating={updating} />
         ) : (
         <section
           aria-labelledby="download-title"
@@ -159,68 +145,15 @@ export function DownloadScreen() {
           <div className="relative flex flex-col items-center">
             <AppLogo size={92} alt="" tile fetchPriority="high" className="motion-safe:animate-qr-in" />
             <h1 id="download-title" className="mt-5 text-balance text-[28px] leading-tight font-bold tracking-[-0.01em] text-ink">
-              {updating ? 'Update PINGO' : android ? 'PINGO for Android' : 'Get PINGO'}
+              Get PINGO
             </h1>
             <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-text-secondary">
-              {updating
-                ? 'Download the new version and install it over the one you have. Your chats stay right where they are.'
-                : 'Private messaging with Pings that disappear, stories that expire, and no feed to scroll.'}
+              Private messaging with Pings that disappear, stories that expire, and no feed to scroll.
             </p>
 
-            {android ? (
-              <>
-                {/*
-                  A plain link to the file. No `download` attribute: that only
-                  works same-origin, and the Worker is another origin. Android
-                  saves an APK by its content type, which the Worker sets.
-                */}
-                <a
-                  href={ANDROID_APK}
-                  rel="noopener noreferrer"
-                  className="focus-ring bg-sweep mt-6 flex h-13 w-full max-w-xs items-center justify-center gap-2 rounded-full text-[16px] font-semibold text-white shadow-[0_8px_22px_rgba(139,93,255,0.35)] active:scale-[0.98]"
-                >
-                  <ArrowDownToLine size={20} />
-                  {updating ? 'Download update' : 'Download for Android'}
-                </a>
-                <ul className="mt-4 flex flex-wrap justify-center gap-1.5" aria-label="About this download">
-                  <Chip>Free</Chip>
-                  {version && <Chip>Version {version}</Chip>}
-                  <Chip>Android 7 and up</Chip>
-                </ul>
-              </>
-            ) : (
-              <NotOnAndroid windows={platform === 'windows'} />
-            )}
+            <NotOnAndroid windows={platform === 'windows'} />
           </div>
         </section>
-        )}
-
-        {/* ---- install steps (Android) ------------------------------------ */}
-        {android && !updating && (
-          <Section title={updating ? 'Update in three steps' : 'Install in three steps'} id="steps">
-            <ol className="grid gap-3 sm:grid-cols-3">
-              <Step n={1} icon={<ArrowDownToLine size={20} />} title="Download">
-                Tap the button above. The file lands in your downloads.
-              </Step>
-              <Step n={2} icon={<ShieldCheck size={20} />} title="Allow once">
-                Open it. If Android asks, let your browser install apps.
-              </Step>
-              <Step n={3} icon={<PackageCheck size={20} />} title={updating ? 'Update' : 'Install'}>
-                {updating ? 'Tap Update. PINGO opens with everything as you left it.' : 'Tap Install, open PINGO and sign in.'}
-              </Step>
-            </ol>
-
-            {/* The one mistake that loses something. Said plainly, where it is needed. */}
-            <div className="mt-3 flex gap-3 rounded-2xl bg-brand/8 p-4">
-              <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-brand">
-                <RefreshCw size={18} />
-              </span>
-              <p className="text-[14px] leading-relaxed text-ink">
-                <b className="font-semibold">Already have PINGO?</b> Install the new one over it. Do not uninstall
-                first: chats kept on this phone would go with the old app.
-              </p>
-            </div>
-          </Section>
         )}
 
         {/* ---- other devices -------------------------------------------- */}
@@ -348,27 +281,6 @@ function NotOnAndroid({ windows }: { windows: boolean }) {
   );
 }
 
-function Chip({ children }: { children: ReactNode }) {
-  return <li className="rounded-full bg-sunken px-3 py-1 text-[12.5px] font-medium text-text-secondary tabular-nums">{children}</li>;
-}
-
-function Step({ n, icon, title, children }: { n: number; icon: ReactNode; title: string; children: ReactNode }) {
-  return (
-    <li className="flex gap-3 rounded-2xl bg-surface p-4 shadow-[0_1px_3px_rgba(16,17,20,0.06)] sm:flex-col">
-      <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
-        {icon}
-        <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-brand text-[11px] font-bold text-white tabular-nums">
-          {n}
-        </span>
-      </span>
-      <div>
-        <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
-        <p className="mt-0.5 text-[13.5px] leading-snug text-text-secondary">{children}</p>
-      </div>
-    </li>
-  );
-}
-
 function DeviceRow({ logo, name, how, ready }: OtherDevice) {
   return (
     <li className="flex items-center gap-3 border-b border-line px-4 py-3.5 last:border-b-0">
@@ -428,7 +340,7 @@ type Phase =
 const MB = 1024 * 1024;
 const megabytes = (bytes: number) => `${bytes / MB < 10 ? (bytes / MB).toFixed(1) : Math.round(bytes / MB)} MB`;
 
-function DuckUpdate({ android }: { android: boolean }) {
+function DuckUpdate({ android, updating }: { android: boolean; updating: boolean }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const controller = useRef<AbortController | null>(null);
   const kept = useRef<string | null>(null);
@@ -480,6 +392,8 @@ function DuckUpdate({ android }: { android: boolean }) {
 
   if (!android) return <DuckElsewhere />;
 
+  const label = updating ? 'Download update' : 'Download PINGO';
+
   const pct = phase.kind === 'downloading' && phase.total > 0 ? Math.min(100, Math.round((phase.received / phase.total) * 100)) : null;
   const walking = phase.kind === 'downloading' || phase.kind === 'done';
   const along = phase.kind === 'done' ? 1 : pct !== null ? pct / 100 : 0.5;
@@ -488,10 +402,12 @@ function DuckUpdate({ android }: { android: boolean }) {
     phase.kind === 'downloading'
       ? { title: 'Downloading PINGO', line: 'Keep this page open. It takes about a minute.' }
       : phase.kind === 'done'
-        ? { title: 'Downloaded', line: 'The update is on your phone. One tap to install it.' }
+        ? { title: 'Downloaded', line: updating ? 'The update is on your phone. One tap to install it.' : 'PINGO is on your phone. One tap to install it.' }
         : phase.kind === 'error'
           ? { title: 'Hmm, that did not work', line: 'The download did not finish. Check your internet and try again.' }
-          : { title: 'A fresh PINGO is ready', line: 'Your chats and photos stay just as they are.' };
+          : updating
+            ? { title: 'A fresh PINGO is ready', line: 'Your chats and photos stay just as they are.' }
+            : { title: 'PINGO for Android', line: 'Private messaging with Pings that disappear, and stories that expire.' };
 
   const pill =
     'focus-ring mx-auto flex h-[54px] w-full max-w-xs items-center justify-center rounded-full bg-ink text-[16.5px] font-semibold text-page transition-transform duration-instant active:scale-[0.98]';
@@ -526,11 +442,11 @@ function DuckUpdate({ android }: { android: boolean }) {
           </div>
         ) : !canStream ? (
           <a href={ANDROID_APK} rel="noopener noreferrer" className={pill}>
-            Download update
+            {label}
           </a>
         ) : (
           <button type="button" onClick={() => void start()} className={pill}>
-            {phase.kind === 'error' ? 'Try again' : 'Download update'}
+            {phase.kind === 'error' ? 'Try again' : label}
           </button>
         )}
         {phase.kind === 'error' ? (
@@ -542,9 +458,9 @@ function DuckUpdate({ android }: { android: boolean }) {
 
       <ol className="mx-auto mt-6 flex max-w-xs flex-col gap-3 border-t border-line pt-6 text-left">
         {[
-          'Tap Download update and wait for it to finish.',
+          `Tap ${label} and wait for it to finish.`,
           'Tap Install, then open the file your browser offers.',
-          'If Android asks, allow your browser to install apps. Then tap Update.',
+          updating ? 'If Android asks, allow your browser to install apps. Then tap Update.' : 'If Android asks, allow your browser to install apps. Then tap Install and open PINGO.',
         ].map((line, i) => (
           <li key={line} className="flex items-start gap-3 text-[15px] leading-snug text-ink">
             <span aria-hidden className="mt-px grid size-6 shrink-0 place-items-center rounded-full bg-sunken text-[12.5px] font-semibold tabular-nums text-text-secondary">
@@ -555,9 +471,11 @@ function DuckUpdate({ android }: { android: boolean }) {
         ))}
       </ol>
 
-      <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">
-        Already have PINGO? Install over it. Please do not uninstall first, or chats kept on this phone go with the old app.
-      </p>
+      {updating ? (
+        <p className="mx-auto mt-6 max-w-xs text-[13.5px] leading-snug text-text-tertiary">
+          Already have PINGO? Install over it. Please do not uninstall first, or chats kept on this phone go with the old app.
+        </p>
+      ) : null}
     </section>
   );
 }
