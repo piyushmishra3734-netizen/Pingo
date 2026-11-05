@@ -1,5 +1,5 @@
 import { Toggle } from '@pingo/ui';
-import { CalendarClock, MessageSquareShare, OctagonX, ScrollText, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { CalendarClock, Lightbulb, MessageSquareShare, OctagonX, ScrollText, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useConfirm } from '../../components/ConfirmProvider.js';
@@ -117,8 +117,8 @@ export function MasterPanel() {
           log.map((a) => (
             <Row
               key={a.id}
-              icon={a.kind === 'send_message' ? <CalendarClock size={21} /> : <ScrollText size={21} />}
-              title={a.kind === 'send_message' ? (a.params.text ?? '').slice(0, 60) : describeSetting(a.params.key, a.params.value)}
+              icon={a.kind === 'send_feedback' ? <Lightbulb size={21} /> : a.kind === 'send_message' ? <CalendarClock size={21} /> : <ScrollText size={21} />}
+              title={a.kind === 'send_feedback' ? `Feedback: ${(a.params.text ?? '').slice(0, 50)}` : a.kind === 'send_message' ? (a.params.text ?? '').slice(0, 60) : describeSetting(a.params.key, a.params.value)}
               sub={`${STATUS[a.status]}${a.run_at && a.status === 'scheduled' ? ` · ${whenLabel(a.run_at)}` : ''} · ${new Date(a.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`}
               {...(a.status === 'scheduled'
                 ? {

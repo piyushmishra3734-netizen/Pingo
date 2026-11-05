@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 
+    <!--
+      Open the connection to the database while the page is still loading.
+
+      Every first request pays a DNS lookup, a TCP handshake and a TLS handshake
+      before a single byte of data moves - three round trips, each several
+      hundred milliseconds on a mobile network. Without this they start when the
+      app's JavaScript first asks for something, which is after it has been
+      parsed and booted; with it they run alongside that work and are done by the
+      time the first request goes out. Nothing is downloaded and no data is sent,
+      so it costs no egress.
+
+      `crossorigin` because the app's requests are cross-origin fetches, and a
+      connection opened without it is not reused by them.
+    -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
+
     <title>PINGO. Connect. Privately. | Private chat, calls &amp; stories</title>
     <meta
       name="description"

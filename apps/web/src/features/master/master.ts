@@ -6,7 +6,7 @@ import { getSupabaseClient } from '../../lib/supabase/client.js';
  * these are thin calls, and a refusal comes back as the sentence to show.
  */
 
-export type MasterKind = 'send_message' | 'set_setting' | 'mute_chat' | 'create_playlist';
+export type MasterKind = 'send_message' | 'set_setting' | 'mute_chat' | 'create_playlist' | 'send_feedback';
 export type MasterStatus = 'pending' | 'scheduled' | 'done' | 'failed' | 'cancelled' | 'declined' | 'expired';
 
 export interface MasterSettings {
@@ -24,6 +24,8 @@ export interface MasterAction {
     key?: string;
     value?: string;
     mode?: 'mute' | 'unmute';
+    /** send_feedback: wish, fix, love or other. The words are in `text`. */
+    kind?: string;
     minutes?: number;
     /** create_playlist: the name, and the songs as the music library keeps them. */
     name?: string;

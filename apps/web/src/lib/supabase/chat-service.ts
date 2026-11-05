@@ -860,6 +860,7 @@ const NOTIFICATION_COPY: Record<string, { body: string }> = {
  * important should be checkable without one.
  */
 import { mentionsPingoAi, PINGO_AI_USER_ID } from '../../features/ai/ai-mentions.js';
+import { PINGO_FEEDBACK_USER_ID } from '../../features/feedback/feedback-bot.js';
 
 export { mentionsPingoAi, PINGO_AI_USER_ID };
 
@@ -7485,7 +7486,8 @@ export class SupabaseChatService implements ChatService {
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term);
 
-    const peopleQuery = this.#client.from('profiles').select(USER_COLUMNS).neq('id', me);
+    // The feedback bot is a name on the operator's chat, not somebody to find and message.
+    const peopleQuery = this.#client.from('profiles').select(USER_COLUMNS).neq('id', me).neq('id', PINGO_FEEDBACK_USER_ID);
     const [{ data: people }, conversations] = await Promise.all([
       uuid
         ? peopleQuery.eq('id', term).limit(1)

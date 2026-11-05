@@ -1,6 +1,6 @@
 import { useChat } from '@pingo/core';
 import { cn } from '@pingo/ui';
-import { BellOff, BellRing, CalendarClock, Check, ListMusic, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
+import { BellOff, BellRing, CalendarClock, Check, Lightbulb, ListMusic, MessageSquareShare, SlidersHorizontal, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAppLanguage } from '../i18n/useT.js';
@@ -85,15 +85,20 @@ export function MasterActionCard({ id }: { id: string }) {
   const isMessage = action.kind === 'send_message';
   const isMute = action.kind === 'mute_chat';
   const isPlaylist = action.kind === 'create_playlist';
+  const isFeedback = action.kind === 'send_feedback';
   const chat = isMessage || isMute ? conversations.find((c) => c.id === action.params.conversation_id) : undefined;
-  const title = isPlaylist
+  const title = isFeedback
+    ? 'Send feedback to PINGO'
+    : isPlaylist
     ? `Create playlist${action.params.name ? ` "${action.params.name}"` : ''}`
     : isMute
     ? `${action.params.mode === 'unmute' ? 'Unmute' : 'Mute'} ${chat ? chat.title : 'a chat'}`
     : isMessage
       ? `Message ${chat ? chat.title : 'a chat'}`
       : 'Change a setting';
-  const Icon = isPlaylist
+  const Icon = isFeedback
+    ? Lightbulb
+    : isPlaylist
     ? ListMusic
     : isMute
     ? action.params.mode === 'unmute'
@@ -108,7 +113,7 @@ export function MasterActionCard({ id }: { id: string }) {
 
   const state =
     action.status === 'done'
-      ? { text: isMessage ? 'Sent' : isPlaylist ? 'Saved to your library' : 'Done', tone: 'text-brand' }
+      ? { text: isFeedback ? 'Sent to PINGO. Thank you!' : isMessage ? 'Sent' : isPlaylist ? 'Saved to your library' : 'Done', tone: 'text-brand' }
       : action.status === 'scheduled'
         ? { text: `Scheduled for ${whenLabel(action.run_at)}`, tone: 'text-brand' }
         : action.status === 'pending' && !pending
@@ -129,7 +134,7 @@ export function MasterActionCard({ id }: { id: string }) {
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="truncate text-[14.5px] font-semibold">{title}</span>
           <span className="text-caption text-text-secondary">
-            {isMessage ? `Sends ${whenLabel(action.run_at)}` : isPlaylist ? 'Saved to your PINGO Music' : 'Applies right away'} · {action.credits} credits
+            {isFeedback ? 'Goes to the PINGO team, with your name' : isMessage ? `Sends ${whenLabel(action.run_at)}` : isPlaylist ? 'Saved to your PINGO Music' : 'Applies right away'} · {action.credits === 0 ? 'Free' : `${action.credits} credits`}
           </span>
         </span>
       </div>
@@ -146,7 +151,7 @@ export function MasterActionCard({ id }: { id: string }) {
         </ul>
       ) : (
         <p className="whitespace-pre-wrap break-words rounded-xl bg-hover px-3 py-2 text-[14.5px] leading-snug">
-          {isMute ? describeMute(action.params.mode, action.params.minutes) : isMessage ? action.params.text : describeSetting(action.params.key, action.params.value)}
+          {isMute ? describeMute(action.params.mode, action.params.minutes) : isMessage || isFeedback ? action.params.text : describeSetting(action.params.key, action.params.value)}
         </p>
       )}
 
