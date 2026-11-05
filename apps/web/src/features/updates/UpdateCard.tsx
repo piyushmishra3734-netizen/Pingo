@@ -1,22 +1,25 @@
 import { cn } from '@pingo/ui';
-import { ArrowDownToLine, Check, RotateCw, ShieldCheck } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { AppLogo } from '../../components/AppLogo.js';
-import { formatSize, type UpdateStage } from './app-update.js';
+import type { UpdateStage } from './app-update.js';
 
 /**
- * The update screen: one calm thing happening, with what changed underneath.
+ * The update screen, in PINGO AI's world.
  *
- * ## The idea
+ * ## What it is trying to be
  *
- * An update is a small ceremony, and the best ones (a phone's own app update,
- * the App Store's) all have the same shape: the app's icon in the middle, one
- * line about what is happening, one control, and below it, quietly, what is new.
- * This is that shape in PINGO's own voice - soft surface, one accent, plenty of
- * air - and it does not change between stages. The ring around the icon fills
- * while it downloads; the line and the control under it change; "What is new"
- * stays where it is, so nothing jumps and nothing is hidden while you wait.
+ * Friendly, not technical. Nobody updating a chat app wants to read a size, a
+ * version, a checksum or the name of an Android setting; they want to be told
+ * something nice is ready, press one button, and have it be over. So this is
+ * Pingo - the mascot from PINGO AI - floating on its clouds over the same soft
+ * lavender, a few plain words, one big button, and a short "what is new" for
+ * anybody curious. Everything the update does that is not their business (the
+ * download's size, the signature check, the install permission's real name)
+ * still happens; it just is not on the screen.
+ *
+ * The look is `.pingo-pastel`, the palette PINGO AI's own pages use, so it is
+ * light by day and a deep indigo at night with no extra work.
  *
  * One layout, two jobs:
  *
@@ -26,9 +29,8 @@ import { formatSize, type UpdateStage } from './app-update.js';
 
 export interface UpdateCardProps {
   mode: 'sheet' | 'screen';
-  /** "2.26.44.4", when known. */
+  /** The newest version and size are known to the caller; this screen deliberately does not show them. */
   version?: string | undefined;
-  /** The APK's size in bytes, when known. */
   bytes?: number | undefined;
   /** A few lines on what changed. */
   notes?: string[] | undefined;
@@ -51,19 +53,19 @@ export function UpdateCard(props: UpdateCardProps) {
   if (props.mode === 'sheet') {
     return (
       <div
-        className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40 backdrop-blur-[2px] sm:items-center sm:p-5"
+        className="fixed inset-0 z-[900] flex items-end justify-center bg-black/35 backdrop-blur-[2px] sm:items-center sm:p-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="update-title"
       >
-        <div className="relative max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[32px] bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(16,17,20,0.16)] motion-safe:animate-panel-in sm:rounded-[32px]">
-          <span aria-hidden className="mx-auto mt-2.5 block h-1 w-9 rounded-full bg-line" />
-          <Content {...props} />
+        <div className="pingo-pastel relative max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[34px] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(30,26,80,0.18)] motion-safe:animate-panel-in sm:rounded-[34px]">
+          <span aria-hidden className="mx-auto mt-2.5 block h-1 w-9 rounded-full bg-[var(--pp-line)]" />
+          <Content {...props} compact />
           {props.onLater ? (
             <button
               type="button"
               onClick={props.onLater}
-              className="focus-ring mx-auto mt-1 block h-11 rounded-full px-6 text-[14.5px] font-medium text-text-secondary active:bg-sunken"
+              className="focus-ring mx-auto mt-1 block h-11 rounded-full px-6 text-[15px] font-medium text-[var(--pp-sub)] active:bg-[var(--pp-accent-soft)]"
             >
               Not now
             </button>
@@ -75,14 +77,12 @@ export function UpdateCard(props: UpdateCardProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[2000] overflow-y-auto bg-page"
+      className="pingo-pastel fixed inset-0 z-[2000] overflow-y-auto"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="update-title"
       aria-describedby="update-body"
     >
-      {/* The sweep, far off and out of focus: the page is calm, and still recognisably PINGO. */}
-      <div aria-hidden className="bg-sweep update-ambient pointer-events-none fixed inset-x-0 top-0 h-96 blur-3xl" />
       <div className="relative mx-auto flex min-h-full w-full max-w-sm flex-col justify-center py-8 motion-safe:animate-panel-in">
         <Content {...props} />
       </div>
@@ -90,89 +90,66 @@ export function UpdateCard(props: UpdateCardProps) {
   );
 }
 
-/** What each stage says: a small label, and one line under the title. */
-function wording(stage: UpdateStage, screen: boolean, web: boolean | undefined): { label: string; line: string } {
+/** What each stage says. Plain words, no numbers. */
+function wording(stage: UpdateStage, screen: boolean, web: boolean | undefined): { title: string; line: string } {
   switch (stage.kind) {
     case 'downloading':
-      return { label: 'Updating', line: 'Keep PINGO open. It takes about a minute.' };
+      return { title: 'Updating PINGO', line: 'Hang tight, this only takes a moment.' };
     case 'install':
-      return { label: 'Ready', line: 'Tap Install in the Android window to finish.' };
+      return { title: 'All set!', line: 'Tap Install on the next screen to finish.' };
     case 'permission':
-      return { label: 'One last step', line: 'Android asks once before PINGO can install an update.' };
+      return { title: 'One quick thing', line: 'Tap Allow on the next screen so PINGO can update itself.' };
     case 'error':
-      return { label: 'Not finished', line: stage.message };
+      return { title: 'Hmm, that did not work', line: stage.message };
     default:
-      if (web) return { label: 'Update available', line: 'A newer version is out. Reload to get it.' };
+      if (web) return { title: 'PINGO just got better', line: 'Reload to see the latest version.' };
       return screen
-        ? { label: 'Update required', line: 'This version can no longer connect. Update to keep going - everything stays as it is.' }
-        : { label: 'Update available', line: 'Your chats, photos and account stay exactly as they are.' };
+        ? { title: 'Time for a quick update', line: 'PINGO needs a refresh to keep working. Your chats and photos stay just as they are.' }
+        : { title: 'PINGO just got better', line: 'A fresh version is ready. Your chats and photos stay just as they are.' };
   }
 }
 
-function Content({ mode, version, bytes, notes, stage, inApp, web, onUpdate, onInstall, onAllow, onCancel, fallbackHref }: UpdateCardProps) {
-  const screen = mode === 'screen';
-  const { label, line } = wording(stage, screen, web);
-  const pct = stage.kind === 'downloading' && stage.total > 0 ? Math.min(100, Math.max(0, Math.round((stage.received / stage.total) * 100))) : 0;
+function Content({ notes, stage, inApp, web, mode, onUpdate, onInstall, onAllow, onCancel, fallbackHref, compact }: UpdateCardProps & { compact?: boolean }) {
+  const { title, line } = wording(stage, mode === 'screen', web);
+  const pct = stage.kind === 'downloading' && stage.total > 0 ? Math.min(100, Math.max(0, Math.round((stage.received / stage.total) * 100))) : null;
 
   return (
-    <div className="px-6 pb-3 pt-6 text-center">
-      <Icon progress={stage.kind === 'downloading' ? pct : stage.kind === 'install' ? 100 : null} />
+    <div className="px-7 pb-3 pt-4 text-center">
+      <Hero compact={compact} />
 
-      <p className="mt-5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
-      <h1 id="update-title" className="mt-1.5 text-[27px] font-bold leading-tight tracking-[-0.045em] text-ink">
-        PINGO{version ? <span className="ml-2 font-semibold tabular-nums text-text-secondary">{version}</span> : null}
+      <h1 id="update-title" className="mt-3 text-[28px] font-extrabold leading-tight tracking-[-0.03em] text-[var(--pp-ink)]">
+        {title}
       </h1>
-      <p id="update-body" className={cn('mx-auto mt-2 max-w-[19.5rem] text-[15px] leading-snug', stage.kind === 'error' ? 'text-danger' : 'text-text-secondary')}>
+      <p id="update-body" className={cn('mx-auto mt-2 max-w-[19rem] text-[16px] leading-snug', stage.kind === 'error' ? 'text-danger' : 'text-[var(--pp-sub)]')}>
         {line}
       </p>
 
-      {/* The one control. A fixed-height slot, so the page does not move as the stages change. */}
-      <div className="mt-6 flex h-[116px] flex-col justify-start">
+      {/* The one control. A fixed-height slot, so nothing moves as the stages change. */}
+      <div className="mt-7 flex h-[96px] flex-col justify-start">
         <Action stage={stage} pct={pct} inApp={inApp} web={web} onUpdate={onUpdate} onInstall={onInstall} onAllow={onAllow} onCancel={onCancel} fallbackHref={fallbackHref} />
       </div>
 
-      {!web ? <Facts bytes={bytes} /> : null}
-
-      {notes && notes.length > 0 ? <WhatsNew version={version} notes={notes} /> : null}
+      {notes && notes.length > 0 ? <WhatsNew notes={notes} /> : null}
     </div>
   );
 }
 
-/**
- * The app's icon, and a ring around it that fills as the download goes.
- *
- * The ring is always laid out - empty it is a faint circle that frames the icon -
- * so the icon does not shift when it starts to fill.
- */
-function Icon({ progress }: { progress: number | null }) {
-  const size = 124;
-  const stroke = 4;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const filled = progress === null ? 0 : progress;
+/** Pingo, floating over its clouds, with a few stars - the same sky as PINGO AI's profile. */
+function Hero({ compact }: { compact?: boolean | undefined }) {
   return (
-    <div
-      className="relative mx-auto grid place-items-center"
-      style={{ width: size, height: size }}
-      {...(progress !== null && progress < 100 ? { role: 'progressbar', 'aria-label': 'Downloading the update', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': progress } : {})}
-    >
-      <span aria-hidden className="bg-sweep update-glow absolute inset-3 rounded-[34px] blur-2xl" />
-      <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} className="stroke-line" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          className="stroke-brand transition-[stroke-dashoffset] duration-300 ease-standard"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - filled / 100)}
-          style={{ opacity: progress === null ? 0 : 1 }}
-        />
-      </svg>
-      <AppLogo size={88} tile alt="" className="relative shadow-[0_10px_28px_-10px_rgba(52,30,110,0.4)]" />
+    <div className={cn('relative mx-auto', compact ? 'h-[168px] w-[250px]' : 'h-[214px] w-[290px]')} aria-hidden>
+      {/* Not clipped: a cloud with a hard edge is a white box. They sit inside the hero and fade out on their own. */}
+      <div className="absolute inset-0">
+        <span className="pp-cloud bottom-[8%] left-[4%] h-[26%] w-[40%] opacity-80" />
+        <span className="pp-cloud bottom-[2%] left-[30%] h-[22%] w-[38%] opacity-70" />
+        <span className="pp-cloud bottom-[10%] right-[4%] h-[28%] w-[40%] opacity-80" />
+      </div>
+      <Sparkles className="pp-twinkle absolute left-[10%] top-[26%] text-[var(--pp-gold)]" size={compact ? 20 : 24} fill="currentColor" strokeWidth={1.2} />
+      <Sparkles className="pp-twinkle absolute right-[8%] top-[46%] text-[var(--pp-gold)] [animation-delay:0.9s]" size={compact ? 24 : 28} fill="currentColor" strokeWidth={1.2} />
+      <Sparkles className="pp-twinkle absolute right-[22%] top-[10%] text-[#d9a8f0] [animation-delay:0.4s]" size={14} fill="currentColor" strokeWidth={1.2} />
+      <span className={cn('pingo-float absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[52%]', compact ? 'size-[128px]' : 'size-[168px]')}>
+        <img src="/ai/pingo.webp" alt="" draggable={false} decoding="async" className="size-full select-none object-contain" />
+      </span>
     </div>
   );
 }
@@ -188,109 +165,54 @@ function Action({
   onAllow,
   onCancel,
   fallbackHref,
-}: Pick<UpdateCardProps, 'stage' | 'inApp' | 'web' | 'onUpdate' | 'onInstall' | 'onAllow' | 'onCancel' | 'fallbackHref'> & { pct: number }) {
+}: Pick<UpdateCardProps, 'stage' | 'inApp' | 'web' | 'onUpdate' | 'onInstall' | 'onAllow' | 'onCancel' | 'fallbackHref'> & { pct: number | null }) {
   switch (stage.kind) {
     case 'downloading':
       return (
-        <div>
-          <p className="text-[34px] font-semibold leading-none tracking-[-0.04em] tabular-nums text-ink">
-            {stage.total > 0 ? pct : '…'}
-            {stage.total > 0 ? <span className="ml-0.5 text-[18px] font-medium text-text-tertiary">%</span> : null}
-          </p>
-          {stage.total > 0 ? (
-            <p className="mt-2 text-[13px] tabular-nums text-text-secondary">
-              {formatSize(stage.received)} of {formatSize(stage.total)}
-            </p>
-          ) : null}
-          <button type="button" onClick={onCancel} className="focus-ring mx-auto mt-3 rounded-md px-2 py-1 text-[13px] font-medium text-text-tertiary">
+        <div className="pt-3">
+          <div
+            role="progressbar"
+            aria-label="Updating PINGO"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(pct !== null ? { 'aria-valuenow': pct } : {})}
+            className="h-2.5 overflow-hidden rounded-full bg-[var(--pp-accent-soft)]"
+          >
+            <div className="h-full rounded-full bg-[var(--pp-accent)] transition-[width] duration-300 ease-standard" style={{ width: `${pct ?? 8}%` }} />
+          </div>
+          <button type="button" onClick={onCancel} className="focus-ring mx-auto mt-4 rounded-md px-2 py-1 text-[14px] font-medium text-[var(--pp-faint)]">
             Cancel
           </button>
         </div>
       );
     case 'install':
-      return (
-        <div className="flex flex-col gap-2.5">
-          <PillButton onClick={onInstall} icon={<Check size={18} aria-hidden />}>
-            Install
-          </PillButton>
-          <Hint>Downloaded and checked. Nothing else leaves your phone.</Hint>
-        </div>
-      );
+      return <PillButton onClick={onInstall}>Install</PillButton>;
     case 'permission':
-      return (
-        <div className="flex flex-col gap-3">
-          <PillButton onClick={onAllow} icon={<ShieldCheck size={18} aria-hidden />}>
-            Open settings
-          </PillButton>
-          <Hint>
-            Turn on <b className="font-semibold text-text-secondary">Allow from this source</b>, then come back. The update starts by itself.
-          </Hint>
-        </div>
-      );
+      return <PillButton onClick={onAllow}>Continue</PillButton>;
     case 'error':
       return (
-        <div className="flex flex-col gap-2.5">
-          <PillButton onClick={onUpdate} icon={<RotateCw size={17} aria-hidden />}>
-            Try again
-          </PillButton>
-          <a href={fallbackHref} target="_blank" rel="noopener" className="focus-ring mx-auto rounded-md px-1 py-0.5 text-[12.5px] font-medium text-text-secondary underline underline-offset-2">
-            Or download it in your browser
+        <div className="flex flex-col items-center gap-2.5">
+          <PillButton onClick={onUpdate}>Try again</PillButton>
+          <a href={fallbackHref} target="_blank" rel="noopener" className="focus-ring rounded-md px-1 py-0.5 text-[13px] font-medium text-[var(--pp-sub)] underline underline-offset-2">
+            Get it another way
           </a>
         </div>
       );
     default:
-      if (web) {
-        return (
-          <div className="flex flex-col gap-2.5">
-            <PillButton onClick={onUpdate} icon={<RotateCw size={17} aria-hidden />}>
-              Load the new version
-            </PillButton>
-          </div>
-        );
-      }
-      return (
-        <div className="flex flex-col gap-2.5">
-          <PillButton onClick={onUpdate} icon={<ArrowDownToLine size={18} aria-hidden />}>
-            Update
-          </PillButton>
-          <Hint>{inApp ? 'It downloads here. Android asks you to confirm.' : 'It downloads in your browser. Android asks you to confirm.'}</Hint>
-        </div>
-      );
+      if (web) return <PillButton onClick={onUpdate}>Reload</PillButton>;
+      return <PillButton onClick={onUpdate}>{inApp ? 'Update' : 'Get the update'}</PillButton>;
   }
 }
 
-/** Size, time and a check: three small facts in a row, the way a store lays out a listing. */
-function Facts({ bytes }: { bytes?: number | undefined }) {
+/** What changed: a few friendly lines on a white card, the way PINGO AI shows a list. */
+function WhatsNew({ notes }: { notes: string[] }) {
   return (
-    <dl className="mt-7 grid grid-cols-3 divide-x divide-line">
-      <Fact term="Size" value={bytes ? formatSize(bytes) : 'Small'} />
-      <Fact term="Time" value="~1 min" />
-      <Fact term="Checked" value="Yes" />
-    </dl>
-  );
-}
-
-function Fact({ term, value }: { term: string; value: string }) {
-  return (
-    <div className="px-2">
-      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">{term}</dt>
-      <dd className="mt-1 text-[15px] font-semibold tabular-nums text-ink">{value}</dd>
-    </div>
-  );
-}
-
-/** What changed. Always on screen, whatever the update is doing. */
-function WhatsNew({ version, notes }: { version?: string | undefined; notes: string[] }) {
-  return (
-    <section className="mt-6 rounded-[26px] bg-sunken/70 px-5 py-4 text-left" aria-label="What is new">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[13px] font-semibold text-ink">What is new</h2>
-        {version ? <span className="text-[12px] tabular-nums text-text-tertiary">{version}</span> : null}
-      </div>
+    <section className="pp-card mt-5 px-5 py-4 text-left" aria-label="What is new">
+      <h2 className="text-[13px] font-bold text-[var(--pp-sub)]">What is new</h2>
       <ul className="mt-2.5 flex flex-col gap-2.5">
         {notes.map((note) => (
-          <li key={note} className="flex min-w-0 items-start gap-3 text-[14px] leading-snug text-text-secondary">
-            <span aria-hidden className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand" />
+          <li key={note} className="flex min-w-0 items-start gap-2.5 text-[15px] leading-snug text-[var(--pp-ink)]">
+            <Sparkles size={15} fill="currentColor" strokeWidth={1.2} aria-hidden className="mt-[3px] shrink-0 text-[var(--pp-gold)]" />
             <span className="min-w-0">{note}</span>
           </li>
         ))}
@@ -299,19 +221,14 @@ function WhatsNew({ version, notes }: { version?: string | undefined; notes: str
   );
 }
 
-function PillButton({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }) {
+function PillButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="update-pill focus-ring flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-brand text-[16px] font-semibold text-on-brand transition-transform duration-instant active:scale-[0.98]"
+      className="focus-ring flex h-[56px] w-full items-center justify-center rounded-full bg-[var(--pp-accent)] text-[17px] font-bold text-[var(--pp-accent-ink)] shadow-[var(--pp-shadow)] transition-transform duration-instant active:scale-[0.98]"
     >
-      {icon}
       {children}
     </button>
   );
-}
-
-function Hint({ children }: { children: ReactNode }) {
-  return <p className="mx-auto max-w-[19rem] text-[12.5px] leading-snug text-text-tertiary">{children}</p>;
 }

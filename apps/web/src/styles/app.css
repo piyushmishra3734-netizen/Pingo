@@ -1366,17 +1366,3 @@ video {
 .lock-shake { animation: lock-shake 380ms ease-in-out; }
 @media (prefers-reduced-motion: reduce) { .lock-shake { animation: none; } }
 
-/*
- * The update screen on the person's own background.
- *
- * In the light theme the PINGO sweep is a soft wash behind the icon. In the
- * dark theme the same wash reads as a coloured glow on black, which is the
- * opposite of calm, so it is nearly gone there and the screen simply sits on
- * the app's own page colour. The button's coloured shadow goes the same way.
- */
-.update-ambient { opacity: 0.1; }
-.update-glow { opacity: 0.28; }
-.update-pill { box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--color-brand) 70%, transparent); }
-:root[data-theme='dark'] .update-ambient { opacity: 0.035; }
-:root[data-theme='dark'] .update-glow { opacity: 0.08; }
-:root[data-theme='dark'] .update-pill { box-shadow: none; }
