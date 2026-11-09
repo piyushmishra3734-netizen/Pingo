@@ -26,6 +26,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import { watchForSuspended } from '../account-suspended.js';
 import { CLIENT_GENERATION, watchForUpdateRequired } from '../update-required.js';
 
 import { resilient } from './resilient-fetch.js';
@@ -128,7 +129,7 @@ export function getSupabaseClient(): PingoSupabaseClient {
       // `x-pingo-gen`: which generation of the app this is, for the outdated-version gate (app_gate).
       headers: { 'x-pingo-client': 'web', 'x-pingo-gen': String(CLIENT_GENERATION) },
       // Reads give up on a dead socket and try again; writes are left alone. See resilient-fetch.ts.
-      fetch: resilient(watchForUpdateRequired((input, init) => fetch(input, init))),
+      fetch: resilient(watchForSuspended(watchForUpdateRequired((input, init) => fetch(input, init)))),
     },
   });
 

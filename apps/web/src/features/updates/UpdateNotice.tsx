@@ -29,6 +29,7 @@ import {
   type UpdateNoticeRow,
 } from '../../lib/supabase/update-notice.js';
 import { isBehind, shouldShow, versionName } from './notice-rules.js';
+import { AccountSuspended } from './AccountSuspended.js';
 import { UpdateRequired } from './UpdateRequired.js';
 
 /**
@@ -39,6 +40,7 @@ export function UpdateNotice() {
   return (
     <>
       <UpdateRequired />
+      <AccountSuspended />
       <Notice />
     </>
   );
