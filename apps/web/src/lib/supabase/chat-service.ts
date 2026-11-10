@@ -62,6 +62,7 @@ import type {
   UserSettings,
   Presence,
   PresenceState,
+  LiveDrawLink,
 } from '@pingo/core';
 
 import {
@@ -6868,6 +6869,11 @@ export class SupabaseChatService implements ChatService {
    */
   async setRecording(conversationId: ConversationId, recording: boolean): Promise<void> {
     await this.#presenceHub.setTyping(conversationId, recording, 'recording');
+  }
+
+  /** Strokes as they are drawn, over the thread's own realtime channel. */
+  liveDraw(conversationId: ConversationId): LiveDrawLink {
+    return this.#presenceHub.liveDraw(conversationId);
   }
 
   /** Somebody has the sketch pad open over this thread: the other side sees "is drawing". */

@@ -44,7 +44,7 @@ import type { PingoSupabaseClient } from './client.js';
  */
 export type { ChatActivity } from '@pingo/core';
 import { customLastSeen } from '../../features/presence/status.js';
-import type { ChatActivity } from '@pingo/core';
+import type { ChatActivity, LiveDrawLink, LiveDrawPacket } from '@pingo/core';
 
 /**
  * How long a typing signal stands before it is assumed stale.
@@ -300,6 +300,11 @@ export class PresenceHub {
         this.#typists.set(conversationId, map);
         this.#publish(conversationId);
       })
+      .on('broadcast', { event: 'draw' }, ({ payload }) => {
+        const packet = payload as LiveDrawPacket | undefined;
+        if (!packet || packet.u === this.#userId) return;
+        for (const listener of this.#drawListeners.get(conversationId) ?? []) listener(packet);
+      })
       .on('broadcast', { event: 'read' }, ({ payload }) => {
         const { userId, upTo } = payload as { userId: UserId; upTo?: number };
         if (!userId || userId === this.#userId) return;
@@ -370,6 +375,38 @@ export class PresenceHub {
       event: 'typing',
       payload: { userId: this.#userId, typing, kind },
     });
+  }
+
+  #drawListeners = new Map<string, Set<(packet: LiveDrawPacket) => void>>();
+
+  /**
+   * Live drawing rides the thread's existing channel: a second socket is the
+   * most expensive thing to open on a slow connection.
+   */
+  liveDraw(conversationId: string): LiveDrawLink {
+    this.watchTyping(conversationId);
+    const hub = this;
+    return {
+      // Read when asked: the link can be made before sign-in has finished.
+      get me() {
+        return hub.#userId ?? '';
+      },
+      send: async (packet) => {
+        const channel = this.#typing.get(conversationId);
+        if (!channel || !this.#userId) return;
+        try {
+          await channel.send({ type: 'broadcast', event: 'draw', payload: { ...packet, u: this.#userId } });
+        } catch {
+          // A lost packet is a gap in a preview; the picture sent on Done is what counts.
+        }
+      },
+      listen: (handler) => {
+        const set = this.#drawListeners.get(conversationId) ?? new Set();
+        set.add(handler);
+        this.#drawListeners.set(conversationId, set);
+        return () => set.delete(handler);
+      },
+    };
   }
 
   /**

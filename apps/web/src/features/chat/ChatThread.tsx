@@ -106,7 +106,9 @@ import { useRealtimeCall } from '../ai/realtime/useRealtimeCall.js';
 import { useAiPrefs, useAiVoice } from '../ai/room/ai-prefs.js';
 import { clearChatTray, setOpenChat } from '../notifications/chat-tray.js';
 import { queueMedia } from './media-outbox.js';
+import { LiveDrawState } from '../draw/live-draw.js';
 import { DrawingLayer } from './DrawingLayer.js';
+import { LiveDrawOverlay } from './LiveDrawOverlay.js';
 import { PendingMedia } from './PendingMedia.js';
 
 // Sheets this screen can open, fetched the first time one is opened rather than
@@ -1292,6 +1294,14 @@ export function ChatThread({
    */
   const pinUntilRef = useRef(0);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Live drawing: what somebody else is drawing right now, and whether the pad may be opened.
+  // Only in small chats: a broadcast reaches everyone who has the thread open, so a big group would multiply the traffic.
+  const liveEligible = conversation.participantIds.length <= 8;
+  const liveLink = useMemo(() => (liveEligible ? service.liveDraw?.(conversation.id) : undefined), [service, conversation.id, liveEligible]);
+  const liveState = useRef(new LiveDrawState());
+  const drawingCount = useMemo(() => messages.filter((m) => m.photo?.drawing).length, [messages]);
+  const [drawBusy, setDrawBusy] = useState(false);
   useEffect(() => {
     openedRef.current = false;
     pinUntilRef.current = 0;
@@ -2496,7 +2506,13 @@ export function ChatThread({
               location: () => setSheet('location'),
               contact: () => setSheet('contact'),
               event: () => setSheet('event'),
-              draw: () => setSheet('draw'),
+              draw: () => {
+                // One person draws at a time: while somebody else is, the pad stays shut.
+                if (liveState.current.busy()) {
+                  setDrawBusy(true);
+                  window.setTimeout(() => setDrawBusy(false), 2500);
+                } else setSheet('draw');
+              },
             }}
             onTyping={(typing) => void service.setTyping(conversation.id, typing)}
             onRecording={(recording) => void service.setRecording(conversation.id, recording)}
@@ -2604,9 +2620,17 @@ export function ChatThread({
         />
       )}
 
+      <LiveDrawOverlay link={liveLink} state={liveState} drawingCount={drawingCount} paused={sheet === 'draw'} />
+      {drawBusy && (
+        <div role="status" className="fixed inset-x-0 top-20 z-[70] mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-[14px] font-medium text-white">
+          Someone is drawing right now
+        </div>
+      )}
+
       {sheet === 'draw' && (
         <Suspense fallback={null}>
           <SketchPad
+            {...(liveLink ? { live: liveLink } : {})}
             onActivity={(on) => void service.setSketching(conversation.id, on)}
             onCancel={() => setSheet(undefined)}
             content={contentRef.current}

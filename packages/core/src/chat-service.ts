@@ -377,6 +377,33 @@ export interface StartupSnapshot {
   at: number;
 }
 
+/**
+ * One live-drawing packet. Kept tiny on purpose: it travels over 2G.
+ *
+ * `p` is flat x,y pairs as integers 0..1000 (fractions of the screen). A stroke
+ * starts with `h` (brush, colour, size) and may end with `e`. `op` is a control
+ * message: `open` (a pad opened; `t` is when, for tie-breaks), `beat` (still
+ * drawing), `undo`, `close`, and `watch`/`unwatch` from somebody who has the
+ * thread on screen - strokes are only sent while at least one person watches.
+ */
+export interface LiveDrawPacket {
+  u: string;
+  s?: number;
+  h?: [string, string, number];
+  p?: number[];
+  e?: 1;
+  op?: 'open' | 'beat' | 'undo' | 'close' | 'watch' | 'unwatch';
+  t?: number;
+}
+
+export interface LiveDrawLink {
+  /** This user's id, to tell their own echoes from other people's packets. */
+  readonly me: string;
+  /** Resolves when handed to the network; never rejects. */
+  send(packet: LiveDrawPacket): Promise<void>;
+  listen(handler: (packet: LiveDrawPacket) => void): () => void;
+}
+
 export interface ChatService {
   // -- Session -------------------------------------------------------------
   getCurrentUser(): Promise<CurrentUser>;
@@ -602,6 +629,14 @@ export interface ChatService {
    * so a pad that is closed by a dying app has its indicator swept.
    */
   setSketching(conversationId: ConversationId, sketching: boolean): Promise<void>;
+
+  /**
+   * The live-drawing link for one thread: strokes as they are drawn, to whoever has the thread open.
+   *
+   * Optional, because only the Supabase service has a realtime channel to carry it.
+   * It is a preview only - the picture sent on Done is what stays in the chat.
+   */
+  liveDraw?(conversationId: ConversationId): LiveDrawLink;
   toggleReaction(messageId: MessageId, emoji: string): Promise<Message>;
 
   // -- message actions -----------------------------------------------------

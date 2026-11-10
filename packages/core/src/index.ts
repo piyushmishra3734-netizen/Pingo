@@ -15,6 +15,8 @@ export type {
   AiCommand,
   ChatActivity,
   ChatEvent,
+  LiveDrawLink,
+  LiveDrawPacket,
   ConnectionState,
   MessageReceipt,
   OutgoingMessage,

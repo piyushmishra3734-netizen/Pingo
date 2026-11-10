@@ -1,10 +1,11 @@
-import type { DrawingAnchor } from '@pingo/core';
+import type { DrawingAnchor, LiveDrawLink } from '@pingo/core';
 import { Redo2, Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Overlay } from '../../components/Overlay.js';
 import { BrushRow, ColourRow, DrawDock, SizeSlider } from '../draw/DrawChrome.js';
 import { paintStrokes, type DrawStroke } from '../draw/brushes.js';
+import { LiveDrawSender } from '../draw/live-draw.js';
 import { useBrush } from '../draw/useBrush.js';
 
 /**
@@ -137,7 +138,7 @@ function clearDraft(): void {
   }
 }
 
-export function SketchPad({ content, onCancel, onDone, onActivity }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void; /** Told true while the pad is open, so the other person sees "is drawing". */ onActivity?: (on: boolean) => void }) {
+export function SketchPad({ content, onCancel, onDone, onActivity, live }: { content: HTMLElement | null; onCancel: () => void; onDone: (file: File, anchor: DrawingAnchor) => void; /** Told true while the pad is open, so the other person sees "is drawing". */ onActivity?: (on: boolean) => void; /** Where strokes are sent as they are drawn, so the other side watches them appear. */ live?: LiveDrawLink }) {
   const { brush, size, setBrush, setSize } = useBrush();
   // Not white: it lands on the other person's wallpaper, light or dark.
   const [colour, setColour] = useState('#ff3b5c');
@@ -166,6 +167,29 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
       activity.current?.(false);
     };
   }, []);
+
+  /*
+   * Live preview to the other side. One person draws at a time: if two pads
+   * open together, the one that opened later gives way (the id breaks a tie).
+   */
+  const sender = useRef<LiveDrawSender | undefined>(undefined);
+  const yieldPad = useRef(onCancel);
+  yieldPad.current = onCancel;
+  useEffect(() => {
+    if (!live) return;
+    const out = new LiveDrawSender(live);
+    sender.current = out;
+    const stop = live.listen((packet) => {
+      if (packet.op === 'watch' || packet.op === 'unwatch') out.watch(packet.u, packet.op === 'watch');
+      if (packet.op !== 'open' || typeof packet.t !== 'number') return;
+      if (packet.t < out.openedAt || (packet.t === out.openedAt && packet.u < live.me)) yieldPad.current();
+    });
+    return () => {
+      stop();
+      out.close();
+      sender.current = undefined;
+    };
+  }, [live]);
 
   useEffect(() => {
     const measure = () => {
@@ -231,15 +255,24 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
             setRedo([]);
-            current.current = { brush, colour, size, points: [at(event)] };
+            const start = at(event);
+            current.current = { brush, colour, size, points: [start] };
+            sender.current?.begin(brush, colour, size, start.x, start.y);
             setStrokes((all) => [...all, current.current!]);
           }}
           onPointerMove={(event) => {
             if (!current.current) return;
-            current.current.points.push(at(event));
+            const next = at(event);
+            current.current.points.push(next);
+            sender.current?.point(next.x, next.y);
             setStrokes((all) => [...all]);
           }}
           onPointerUp={() => {
+            if (current.current) sender.current?.end();
+            current.current = undefined;
+          }}
+          onPointerCancel={() => {
+            if (current.current) sender.current?.end();
             current.current = undefined;
           }}
         >
@@ -255,13 +288,14 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
               type="button"
               aria-label="Undo"
               disabled={strokes.length === 0}
-              onClick={() =>
+              onClick={() => {
+                sender.current?.undo();
                 setStrokes((all) => {
                   const last = all[all.length - 1];
                   if (last) setRedo((x) => [...x, last]);
                   return all.slice(0, -1);
-                })
-              }
+                });
+              }}
               className={round}
             >
               <Undo2 size={19} />
@@ -274,6 +308,7 @@ export function SketchPad({ content, onCancel, onDone, onActivity }: { content: 
                 const next = redo[redo.length - 1];
                 if (!next) return;
                 setRedo((x) => x.slice(0, -1));
+                sender.current?.redo(next);
                 setStrokes((all) => [...all, next]);
               }}
               className={round}
