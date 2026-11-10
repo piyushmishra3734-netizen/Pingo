@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '../i18n/useT.js';
+import { isInbuiltAi } from './inbuilt-chat.js';
 
 /**
  * What the header becomes while chats are selected.
@@ -106,13 +107,16 @@ export function SelectionBar({
         <PinIcon size={20} className={cn(allPinned && 'text-brand')} />
       </IconButton>
 
-      <IconButton
-        label={allArchived ? t('select.unarchive') : t('select.archive')}
-        variant="ghost"
-        onClick={() => onArchive(!allArchived)}
-      >
-        {allArchived ? <UnarchiveIcon size={20} /> : <ArchiveIcon size={20} />}
-      </IconButton>
+      {/* PINGO AI is a built-in tool: a selection that includes it cannot be archived. */}
+      {(allArchived || !selected.some((c) => !c.archived && isInbuiltAi(c))) && (
+        <IconButton
+          label={allArchived ? t('select.unarchive') : t('select.archive')}
+          variant="ghost"
+          onClick={() => onArchive(!allArchived)}
+        >
+          {allArchived ? <UnarchiveIcon size={20} /> : <ArchiveIcon size={20} />}
+        </IconButton>
+      )}
 
       <IconButton label={t('select.delete')} variant="ghost" onClick={onDelete}>
         <TrashIcon size={20} className="text-danger" />

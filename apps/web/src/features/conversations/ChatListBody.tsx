@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFlipList } from '../../hooks/useFlipList.js';
 import { useT } from '../i18n/useT.js';
+import { isInbuiltAi } from './inbuilt-chat.js';
 import { ConversationRow } from './ConversationRow.js';
 import { SwipeableRow } from './SwipeableRow.js';
 import type { ConversationActions } from './useConversationActions.js';
@@ -269,15 +270,20 @@ export function ChatListBody({
                   onAct: () => void actions.pin([conversation], !conversation.pinned),
                 }
           }
-          left={{
-            label: inArchive ? 'Delete' : 'Archive',
-            icon: inArchive ? <TrashIcon size={18} /> : <ArchiveIcon size={18} />,
-            tone: inArchive ? 'bg-danger' : 'bg-ink',
-            onAct: () =>
-              inArchive
-                ? onDeleteRequest([conversation])
-                : void actions.archive([conversation.id], true),
-          }}
+          // PINGO AI is a built-in tool: no Archive swipe on its row.
+          {...(!inArchive && isInbuiltAi(conversation)
+            ? {}
+            : {
+                left: {
+                  label: inArchive ? 'Delete' : 'Archive',
+                  icon: inArchive ? <TrashIcon size={18} /> : <ArchiveIcon size={18} />,
+                  tone: inArchive ? 'bg-danger' : 'bg-ink',
+                  onAct: () =>
+                    inArchive
+                      ? onDeleteRequest([conversation])
+                      : void actions.archive([conversation.id], true),
+                },
+              })}
         >
           {rowNode}
         </SwipeableRow>

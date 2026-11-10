@@ -5,6 +5,7 @@ import { IconButton, MoreIcon, cn } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { isInbuiltAi } from '../conversations/inbuilt-chat.js';
 import { ChatListsSheet } from '../conversations/ChatListsSheet.js';
 import { DeleteChatSheet } from '../conversations/DeleteChatSheet.js';
 import { MuteSheet } from '../conversations/MuteSheet.js';
@@ -228,10 +229,13 @@ export function ConversationMenu({
               })();
             }}
           />
-          <Item
-            label={conversation.archived ? t('select.unarchive') : t('select.archive')}
-            onSelect={() => run(actions.archive(id, !conversation.archived))}
-          />
+          {/* PINGO AI is a built-in tool: it can be un-archived, never archived. */}
+          {(conversation.archived || !isInbuiltAi(conversation)) && (
+            <Item
+              label={conversation.archived ? t('select.unarchive') : t('select.archive')}
+              onSelect={() => run(actions.archive(id, !conversation.archived))}
+            />
+          )}
           <Item
             label={conversation.unreadCount > 0 ? t('select.markRead') : t('select.markUnread')}
             onSelect={() => run(actions.markUnread(id, conversation.unreadCount === 0))}
