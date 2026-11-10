@@ -8,6 +8,7 @@ import {
   formatTime,
   linkify,
   useChat,
+  type AudioAttachment,
   type Message,
 } from '@pingo/core';
 import {
@@ -56,6 +57,7 @@ import { StoryMentionCard } from '../stories/StoryMentionCard.js';
 import { parseStoryMention } from '../stories/story-mentions.js';
 import { parseNickname } from './nicknames.js';
 import { VoiceNote } from './VoiceNote.js';
+import { parseSoundShare } from '../explore/sound-share.js';
 
 /**
  * A message bubble.
@@ -238,7 +240,16 @@ export function MessageBubble({
    */
   const arrive = mine ? 'animate-bubble-in-mine' : 'animate-bubble-in';
 
-  const voiceNote = message.attachments.find((a) => a.kind === 'audio');
+  /* A Freesound sound: drawn as a voice message, played from Freesound; there is no attachment of ours. */
+  const sound = useMemo(
+    () => (message.deleted ? undefined : parseSoundShare(message.body)),
+    [message.body, message.deleted],
+  );
+  const soundNote = useMemo<AudioAttachment | undefined>(
+    () => (sound ? { id: `sound:${sound.url}`, kind: 'audio', url: sound.url, duration: sound.secs, waveform: [] } : undefined),
+    [sound],
+  );
+  const voiceNote = message.attachments.find((a) => a.kind === 'audio') ?? soundNote;
   const file = message.attachments.find((a) => a.kind === 'file');
   /* A PINGO Arcade invite is drawn as a Join card, in place of its text and link. */
   const arcadeInvite = useMemo(
@@ -286,12 +297,14 @@ export function MessageBubble({
   );
   const shownBody = useMemo(
     () =>
-      videoLink
-        ? withoutVideoLink(message.body, videoLink)
-        : socialLink
-          ? withoutSocialLink(message.body, socialLink)
-          : message.body,
-    [message.body, videoLink, socialLink],
+      sound
+        ? ''
+        : videoLink
+          ? withoutVideoLink(message.body, videoLink)
+          : socialLink
+            ? withoutSocialLink(message.body, socialLink)
+            : message.body,
+    [message.body, sound, videoLink, socialLink],
   );
   const hasBody = !arcadeInvite && shownBody.trim().length > 0;
   /*
@@ -756,15 +769,17 @@ export function MessageBubble({
             </button>
           )}
 
+          {sound && <p className={cn('mb-1 truncate text-caption font-semibold', mine ? 'text-white/85' : 'text-text-secondary')}>{sound.name}</p>}
           {voiceNote && (
             <VoiceNote
               attachment={voiceNote}
               tone={mine ? 'outgoing' : 'incoming'}
               className={cn(hasBody && 'mb-2')}
               resolveUrl={resolveVoiceUrl}
-              messageId={message.id}
+              // A sound is not ours to keep or to release: no local copy, no receipt.
+              {...(sound ? {} : { messageId: message.id })}
               onStored={() => {
-                void service.confirmMediaReceived?.(message.id).catch(() => undefined);
+                if (!sound) void service.confirmMediaReceived?.(message.id).catch(() => undefined);
               }}
             />
           )}

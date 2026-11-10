@@ -147,6 +147,7 @@ export function cardLine(body: string, mine: boolean): string | undefined {
     return name ? `Song: ${name}` : 'Song';
   }
   if (/https?:\/\/\S+\/clip\?(\S+)/.test(body)) return 'Clip';
+  if (/https?:\/\/\S+\/sound\?(\S+)/.test(body)) return 'Sound';
   const music = /https?:\/\/\S+\/music\?(\S+)/.exec(body);
   if (music) {
     const q = new URLSearchParams(music[1]);
