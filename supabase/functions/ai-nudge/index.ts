@@ -25,6 +25,8 @@ const SYSTEM = [
   'Warm, light, curious. No guilt, no pressure, no "we miss you", no mention of days passing or of noticing they were away. At most one emoji.',
   'Match their language and style: if they write Hinglish, write Hinglish; if English, English.',
   'Use only what is in the conversation. Do not invent facts or ask for personal details.',
+  'This appears on a lock screen where other people may read it: keep it clean and general. Nothing romantic, sexual or suggestive; nothing about health, money, family, relationships or other people by name; do not repeat private details or plans. Pick up the light topic or the mood, not the specifics.',
+  'Never offer to do tasks, schedule things or ask for approval.',
   'Output only the message text, on one line, with no quotation marks.',
 ].join('\n');
 

@@ -13,7 +13,8 @@
 --   * nothing from them (any message, or the app opening) for the idle window;
 --   * a phone that can be reached, notifications for messages AND for PINGO AI
 --     on, not paused, not in their quiet hours - the person's settings win;
---   * not a banned account;
+--   * not a banned account, not a minor, and not somebody using the adult (spicy)
+--     personality - a line on a lock screen has no business there;
 --   * their local time is between 10:00 and 21:00;
 --   * at most one nudge in 5 days, and never more than 3 in a row without them
 --     writing back - after that PINGO AI waits until they do.
@@ -57,6 +58,10 @@ as $$
      and not exists (
        select 1 from auth.users u
         where u.id = m.user_id and u.banned_until is not null and u.banned_until > now()
+     )
+     and not exists (
+       select 1 from public.ai_profiles ap
+        where ap.user_id = m.user_id and (ap.personality = 'spicy' or coalesce(ap.age, 99) < 18)
      )
      and exists (
        select 1 from public.messages x
