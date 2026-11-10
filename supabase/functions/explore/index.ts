@@ -37,8 +37,8 @@ const CORS = {
 export interface Item {
   id: string;
   src: 'pexels' | 'giphy' | 'freesound';
-  kind: 'photo' | 'gif' | 'sticker' | 'sound';
-  /** Length in seconds, for sounds. */
+  kind: 'photo' | 'gif' | 'sticker' | 'sound' | 'clip';
+  /** Length in seconds, for sounds and clips. */
   secs?: number;
   /** The grid's picture. */
   thumb: string;
@@ -176,6 +176,52 @@ async function giphy(kind: 'gifs' | 'stickers', q: string, page: number, key: st
   return { items, next: offset + PER_PAGE < Math.min(total, 500) ? page + 1 : null };
 }
 
+interface GiphyClip {
+  id?: string;
+  title?: string;
+  username?: string;
+  url?: string;
+  duration?: string | number;
+  images?: Record<string, GiphyImage | undefined>;
+  video?: { assets?: Record<string, { url?: string; width?: number | string; height?: number | string } | undefined> };
+}
+
+/**
+ * GIPHY Clips: GIFs with sound, as MP4. GIPHY gives Clips only to keys it has
+ * approved, so a key without access comes back empty here and the app says
+ * "coming soon". The video is played from GIPHY's own CDN; nothing is copied.
+ */
+async function giphyClips(q: string, page: number, key: string) {
+  const offset = (page - 1) * PER_PAGE;
+  const query = `api_key=${encodeURIComponent(key)}&limit=${PER_PAGE}&offset=${offset}&rating=pg&country_code=IN${q ? `&q=${encodeURIComponent(q.slice(0, 50))}` : ''}`;
+  const body = (await upstream(`https://api.giphy.com/v1/clips/${q ? 'search' : 'trending'}?${query}`)) as { data?: GiphyClip[]; pagination?: { total_count?: number } } | undefined;
+  if (!body) return undefined;
+  const items: Item[] = [];
+  for (const c of body.data ?? []) {
+    const assets = c.video?.assets ?? {};
+    // The smallest rendition that always exists: this plays on somebody's mobile data.
+    const rendition = assets['360p'];
+    const url = https(rendition?.url);
+    if (!url || !c.id) continue;
+    const im = c.images ?? {};
+    const thumb = https(im.fixed_width?.webp) || https(im.fixed_width?.url) || https(im.fixed_width_still?.url) || https(im.original_still?.url) || '';
+    items.push({
+      id: `giphy-clip-${c.id}`,
+      src: 'giphy',
+      kind: 'clip',
+      thumb,
+      url,
+      w: Number(rendition?.width) || 9,
+      h: Number(rendition?.height) || 16,
+      title: clip(c.title, 100) || 'Clip',
+      secs: Math.max(0, Math.round((Number(c.duration) || 0) * 10) / 10),
+      ...(c.url ? { by: { name: clip(c.username, 40) || 'GIPHY', url: https(c.url) || 'https://giphy.com' } } : {}),
+    });
+  }
+  const total = body.pagination?.total_count ?? 0;
+  return { items, next: offset + PER_PAGE < Math.min(total, 500) ? page + 1 : null };
+}
+
 interface FreesoundHit {
   id?: number;
   name?: string;
@@ -240,7 +286,7 @@ export async function handle(request: Request): Promise<Response> {
   const page = Math.min(Math.max(Math.round(Number(ask.page) || 1), 1), 20);
   const src = ask.src === 'giphy' ? 'giphy' : ask.src === 'pexels' ? 'pexels' : ask.src === 'freesound' ? 'freesound' : undefined;
   if (!src) return json({ error: 'Unknown source.' }, 400);
-  const kind = ask.kind === 'stickers' ? 'stickers' : 'gifs';
+  const kind = ask.kind === 'stickers' ? 'stickers' : ask.kind === 'clips' ? 'clips' : 'gifs';
 
   const key = Deno.env.get(src === 'pexels' ? 'PEXELS_API_KEY' : src === 'freesound' ? 'FREESOUND_API_KEY' : 'GIPHY_API_KEY');
   if (!key) return json({ error: 'not_configured' }, 503);
@@ -249,8 +295,9 @@ export async function handle(request: Request): Promise<Response> {
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < FRESH_MS) return json(hit.value);
 
-  const value = src === 'pexels' ? await pexels(q, page, key) : src === 'freesound' ? await freesound(q, page, key) : await giphy(kind, q, page, key);
-  if (!value) return json({ error: 'upstream' }, 502);
+  const value = src === 'pexels' ? await pexels(q, page, key) : src === 'freesound' ? await freesound(q, page, key) : kind === 'clips' ? await giphyClips(q, page, key) : await giphy(kind, q, page, key);
+  // GIPHY refuses Clips to a key it has not approved: told apart from an outage by being the only thing that fails.
+  if (!value) return json({ error: kind === 'clips' && src === 'giphy' ? 'not_configured' : 'upstream' }, kind === 'clips' && src === 'giphy' ? 503 : 502);
 
   cache.set(cacheKey, { at: Date.now(), value });
   if (cache.size > 400) cache.delete(cache.keys().next().value!);

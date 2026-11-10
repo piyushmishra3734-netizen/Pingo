@@ -17,6 +17,7 @@ import { explore, ExploreError, type ExploreItem, type ExploreSource } from './e
 const SOURCES: { id: ExploreSource; label: string }[] = [
   { id: 'gifs', label: 'GIFs' },
   { id: 'stickers', label: 'Stickers' },
+  { id: 'clips', label: 'Clips' },
   { id: 'photos', label: 'Photos' },
   { id: 'sounds', label: 'Sounds' },
 ];
@@ -131,7 +132,7 @@ export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => v
   return (
     <div className="flex h-full flex-col">
       <div className="px-2.5 pt-2.5">
-        <SearchField value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={source === 'photos' ? 'Search photos' : source === 'gifs' ? 'Search GIFs' : source === 'sounds' ? 'Search sounds: bruh, airhorn…' : 'Search stickers'} aria-label="Search Explore" />
+        <SearchField value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={source === 'photos' ? 'Search photos' : source === 'gifs' ? 'Search GIFs' : source === 'sounds' ? 'Search sounds: bruh, airhorn…' : source === 'clips' ? 'Search clips' : 'Search stickers'} aria-label="Search Explore" />
       </div>
       <div role="tablist" aria-label="Explore" className="flex shrink-0 gap-1.5 px-2.5 py-2">
         {SOURCES.map((s) => (
@@ -189,7 +190,15 @@ export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => v
                     className={cn('focus-ring group relative block w-full overflow-hidden rounded-[14px] active:scale-[0.98]', item.kind === 'sticker' ? 'bg-hover' : 'bg-sunken')}
                     style={{ aspectRatio: `${item.w} / ${item.h}` }}
                   >
-                    <img src={item.thumb} alt={item.title} loading="lazy" draggable={false} className={cn('size-full', item.kind === 'sticker' ? 'object-contain' : 'object-cover')} />
+                    {item.thumb ? (
+                      <img src={item.thumb} alt={item.title} loading="lazy" draggable={false} className={cn('size-full', item.kind === 'sticker' ? 'object-contain' : 'object-cover')} />
+                    ) : (
+                      // A clip without a still: its own first frame (metadata only), never playing in the grid.
+                      <video src={`${item.url}#t=0.1`} preload="metadata" muted playsInline aria-label={item.title} className="pointer-events-none size-full object-cover" />
+                    )}
+                    {item.kind === 'clip' && item.secs ? (
+                      <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] font-semibold text-white">{Math.round(item.secs)}s</span>
+                    ) : null}
                     {item.by && item.kind === 'photo' && (
                       <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/55 to-transparent px-2 pb-1 pt-4 text-left text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                         {item.by.name}

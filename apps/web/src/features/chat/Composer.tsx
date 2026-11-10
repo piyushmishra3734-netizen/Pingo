@@ -13,6 +13,7 @@ import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
 import { songBody, soundBody } from '../music/song-share.js';
+import { clipBody } from '../explore/clip-share.js';
 import { ExplorePicker } from '../explore/ExplorePicker.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 import { PolishPanel } from '../polish/PolishPanel.js';
@@ -616,6 +617,12 @@ export function Composer({
                   // A sound is sent as a link to Freesound's own copy: nothing is uploaded or stored here.
                   setPickerOpen(false);
                   void Promise.resolve(onSend(soundBody({ name: item.title, by: item.by?.name ?? 'Freesound', url: item.url, secs: item.secs ?? 0 }))).catch(() => setError('That sound could not be sent.'));
+                  return;
+                }
+                if (item.kind === 'clip') {
+                  // A clip is sent as a link to GIPHY's own video: nothing is uploaded or stored here.
+                  setPickerOpen(false);
+                  void Promise.resolve(onSend(clipBody({ title: item.title, url: item.url, poster: item.thumb, w: item.w, h: item.h }))).catch(() => setError('That clip could not be sent.'));
                   return;
                 }
                 // Sent the way a sticker is: the whole message, no bubble. The words are what shows where the picture cannot.
