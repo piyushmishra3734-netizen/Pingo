@@ -161,3 +161,9 @@ verify_jwt = false
 # with anything — no session to verify, and nothing written.
 [functions.tv-sources]
 verify_jwt = false
+
+# Called by `ai_nudge_tick()` from pg_cron (no user session). The check is the
+# shared `x-pingo-push-secret`, compared in constant time - see the header of
+# `functions/ai-nudge/index.ts`.
+[functions.ai-nudge]
+verify_jwt = false

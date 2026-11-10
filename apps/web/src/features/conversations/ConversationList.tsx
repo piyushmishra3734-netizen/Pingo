@@ -48,6 +48,7 @@ import { ChatListBody, ChatListEmpty } from './ChatListBody.js';
 import { ChatListsSheet } from './ChatListsSheet.js';
 import { DeleteChatSheet } from './DeleteChatSheet.js';
 import { MuteSheet } from './MuteSheet.js';
+import { isInbuiltAi } from './inbuilt-chat.js';
 import { NewChatMenu } from './NewChatMenu.js';
 import { SelectionBar, SelectionMenuItem } from './SelectionBar.js';
 import { useConversationActions } from './useConversationActions.js';
@@ -448,21 +449,24 @@ export function ConversationList({
                   label={t('select.addList')}
                   onSelect={() => setListsFor(selected.map((c) => c.id))}
                 />
-                <SelectionMenuItem
-                  label={allMuted ? t('select.unmute') : t('select.mute')}
-                  onSelect={() => {
-                    if (!allMuted) {
-                      // Muting asks *how long* rather than whether, which is a
-                      // sheet of its own.
-                      setMuting(selected);
-                      return;
-                    }
-                    void (async () => {
-                      const go = await confirmUnmute(selected.length, only?.title);
-                      if (go) andClose(actions.mute(selected.map((c) => c.id), null));
-                    })();
-                  }}
-                />
+                {/* PINGO AI is a built-in tool: a selection that includes it cannot be muted. */}
+                {(allMuted || !selected.some((c) => !c.muted && isInbuiltAi(c))) && (
+                  <SelectionMenuItem
+                    label={allMuted ? t('select.unmute') : t('select.mute')}
+                    onSelect={() => {
+                      if (!allMuted) {
+                        // Muting asks *how long* rather than whether, which is a
+                        // sheet of its own.
+                        setMuting(selected);
+                        return;
+                      }
+                      void (async () => {
+                        const go = await confirmUnmute(selected.length, only?.title);
+                        if (go) andClose(actions.mute(selected.map((c) => c.id), null));
+                      })();
+                    }}
+                  />
+                )}
                 <SelectionMenuItem
                   label="Lock chat"
                   onSelect={() => {

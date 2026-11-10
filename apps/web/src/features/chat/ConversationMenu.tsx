@@ -187,25 +187,28 @@ export function ConversationMenu({
             label={conversation.favorite ? t('select.removeFav') : t('select.addFav')}
             onSelect={() => run(actions.favorite(id, !conversation.favorite))}
           />
-          <Item
-            label={
-              conversation.muted
-                ? (formatMuteUntil(conversation.mutedUntil) ?? t('menu.mute')) +
-                  ' · ' +
-                  t('select.unmute')
-                : t('select.mute')
-            }
-            onSelect={() => {
-              setOpen(false);
-              if (!conversation.muted) {
-                setMuting(true);
-                return;
+          {/* PINGO AI is a built-in tool: it can be un-muted, never muted. */}
+          {(conversation.muted || !isInbuiltAi(conversation)) && (
+            <Item
+              label={
+                conversation.muted
+                  ? (formatMuteUntil(conversation.mutedUntil) ?? t('menu.mute')) +
+                    ' · ' +
+                    t('select.unmute')
+                  : t('select.mute')
               }
-              void (async () => {
-                if (await confirmUnmute(1, conversation.title)) await actions.mute(id, null);
-              })();
-            }}
-          />
+              onSelect={() => {
+                setOpen(false);
+                if (!conversation.muted) {
+                  setMuting(true);
+                  return;
+                }
+                void (async () => {
+                  if (await confirmUnmute(1, conversation.title)) await actions.mute(id, null);
+                })();
+              }}
+            />
+          )}
           <Item
             label={t('menu.addToList')}
             onSelect={() => {

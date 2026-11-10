@@ -39,6 +39,7 @@ import { useConfirm } from '../../components/ConfirmProvider.js';
 import { AchievementMark } from '../achievements/AchievementArt.js';
 import { useAchievements } from '../achievements/useAchievements.js';
 import { MuteSheet } from '../conversations/MuteSheet.js';
+import { isInbuiltAi } from '../conversations/inbuilt-chat.js';
 import { useConversationActions } from '../conversations/useConversationActions.js';
 import { useUnmuteConfirm } from '../conversations/useUnmuteConfirm.js';
 import { disappearingLabel } from './ConversationMenu.js';
@@ -272,9 +273,12 @@ function ChatInfoPage({
         )}
 
         <div className="grid grid-cols-4 gap-2">
-          <Tile icon={conversation.muted ? <Bell size={21} /> : <BellOff size={21} />} onClick={toggleMute}>
-            {conversation.muted ? 'Unmute' : 'Mute'}
-          </Tile>
+          {/* PINGO AI is a built-in tool: it can be un-muted, never muted. */}
+          {(conversation.muted || !isInbuiltAi(conversation)) && (
+            <Tile icon={conversation.muted ? <Bell size={21} /> : <BellOff size={21} />} onClick={toggleMute}>
+              {conversation.muted ? 'Unmute' : 'Mute'}
+            </Tile>
+          )}
           <Tile icon={<Search size={21} />} onClick={onSearch}>
             Search
           </Tile>
