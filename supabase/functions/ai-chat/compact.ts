@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { safeStringify } from './well-formed.ts';
 
 /** Messages kept word for word after a compaction, so the next reply still has the thread in hand. */
 const COMPACT_KEEP = 6;
@@ -55,7 +56,7 @@ export async function compactChat(
   const res = await fetch(`${base}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body: safeStringify({
       model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna',
       reasoning: { effort: 'none' },
       max_output_tokens: 1800,

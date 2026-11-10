@@ -19,6 +19,7 @@
  */
 
 import { asMood, takeMood } from './responses-events.ts';
+import { safeStringify } from './well-formed.ts';
 import { instructionsBlock, languageLabel, lengthBlock, type ProfileVoice } from './profile-prompt.ts';
 
 // deno-lint-ignore no-explicit-any
@@ -233,7 +234,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         Authorization: `Bearer ${Deno.env.get('SPICY_API_KEY')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: safeStringify({
         model,
         /*
          * Plain text and nothing else: no reasoning, no tools, no search.

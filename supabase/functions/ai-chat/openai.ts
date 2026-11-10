@@ -14,6 +14,7 @@
  */
 
 import { relaxRequest, ResponsesStream, SseSplitter, type StreamHooks } from './responses-events.ts';
+import { safeStringify } from './well-formed.ts';
 
 export type { DrawnImage, FunctionCall, Source } from './responses-events.ts';
 
@@ -193,7 +194,7 @@ function post(o: StreamOptions, body: Record<string, unknown>): Promise<Response
   return fetch(`${o.base}/responses`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${o.apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: safeStringify(body),
     ...(o.signal ? { signal: o.signal } : {}),
   });
 }

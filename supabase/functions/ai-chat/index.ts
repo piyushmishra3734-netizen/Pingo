@@ -45,6 +45,7 @@ import { reasoningDemand, type Demand } from './demand.ts';
 import { generateImage } from './generate-image.ts';
 import { windowIndices } from './history-window.ts';
 import { lunaTurn, openaiCanDraw, type AiMeta } from './luna.ts';
+import { safeStringify } from './well-formed.ts';
 import { compactChat, serviceClient } from './compact.ts';
 import { firstWordsTitle, nameSideChat, nameSideChatFromMessage, sideChatNeedsTitle } from './side-chat.ts';
 import type { ChatRow } from './side-chat-title.ts';
@@ -1473,7 +1474,7 @@ async function callOneModel(
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: safeStringify({
         model,
         messages,
         temperature: opts.temperature,
