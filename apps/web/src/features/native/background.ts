@@ -17,7 +17,7 @@ interface BackgroundPlugin {
 }
 
 /** Which switch: the phone's autostart list, or this app's battery choice. */
-export type SettingsTarget = 'autostart' | 'battery';
+export type SettingsTarget = 'autostart' | 'battery' | 'notifications';
 
 const plugin = registerPlugin<BackgroundPlugin>('Background');
 

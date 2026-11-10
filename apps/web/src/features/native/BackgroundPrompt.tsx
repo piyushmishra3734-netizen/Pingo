@@ -1,85 +1,95 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import '../auth/paper.css';
 
-import { askBackground, isStrictMaker, openBackgroundSettings, useBackgroundStatus, type SettingsTarget } from './background.js';
+import { usePushPermission } from '../notifications/usePushPermission.js';
+import { askBackground, canAskBackground, isStrictMaker, openBackgroundSettings, useBackgroundStatus, type SettingsTarget } from './background.js';
 
 /**
- * Asks, on Android, to let PINGO keep running in the background.
+ * Asks, on Android, for the three things that let PINGO reach somebody who is
+ * not looking at it: notifications, running in the background, and (on phones
+ * that keep their own list) Autostart.
  *
- * Once at first, a few seconds after the app opens so it never lands on top
- * of the splash or the update card, and again a week after a "Not now". The
- * system's own dialog does the actual granting; this only says why, so the
- * person is not handed a bare "allow this app to run in the background?" with
- * no reason given.
+ * On every launch until all of them are on - not once, not once a week. A phone
+ * that has any of these off silently drops messages and calls, and the person
+ * only finds out when somebody says "I messaged you". "Not now" closes it for
+ * this launch only; the next one asks again. It never shows over the splash or
+ * the update card (a few seconds' wait), and never twice in one launch.
  *
- * On phones that stop apps beyond what Android asks (Xiaomi, Oppo, Vivo and
- * the rest), a second step points at the app's settings for Autostart, since
- * the system dialog alone is not enough there.
+ * Notifications and the background choice are read from the phone, so they
+ * tick themselves when the person comes back from the system. Autostart cannot
+ * be read at all - each maker keeps it somewhere of its own - so it counts as
+ * done once the person has opened that page and pressed Done.
  */
 
-const KEY = 'pingo:background-asked';
-const AGAIN_AFTER = 7 * 24 * 3600_000;
 const DELAY = 4000;
+const AUTOSTART_KEY = 'pingo:autostart-confirmed';
 
-function due(): boolean {
+/** One ask per launch, however many times this mounts. */
+let askedThisLaunch = false;
+
+function autostartConfirmed(): boolean {
   try {
-    const at = Number(localStorage.getItem(KEY) || 0);
-    return !at || Date.now() - at > AGAIN_AFTER;
+    return localStorage.getItem(AUTOSTART_KEY) === '1';
   } catch {
     return false;
   }
 }
 
-function remember() {
+function confirmAutostart() {
   try {
-    localStorage.setItem(KEY, String(Date.now()));
+    localStorage.setItem(AUTOSTART_KEY, '1');
   } catch {
     // Not kept: asked again next launch, which is harmless.
   }
 }
 
-const maker = (m: string) => (m ? m.charAt(0).toUpperCase() + m.slice(1) : 'this phone');
-
-/** Dev builds only: `?background-preview` shows it in a browser, as a Xiaomi phone that has not allowed it. */
+/** Dev builds only: `?background-preview` shows it in a browser, as a Xiaomi phone with everything off. */
 const PREVIEW = import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).has('background-preview');
 
 export function BackgroundPrompt() {
-  const live = useBackgroundStatus();
-  const [preview, setPreview] = useState(PREVIEW ? { unrestricted: false, manufacturer: 'xiaomi' } : undefined);
-  const status = preview ?? live;
-  const [step, setStep] = useState<'hidden' | 'ask' | 'waiting' | 'autostart'>('hidden');
-  /** The status when the system dialog was opened: the answer is the next one read after it. */
-  const askedWith = useRef<typeof status>(undefined);
-  /** Which of the phone's own pages were opened from the second step, ticked off by hand. */
-  const [visited, setVisited] = useState<Set<SettingsTarget>>(new Set());
+  const background = useBackgroundStatus();
+  const push = usePushPermission();
+  const [open, setOpen] = useState(false);
+  const [autostartOpened, setAutostartOpened] = useState(false);
+  const [confirmed, setConfirmed] = useState(autostartConfirmed);
 
-  // First the wait, so it never shows over the splash or the update card.
+  const native = PREVIEW || canAskBackground();
+  const maker = PREVIEW ? 'xiaomi' : (background?.manufacturer ?? '');
+  const strict = isStrictMaker(maker);
+  const notificationsOff = PREVIEW || push.state === 'ask' || push.state === 'blocked';
+  const backgroundOff = PREVIEW || (background !== undefined && !background.unrestricted);
+  const autostartOff = strict && !confirmed;
+  const anyOff = notificationsOff || backgroundOff || autostartOff;
+  const known = PREVIEW || (background !== undefined && push.state !== 'checking');
+
+  // After the wait, once per launch, and only if something is still off.
   useEffect(() => {
-    if (!status || status.unrestricted || step !== 'hidden' || (!PREVIEW && !due())) return undefined;
-    const t = window.setTimeout(() => setStep('ask'), DELAY);
+    if (!native || !known || askedThisLaunch || !anyOff) return undefined;
+    const t = window.setTimeout(() => {
+      askedThisLaunch = true;
+      setOpen(true);
+    }, DELAY);
     return () => window.clearTimeout(t);
-    // Only on the first answer; later changes are handled below.
+    // The first complete answer decides; later changes are handled below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status === undefined]);
+  }, [native, known]);
 
-  // Back from the system dialog: allowed, or not.
+  // Everything is on (the person came back from Settings): nothing left to ask.
   useEffect(() => {
-    if (step !== 'waiting' || !status || status === askedWith.current) return;
-    if (status.unrestricted) setStep(isStrictMaker(status.manufacturer) ? 'autostart' : 'hidden');
-    else setStep('hidden');
-  }, [status, step]);
+    if (open && known && !anyOff) setOpen(false);
+  }, [open, known, anyOff]);
 
-  if (step === 'hidden' || step === 'waiting' || !status) return null;
+  if (!open || !native) return null;
 
-  const close = () => {
-    remember();
-    setStep('hidden');
+  const name = maker ? maker.charAt(0).toUpperCase() + maker.slice(1) : 'your phone';
+
+  const notifications = () => {
+    if (push.state === 'blocked') void openBackgroundSettings('notifications');
+    else void push.ask();
   };
-
-  const name = maker(status.manufacturer);
   const visit = (target: SettingsTarget) => {
-    setVisited((v) => new Set(v).add(target));
+    if (target === 'autostart') setAutostartOpened(true);
     void openBackgroundSettings(target);
   };
 
@@ -93,86 +103,56 @@ export function BackgroundPrompt() {
         {/* A note taped to the page: the same paper as sign-in and calls. */}
         <div className="paper-note -rotate-[0.8deg] px-5 pt-7 pb-5">
           <span aria-hidden className="paper-tape -top-3 left-1/2 w-24 -translate-x-1/2 -rotate-3" />
-          {step === 'ask' ? (
-            <>
-              <p className="paper-hand text-[24px] leading-none">psst,</p>
-              <h2 id="bg-title" className="mt-1.5 text-[25px] leading-tight font-bold tracking-[-0.01em] text-ink">
-                Keep PINGO <span className="paper-marker">running</span>
-              </h2>
-              <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-                Your phone pauses apps it thinks you are not using. Let PINGO stay awake in the background, and:
-              </p>
-              <ol className="mt-3.5 flex flex-col gap-2">
-                <Line n="1">messages arrive on time</Line>
-                <Line n="2">calls ring even when PINGO is closed</Line>
-                <Line n="3">music keeps playing with the screen off</Line>
-              </ol>
-            </>
-          ) : (
-            <>
-              <p className="paper-hand text-[24px] leading-none">one more thing,</p>
-              <h2 id="bg-title" className="mt-1.5 text-[25px] leading-tight font-bold tracking-[-0.01em] text-ink">
-                On {name}, turn on <span className="paper-marker">Autostart</span>
-              </h2>
-              <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">{name} phones stop apps on their own, even after Android says yes. Tap each one, switch it on, and come back:</p>
-              <ol className="mt-3 flex flex-col">
-                <Go n="1" done={visited.has('autostart')} onClick={() => visit('autostart')}>
-                  Autostart: on
-                </Go>
-                <Go n="2" done={visited.has('battery')} onClick={() => visit('battery')}>
-                  Battery: No restrictions
-                </Go>
-              </ol>
-            </>
-          )}
+          <p className="paper-hand text-[24px] leading-none">psst,</p>
+          <h2 id="bg-title" className="mt-1.5 text-[25px] leading-tight font-bold tracking-[-0.01em] text-ink">
+            Let PINGO <span className="paper-marker">reach you</span>
+          </h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
+            With these off, {name === 'your phone' ? 'your phone' : `${name} phones`} quietly drop messages and calls. Turn each one on, then come back:
+          </p>
+          <ol className="mt-3 flex flex-col">
+            <Go n="1" done={!notificationsOff} onClick={notifications}>
+              Notifications: on
+            </Go>
+            <Go n="2" done={!backgroundOff} onClick={() => void askBackground()}>
+              Run in the background: allow
+            </Go>
+            {strict && (
+              <Go n="3" done={confirmed || autostartOpened} onClick={() => visit('autostart')}>
+                Autostart: on
+              </Go>
+            )}
+          </ol>
         </div>
 
         <button
           type="button"
           onClick={() => {
-            if (step === 'ask') {
-              remember();
-              askedWith.current = status;
-              setStep('waiting');
-              if (PREVIEW) setPreview({ unrestricted: true, manufacturer: 'xiaomi' });
-              else void askBackground();
-            } else {
-              close();
+            if (strict && autostartOpened) {
+              confirmAutostart();
+              setConfirmed(true);
             }
+            setOpen(false);
           }}
           className="focus-ring mt-7 h-12 w-full rounded-xl bg-ink text-[16px] font-semibold text-page shadow-[0_10px_20px_-12px_rgba(20,18,23,0.7)] active:scale-[0.98]"
         >
-          {step === 'ask' ? 'Allow' : 'Done'}
+          Done
         </button>
-        {step === 'ask' && (
-          <button type="button" onClick={close} className="focus-ring mt-1.5 h-11 w-full rounded-xl text-[15px] font-medium text-text-secondary">
-            Not now
-          </button>
-        )}
+        <button type="button" onClick={() => setOpen(false)} className="focus-ring mt-1.5 h-11 w-full rounded-xl text-[15px] font-medium text-text-secondary">
+          Not now
+        </button>
       </div>
     </div>
   );
 }
 
-/** A numbered line, the number written by hand. */
-function Line({ n, children }: { n: string; children: ReactNode }) {
-  return (
-    <li className="flex items-baseline gap-3 text-[15px] text-ink">
-      <span aria-hidden className="paper-hand w-4 shrink-0 text-center text-[20px] leading-none">
-        {n}
-      </span>
-      {children}
-    </li>
-  );
-}
-
-/** A line that opens the phone's exact settings page for it, and is ticked once it has been. */
+/** A numbered line that does its thing when tapped, and is ticked once it is on. */
 function Go({ n, done, onClick, children }: { n: string; done: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <li className="border-b border-dashed border-[var(--paper-doodle)] last:border-0">
-      <button type="button" onClick={onClick} className="flex w-full items-center gap-3 py-3 text-left text-[15px] text-ink">
+      <button type="button" onClick={onClick} disabled={false} className="flex w-full items-center gap-3 py-3 text-left text-[15px] text-ink">
         <span aria-hidden className="paper-hand w-4 shrink-0 text-center text-[20px] leading-none">
-          {done ? '\u2713' : n}
+          {done ? '✓' : n}
         </span>
         <span className={done ? 'flex-1 text-text-secondary line-through decoration-[#e0559b]/60' : 'flex-1 font-medium'}>{children}</span>
         <span className="shrink-0 text-[13px] font-semibold text-ink underline decoration-[var(--paper-marker)] decoration-[3px] underline-offset-4">

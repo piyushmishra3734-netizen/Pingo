@@ -84,6 +84,19 @@ public class BackgroundPlugin extends Plugin {
         String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase();
         String pkg = getContext().getPackageName();
 
+        if ("notifications".equals(target)) {
+            // This app's notification page, where a refused permission is turned back on.
+            Intent notifications = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            notifications.putExtra(Settings.EXTRA_APP_PACKAGE, pkg);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && start(notifications)) {
+                call.resolve();
+                return;
+            }
+            start(appSettings());
+            call.resolve();
+            return;
+        }
+
         if ("autostart".equals(target)) {
             for (String[] c : autostartPages(maker)) {
                 if (start(component(c[0], c[1]))) {

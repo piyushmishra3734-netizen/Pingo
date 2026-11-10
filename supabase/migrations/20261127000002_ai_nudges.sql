@@ -34,7 +34,9 @@ alter table public.ai_nudges enable row level security;
 
 create or replace function public.ai_nudge_candidates(
   p_limit integer default 5,
-  p_idle interval default interval '2 days'
+  p_idle interval default interval '2 days',
+  -- Only a dry run sets this: it reads what would be written without caring what time it is for them.
+  p_any_hour boolean default false
 )
 returns table (user_id uuid, conversation_id uuid)
 language sql
@@ -64,9 +66,9 @@ as $$
            coalesce((select max(x.created_at) from public.messages x where x.sender_id = m.user_id), 'epoch'::timestamptz),
            coalesce((select max(d.last_seen_at) from public.device_tokens d where d.user_id = m.user_id), 'epoch'::timestamptz)
          ) < now() - p_idle
-     and extract(hour from (now() at time zone 'utc') + make_interval(
+     and (p_any_hour or extract(hour from (now() at time zone 'utc') + make_interval(
            mins => coalesce(nullif((select p.utc_offset_minutes from public.notification_prefs p where p.user_id = m.user_id), 0), 330)
-         )) between 10 and 20
+         )) between 10 and 20)
      and not exists (
        select 1 from public.ai_nudges n
         where n.user_id = m.user_id and n.sent_at > now() - interval '5 days'
@@ -79,8 +81,8 @@ as $$
    order by random()
    limit p_limit;
 $$;
-revoke all on function public.ai_nudge_candidates(integer, interval) from public, anon, authenticated;
-grant execute on function public.ai_nudge_candidates(integer, interval) to service_role;
+revoke all on function public.ai_nudge_candidates(integer, interval, boolean) from public, anon, authenticated;
+grant execute on function public.ai_nudge_candidates(integer, interval, boolean) to service_role;
 
 -- What the cron job runs: ask the edge function to do one round. Same shared
 -- secret as the push trigger; it never carries the service role key.

@@ -101,7 +101,11 @@ Deno.serve(async (request) => {
   });
 
   const { data: botId } = await admin.rpc('pingo_ai_user_id');
-  const { data: candidates, error } = await admin.rpc('ai_nudge_candidates', { p_limit: dry ? 3 : MAX_PER_ROUND });
+  // A dry run reads sample lines for anybody who has talked to PINGO AI (any idle time, any hour) and sends nothing.
+  const { data: candidates, error } = await admin.rpc(
+    'ai_nudge_candidates',
+    dry ? { p_limit: 4, p_idle: '0 seconds', p_any_hour: true } : { p_limit: MAX_PER_ROUND },
+  );
   if (error || !botId) {
     console.error('[ai-nudge] candidates', error?.message ?? 'no bot id');
     return new Response('failed', { status: 500 });
@@ -153,5 +157,6 @@ Deno.serve(async (request) => {
     results.push({ sent: true, text });
   }
 
-  return Response.json({ dry, candidates: (candidates ?? []).length, results });
+  const { data: due } = dry ? await admin.rpc('ai_nudge_candidates', { p_limit: 100 }) : { data: null };
+  return Response.json({ dry, candidates: (candidates ?? []).length, ...(dry ? { wouldSendRightNow: (due ?? []).length } : {}), results });
 });
