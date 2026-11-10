@@ -140,7 +140,7 @@ export function quoteText(message: Message): string {
   if (message.location) return message.location.label ?? 'Location';
   if (message.contact) return message.contact.name;
   if (message.event) return message.event.title;
-  if (message.photo) return message.body.trim() || 'Photo';
+  if (message.photo) return message.body.trim() || (message.photo.drawing ? 'Drawing' : 'Photo');
   if (message.ping) return 'Ping';
   if (message.sticker) return 'Sticker';
   if (message.attachments.some((a) => a.kind === 'audio')) return 'Voice message';

@@ -208,6 +208,8 @@ function messageLine(request: PushRequest): string {
   const text = request.text?.replace(/\s+/g, ' ').trim();
   if (text && request.messageKind !== 'snap') return text.slice(0, 300);
   switch (request.messageKind) {
+    case 'drawing':
+      return 'Drawing';
     case 'photo':
     case 'image':
       return 'Photo';

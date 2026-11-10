@@ -195,7 +195,7 @@ export function messagePreview(
   if (card) return card;
   if (/\/nick\?u=/.test(text)) return text.split('\n')[0] ?? 'Nickname changed';
   // Attachment kinds carry no body, so each says what it is.
-  if (!text && message.photo) text = 'Photo';
+  if (!text && message.photo) text = message.photo.drawing ? 'Drawing' : 'Photo';
   if (!text && message.location) text = message.location.label ?? 'Location';
   if (!text && message.contact) text = message.contact.name;
   if (!text && message.event) text = message.event.title;
