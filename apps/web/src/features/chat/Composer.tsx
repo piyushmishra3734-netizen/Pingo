@@ -12,7 +12,7 @@ import { EmojiPicker } from '../emoji/EmojiPicker.js';
 import { useVoiceRecorder, type Recording } from './useVoiceRecorder.js';
 import { VoiceRecorderBar } from './VoiceRecorderBar.js';
 import { ChatMusicPicker } from '../music/ChatMusicPicker.js';
-import { songBody } from '../music/song-share.js';
+import { songBody, soundBody } from '../music/song-share.js';
 import { ExplorePicker } from '../explore/ExplorePicker.js';
 import { StickerPicker } from '../stickers/StickerPicker.js';
 import { PolishPanel } from '../polish/PolishPanel.js';
@@ -612,6 +612,12 @@ export function Composer({
           ) : tab === 'explore' ? (
             <ExplorePicker
               onSelect={(item) => {
+                if (item.kind === 'sound') {
+                  // A sound is sent as a link to Freesound's own copy: nothing is uploaded or stored here.
+                  setPickerOpen(false);
+                  void Promise.resolve(onSend(soundBody({ name: item.title, by: item.by?.name ?? 'Freesound', url: item.url, secs: item.secs ?? 0 }))).catch(() => setError('That sound could not be sent.'));
+                  return;
+                }
                 // Sent the way a sticker is: the whole message, no bubble. The words are what shows where the picture cannot.
                 const words = item.kind === 'photo' ? `Photo${item.by ? ` by ${item.by.name}` : ''} · Pexels` : item.kind === 'gif' ? 'GIF' : 'Sticker';
                 void onSendSticker?.({ id: item.id, name: words, category: 'meme', url: item.url, format: 'webp', keywords: [] });

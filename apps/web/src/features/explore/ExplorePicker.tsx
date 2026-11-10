@@ -18,6 +18,7 @@ const SOURCES: { id: ExploreSource; label: string }[] = [
   { id: 'gifs', label: 'GIFs' },
   { id: 'stickers', label: 'Stickers' },
   { id: 'photos', label: 'Photos' },
+  { id: 'sounds', label: 'Sounds' },
 ];
 
 /** Where the next tile goes: the column that is shorter so far, by the tile's own shape. */
@@ -44,6 +45,28 @@ export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => v
   const scroller = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const request = useRef(0);
+  // A sound is tried before it is sent: one at a time, played from where it lives.
+  const preview = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState<string>();
+
+  const stopPreview = useCallback(() => {
+    preview.current?.pause();
+    preview.current = null;
+    setPlaying(undefined);
+  }, []);
+  useEffect(() => stopPreview, [stopPreview]);
+  useEffect(() => stopPreview(), [source, query, stopPreview]);
+
+  const tryOut = (item: ExploreItem) => {
+    if (playing === item.id) return stopPreview();
+    stopPreview();
+    const audio = new Audio(item.url);
+    preview.current = audio;
+    setPlaying(item.id);
+    audio.onended = () => preview.current === audio && stopPreview();
+    audio.onerror = () => preview.current === audio && stopPreview();
+    void audio.play().catch(() => preview.current === audio && stopPreview());
+  };
 
   // One request per pause in typing.
   useEffect(() => {
@@ -98,12 +121,17 @@ export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => v
   }, [next, loading, items.length, load]);
 
   const columns = split(items);
-  const credit = source === 'photos' ? { text: 'Photos provided by Pexels', url: 'https://www.pexels.com' } : { text: 'Powered by GIPHY', url: 'https://giphy.com' };
+  const credit =
+    source === 'photos'
+      ? { text: 'Photos provided by Pexels', url: 'https://www.pexels.com' }
+      : source === 'sounds'
+        ? { text: 'Sounds from Freesound (CC0)', url: 'https://freesound.org' }
+        : { text: 'Powered by GIPHY', url: 'https://giphy.com' };
 
   return (
     <div className="flex h-full flex-col">
       <div className="px-2.5 pt-2.5">
-        <SearchField value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={source === 'photos' ? 'Search photos' : source === 'gifs' ? 'Search GIFs' : 'Search stickers'} aria-label="Search Explore" />
+        <SearchField value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={source === 'photos' ? 'Search photos' : source === 'gifs' ? 'Search GIFs' : source === 'sounds' ? 'Search sounds: bruh, airhorn…' : 'Search stickers'} aria-label="Search Explore" />
       </div>
       <div role="tablist" aria-label="Explore" className="flex shrink-0 gap-1.5 px-2.5 py-2">
         {SOURCES.map((s) => (
@@ -121,7 +149,34 @@ export function ExplorePicker({ onSelect }: { onSelect: (item: ExploreItem) => v
       </div>
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-2">
-        {items.length > 0 && (
+        {items.length > 0 && source === 'sounds' && (
+          <ul className="flex flex-col gap-1.5">
+            {items.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 rounded-[14px] bg-hover p-1.5">
+                <button
+                  type="button"
+                  onClick={() => tryOut(item)}
+                  aria-label={playing === item.id ? `Stop ${item.title}` : `Play ${item.title}`}
+                  className="focus-ring grid size-10 shrink-0 place-items-center rounded-full bg-ink text-[15px] text-page active:scale-95"
+                >
+                  {playing === item.id ? '❚❚' : '▶'}
+                </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-semibold text-ink">{item.title}</span>
+                  <span className="block truncate text-[12px] text-text-tertiary">
+                    {item.secs ? `${item.secs}s` : ''}
+                    {item.by ? ` · ${item.by.name}` : ''}
+                  </span>
+                </span>
+                <button type="button" onClick={() => onSelect(item)} aria-label={`Send ${item.title}`} className="focus-ring h-9 shrink-0 rounded-full bg-brand px-3.5 text-[13px] font-semibold text-white active:scale-95">
+                  Send
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {items.length > 0 && source !== 'sounds' && (
           <div className="flex items-start gap-2">
             {columns.map((column, c) => (
               <div key={c} className="flex min-w-0 flex-1 flex-col gap-2">

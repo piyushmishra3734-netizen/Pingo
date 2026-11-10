@@ -21,7 +21,10 @@
  * Pexels photos always carry the photographer and the page they came from, as
  * its terms ask. GIPHY is asked for PG and below. Nothing here is saved.
  *
- * Body: { src: 'pexels' | 'giphy', kind?: 'gifs' | 'stickers', q?: string, page?: number }
+ * Sounds come from Freesound (FREESOUND_API_KEY): the preview each one has on
+ * Freesound's own CDN, which the app plays directly.
+ *
+ * Body: { src: 'pexels' | 'giphy' | 'freesound', kind?: 'gifs' | 'stickers', q?: string, page?: number }
  * Answer: { items: Item[], next: number | null }
  */
 
@@ -33,8 +36,10 @@ const CORS = {
 
 export interface Item {
   id: string;
-  src: 'pexels' | 'giphy';
-  kind: 'photo' | 'gif' | 'sticker';
+  src: 'pexels' | 'giphy' | 'freesound';
+  kind: 'photo' | 'gif' | 'sticker' | 'sound';
+  /** Length in seconds, for sounds. */
+  secs?: number;
   /** The grid's picture. */
   thumb: string;
   /** What is sent. */
@@ -171,6 +176,52 @@ async function giphy(kind: 'gifs' | 'stickers', q: string, page: number, key: st
   return { items, next: offset + PER_PAGE < Math.min(total, 500) ? page + 1 : null };
 }
 
+interface FreesoundHit {
+  id?: number;
+  name?: string;
+  username?: string;
+  duration?: number;
+  previews?: Record<string, string | undefined>;
+  images?: Record<string, string | undefined>;
+}
+
+/**
+ * Sounds from Freesound: CC0 only (no credit owed), 15 seconds or shorter, the
+ * most downloaded first. What is sent on is the preview Freesound serves from
+ * its own CDN; Pingo copies and stores nothing.
+ */
+async function freesound(q: string, page: number, key: string) {
+  const query = new URLSearchParams({
+    query: q || 'meme',
+    filter: 'license:"Creative Commons 0" duration:[0 TO 15]',
+    sort: 'downloads_desc',
+    fields: 'id,name,username,duration,previews,images',
+    page_size: String(PER_PAGE),
+    page: String(page),
+    token: key,
+  });
+  const body = (await upstream(`https://freesound.org/apiv2/search/text/?${query}`)) as { results?: FreesoundHit[]; next?: string | null } | undefined;
+  if (!body) return undefined;
+  const items: Item[] = [];
+  for (const h of body.results ?? []) {
+    const url = https(h.previews?.['preview-hq-mp3']) || https(h.previews?.['preview-lq-mp3']);
+    if (!url || typeof h.id !== 'number') continue;
+    items.push({
+      id: `freesound-${h.id}`,
+      src: 'freesound',
+      kind: 'sound',
+      thumb: https(h.images?.waveform_m),
+      url,
+      w: 1,
+      h: 1,
+      title: clip(h.name, 100).replace(/\.(wav|mp3|ogg|flac|aif+)$/i, '') || 'Sound',
+      secs: Math.max(0, Math.round((h.duration ?? 0) * 10) / 10),
+      by: { name: clip(h.username, 40) || 'Freesound', url: `https://freesound.org/s/${h.id}/` },
+    });
+  }
+  return { items, next: body.next ? page + 1 : null };
+}
+
 export async function handle(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (request.method !== 'POST') return json({ error: 'POST only.' }, 405);
@@ -187,18 +238,18 @@ export async function handle(request: Request): Promise<Response> {
   }
   const q = clip(ask.q, 80);
   const page = Math.min(Math.max(Math.round(Number(ask.page) || 1), 1), 20);
-  const src = ask.src === 'giphy' ? 'giphy' : ask.src === 'pexels' ? 'pexels' : undefined;
+  const src = ask.src === 'giphy' ? 'giphy' : ask.src === 'pexels' ? 'pexels' : ask.src === 'freesound' ? 'freesound' : undefined;
   if (!src) return json({ error: 'Unknown source.' }, 400);
   const kind = ask.kind === 'stickers' ? 'stickers' : 'gifs';
 
-  const key = src === 'pexels' ? Deno.env.get('PEXELS_API_KEY') : Deno.env.get('GIPHY_API_KEY');
+  const key = Deno.env.get(src === 'pexels' ? 'PEXELS_API_KEY' : src === 'freesound' ? 'FREESOUND_API_KEY' : 'GIPHY_API_KEY');
   if (!key) return json({ error: 'not_configured' }, 503);
 
   const cacheKey = `${src}|${kind}|${q.toLowerCase()}|${page}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < FRESH_MS) return json(hit.value);
 
-  const value = src === 'pexels' ? await pexels(q, page, key) : await giphy(kind, q, page, key);
+  const value = src === 'pexels' ? await pexels(q, page, key) : src === 'freesound' ? await freesound(q, page, key) : await giphy(kind, q, page, key);
   if (!value) return json({ error: 'upstream' }, 502);
 
   cache.set(cacheKey, { at: Date.now(), value });

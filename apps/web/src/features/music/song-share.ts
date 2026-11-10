@@ -29,6 +29,15 @@ export function songBody(song: Song): string {
   return `Shared a song: ${song.name}${song.artist ? ` · ${song.artist}` : ''}\n${publicAppUrl(`/song?${q.toString()}`)}`;
 }
 
+/**
+ * A meme sound from Freesound: the song card again, played from Freesound's own
+ * address, so Pingo stores and serves nothing.
+ */
+export function soundBody(sound: { name: string; by: string; url: string; secs: number }): string {
+  const q = new URLSearchParams({ n: sound.name, a: sound.by, i: '', u: sound.url, d: String(Math.ceil(sound.secs)) });
+  return `Shared a sound: ${sound.name}\n${publicAppUrl(`/song?${q.toString()}`)}`;
+}
+
 const SAFE = /^https:\/\//;
 /** Demo builds play uploads from memory; nothing but a dev build accepts that. */
 const playable = (url: string) => SAFE.test(url) || (import.meta.env.DEV && url.startsWith('blob:'));
