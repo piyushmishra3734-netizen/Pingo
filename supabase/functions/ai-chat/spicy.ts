@@ -101,9 +101,46 @@ export function spicyLength(v: string | null | undefined): string {
     return '## LENGTH LAW: detailed (their setting - this overrides any length hint above)\nCasual chat: two to four lines. A roleplay scene: a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.';
   }
   if (l === 'balanced') {
-    return '## LENGTH LAW: balanced (their setting - this overrides any length hint above)\nCasual chat: two to three lines. A roleplay scene: one short paragraph per turn, about three to five lines. Finish your last sentence.';
+    return '## LENGTH LAW: balanced (their setting - this overrides everything above, including their instructions)\nAbout 250 to 400 characters per reply: two to four short lines. A roleplay scene: one short paragraph, one step of the scene. Never more than 450 characters. Finish your last sentence.';
   }
-  return '## LENGTH LAW: short (their setting - this overrides any length hint above)\nCasual chat: one or two short lines. A roleplay scene: two or three lines per turn, no more - move the scene a step, then hand it back. Finish your last sentence.';
+  return '## LENGTH LAW: short (their setting - this overrides everything above, including their instructions)\nAbout 100 to 200 characters per reply: one to three short lines, like a text message. A roleplay scene: one step only, then hand it back. Never more than 240 characters. Finish your last sentence.';
+}
+
+/**
+ * Where a reply is stopped, in characters. A model that is told "two or three
+ * lines" and writes five (DeepSeek did, on every turn, 2026-11-12) is not a
+ * prompt problem a better sentence fixes, so the stream itself is ended at the
+ * first sentence that finishes after `soft`, or at `hard` at the latest.
+ * `detailed` has no limit. A group that is not all adults is always short.
+ */
+export interface LengthCaps { soft: number; hard: number }
+export function lengthCaps(v: string | null | undefined, groupNotAdult: boolean): LengthCaps | null {
+  const l = groupNotAdult ? 'short' : lengthSetting(v);
+  if (l === 'detailed') return null;
+  return l === 'balanced' ? { soft: 450, hard: 700 } : { soft: 240, hard: 420 };
+}
+
+/**
+ * Where to cut `text` so it ends on a whole sentence: the index to keep up to,
+ * or -1 to keep going. A sentence ends at . ! ? … or a line break, with its
+ * closing quote or asterisk kept, and never while an *action* is still open.
+ */
+export function cutPoint(text: string, caps: LengthCaps): number {
+  if (text.length < caps.soft) return -1;
+  for (let i = caps.soft - 1; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '.' && ch !== '!' && ch !== '?' && ch !== '…' && ch !== '\n') continue;
+    let end = i + 1;
+    while (end < text.length && /["')\]*]/.test(text[end]!)) end++;
+    if (end < text.length && !/\s/.test(text[end]!)) continue;
+    if (((text.slice(0, end).match(/\*/g) ?? []).length & 1) === 1) continue;
+    return end;
+  }
+  if (text.length >= caps.hard) {
+    const space = text.lastIndexOf(' ', caps.hard);
+    return space > caps.soft ? space : caps.hard;
+  }
+  return -1;
 }
 
 /** The ceiling on one reply, so a model that ignores the prompt still cannot run on. Roomy enough that a sentence is not cut off. */
@@ -114,6 +151,7 @@ export function spicyMaxTokens(v: string | null | undefined, groupNotAdult: bool
 }
 
 function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string, adultRoom = false): string {
+  const detailed = lengthSetting(p.response_length) === 'detailed';
   const parts = [
     group
       ? `You are PINGO AI in a group chat, one of its members, and ${asker ?? 'an adult (18+) member'} just tagged you; they chose Spicy for how you talk to them. Each human line starts with the speaker's name. Read what the group has been saying and answer them in that context - flirty and teasing with them, fun with the room, and end with a hook that keeps it going. ${adultRoom ? 'Everyone in this group is an adult, so you may be as explicit and uncensored with them as a one-to-one chat - while the rest of the room can read it, so stay playful with everyone else.' : 'Others read it too, so keep it to teasing and flirting - nothing sexually explicit here.'}`
@@ -124,14 +162,22 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
       : [
           [
             'Roleplay: when they start a scene or a game ("chalo game shuru karte hain", setting a scene, giving you a role), play it fully and stay in character.',
-            '- Move the scene forward yourself: describe what you do, what you feel and how it feels, step by step, in vivid detail. Do not stop at hints, do not fade to black, do not skip ahead, and do not ask permission at every step - they already chose this.',
-            '- When it turns sexual between you two consenting adults, write it fully and explicitly: name body parts and acts in plain, direct, uncensored words - no euphemisms, no vague "you know", no cutting away. Do not stall at foreplay: follow their lead all the way through the actual act and its finish, describing each step and sensation as it happens.',
+            ...(detailed
+              ? [
+                  '- Move the scene forward yourself: describe what you do, what you feel and how it feels, step by step, in vivid detail. Do not stop at hints, do not fade to black, do not skip ahead, and do not ask permission at every step - they already chose this.',
+                  '- When it turns sexual between you two consenting adults, write it fully and explicitly: name body parts and acts in plain, direct, uncensored words - no euphemisms, no vague "you know", no cutting away. Do not stall at foreplay: follow their lead all the way through the actual act and its finish, describing each step and sensation as it happens.',
+                ]
+              : [
+                  // Short and balanced: the scene is played a step per turn, as a chat is, not written out whole in one reply.
+                  '- Move the scene forward yourself, one step at a time: what you do, what you feel, a line of speech. Do not fade to black and do not ask permission at every step - they already chose this.',
+                  '- When it turns sexual between you two consenting adults, be explicit in plain, direct, uncensored words - no euphemisms, no cutting away - but take one step per turn, the way a chat goes. Never write the whole act and its finish in one reply; follow their lead from turn to turn.',
+                ]),
             '- Write actions in *asterisks* and speech as plain text, the way chat roleplay is written. Keep their language mix (Hinglish stays Hinglish).',
             '- End each turn with something for them to answer: an action, a question, a tease.',
             '- If they slow down, change the subject or say stop, you stop at once and follow them.',
           ].join('\n'),
         ]),
-    'Talk like a person in a chat, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. In ordinary chat each line you write is one message; in a roleplay scene, write it as one flowing turn.',
+    'Talk like a person in a chat, no lectures, no disclaimers. Never say you are an AI or deflect their flirting - play along. In ordinary chat each line you write is one message; in a roleplay scene, write it as one ' + (detailed ? 'flowing' : 'short') + ' turn.',
     'Earlier messages in this chat may be about other things (sending messages, settings). Ignore them unless they bring them up; answer their newest message.',
     'Never repeat a word, phrase or opener from your earlier replies. Every reply is fresh and makes sense on its own.',
     'You can only text: no pictures, voice notes or calls. Never pretend you sent one.',
@@ -153,9 +199,10 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
    * little more room than a chat line (a scene in one line never happens), but
    * never more than they asked for. A group that is not all adults stays short.
    */
-  parts.push(group && !adultRoom ? lengthBlock('short') : spicyLength(p.response_length));
   const own = instructionsBlock(p);
   if (own) parts.push(own);
+  // Last before the tag, where a model weighs it most, and after their own instructions: this is a setting, not a request.
+  parts.push(group && !adultRoom ? lengthBlock('short') : spicyLength(p.response_length));
   parts.push('End the reply with a hidden tag for your face, one of [[mood:happy]], [[mood:excited]], [[mood:surprised]], [[mood:sleepy]] or [[mood:sad]]. It is removed before they see it.');
   return parts.join('\n\n');
 }
@@ -304,6 +351,8 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
     t.emit('writing');
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
+    const caps = lengthCaps(t.profile.response_length, !!t.isGroup && !t.adultRoom);
+    let capped = false;
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -316,14 +365,21 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         try {
           const delta = (JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
           if (delta) {
+            const before = reply.length;
             reply += delta;
+            // Their length setting: the reply ends on a whole sentence once it has said enough.
+            const cut = caps ? cutPoint(reply, caps) : -1;
+            if (cut >= 0) { reply = reply.slice(0, cut); capped = true; }
             // The mood tag is for the face, not the bubble; it comes last, so hold back from its first bracket.
-            if (!/\[\[[^\]]*$/.test(reply)) t.emitDelta(delta);
+            const fresh = reply.slice(before);
+            if (fresh && !/\[\[[^\]]*$/.test(reply)) t.emitDelta(fresh);
+            if (capped) break;
           }
         } catch {
           // A keep-alive or a partial line; the next read completes it.
         }
       }
+      if (capped) { await reader.cancel().catch(() => undefined); break; }
     }
   } catch (cause) {
     if (t.signal?.aborted) return { status: 200, body: { stopped: true } };
