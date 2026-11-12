@@ -230,6 +230,49 @@ export async function everyoneAdult(admin: Db, conversationId: string, botId: st
   }
 }
 
+type Msg = { role: 'user' | 'assistant'; content: string };
+
+/** The ask for a second try when a draft ran past their limit. */
+export function shorterPlease(chars: number): string {
+  return `Too long for a chat message. Say the same thing again in at most ${chars} characters: the same language mix and tone, the same moment of the scene, one step only, ending on a complete sentence. Reply with the message only.`;
+}
+
+/**
+ * Reads a chat-completions stream. `live` is told each piece as it arrives
+ * (minus the hidden mood tag); with `limit`, reading stops and `over` is true
+ * once the visible text is longer than that many characters.
+ */
+export async function readReply(res: Response, live: ((delta: string) => void) | undefined, limit?: number): Promise<{ text: string; over: boolean }> {
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  let text = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      const data = line.replace(/^data:\s*/, '').trim();
+      if (!data || data === '[DONE]' || !line.startsWith('data:')) continue;
+      try {
+        const delta = (JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
+        if (!delta) continue;
+        text += delta;
+        // The mood tag is for the face, not the bubble; it comes last, so hold back from its first bracket.
+        if (live && !/\[\[[^\]]*$/.test(text)) live(delta);
+        if (limit && takeMood(text).text.length > limit) {
+          await reader.cancel().catch(() => undefined);
+          return { text, over: true };
+        }
+      } catch {
+        // A keep-alive or a partial line; the next read completes it.
+      }
+    }
+  }
+  return { text, over: false };
+}
+
 export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: Record<string, unknown> }> {
   const t0 = Date.now();
   t.emit('reading');
@@ -262,13 +305,24 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
     }
   }
 
+  const caps = lengthCaps(t.profile.response_length, !!t.isGroup && !t.adultRoom);
   let budget = HISTORY_CHARS;
   const picked: { role: 'user' | 'assistant'; content: string }[] = [];
   for (const r of (rows ?? []) as Row[]) {
     // Without the hidden [[mood]] tags, which a model otherwise copies into the bubble.
-    const said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, t.isGroup ? GROUP_MESSAGE_CHARS : MESSAGE_CHARS);
-    if (!said || t.skipBodies.includes(said)) continue;
+    let said = takeMood(t.stripMarkers((r.body ?? '').trim())).text.trim().slice(0, t.isGroup ? GROUP_MESSAGE_CHARS : MESSAGE_CHARS);
     const mine = r.sender_id === t.botId;
+    /*
+     * Its own earlier long replies, shown to the model at the length asked for.
+     * A model copies the size of what it sees itself write (390-540 characters
+     * every turn, whatever the prompt said), so the past is shown short, ended
+     * on a whole sentence. Only what the model sees; the chat is untouched.
+     */
+    if (caps && mine && said.length > caps.hard) {
+      const c = cutPoint(said, caps);
+      if (c > 0) said = said.slice(0, c).trim();
+    }
+    if (!said || t.skipBodies.includes(said)) continue;
     const speaker = t.isGroup && !mine ? names.get(r.sender_id) : undefined;
     const content = speaker ? `${speaker}: ${said}` : said;
     if (content.length > budget && picked.length) break;
@@ -294,9 +348,10 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
   const base = Deno.env.get('SPICY_BASE_URL')!.replace(/\/$/, '');
   const model = Deno.env.get('SPICY_MODEL') || DEFAULT_MODEL;
   const tModel = Date.now();
+  const system = systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId), !!t.adultRoom);
   let reply = '';
   try {
-    const request = (withoutReasoningField: boolean) => fetch(`${base}/chat/completions`, {
+    const request = (withoutReasoningField: boolean, msgs: Msg[] = history) => fetch(`${base}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${Deno.env.get('SPICY_API_KEY')}`,
@@ -326,60 +381,56 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
          */
         frequency_penalty: t.isGroup && !t.adultRoom ? 0.4 : 0.1,
         presence_penalty: t.isGroup && !t.adultRoom ? 0.3 : 0.1,
-        messages: [{ role: 'system', content: systemPrompt(t.profile, known, !!t.isGroup, names.get(t.userId), !!t.adultRoom) }, ...history],
+        messages: [{ role: 'system', content: system }, ...msgs],
       }),
       ...(t.signal ? { signal: t.signal } : {}),
     });
-    let res = await request(false);
-    // A model that rejects the reasoning field is asked again without it, rather than failing the turn.
-    if (res.status === 400) res = await request(true);
-    /*
-     * A router that times out or is busy (5xx, 429) usually answers a moment
-     * later, and "Something went wrong" for a group waiting on one reply is the
-     * worse outcome. One more try after a short pause, only if nobody stopped it.
-     * Seen 2026-11-12: a single 503 `control_authorize_timeout` ended a turn.
-     */
-    if ((res.status >= 500 || res.status === 429) && !t.signal?.aborted) {
-      console.error('[spicy] provider', res.status, 'retrying once');
-      await new Promise((r) => setTimeout(r, 900));
-      res = await request(false);
-    }
-    if (!res.ok || !res.body) {
-      console.error('[spicy] provider', res.status, (await res.text().catch(() => '')).slice(0, 300));
-      return say(t, 'Something went wrong on my side. Say that again?', 'model_failed');
-    }
-    t.emit('writing');
-    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = '';
-    const caps = lengthCaps(t.profile.response_length, !!t.isGroup && !t.adultRoom);
-    let capped = false;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += value;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const data = line.replace(/^data:\s*/, '').trim();
-        if (!data || data === '[DONE]' || !line.startsWith('data:')) continue;
-        try {
-          const delta = (JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
-          if (delta) {
-            const before = reply.length;
-            reply += delta;
-            // Their length setting: the reply ends on a whole sentence once it has said enough.
-            const cut = caps ? cutPoint(reply, caps) : -1;
-            if (cut >= 0) { reply = reply.slice(0, cut); capped = true; }
-            // The mood tag is for the face, not the bubble; it comes last, so hold back from its first bracket.
-            const fresh = reply.slice(before);
-            if (fresh && !/\[\[[^\]]*$/.test(reply)) t.emitDelta(fresh);
-            if (capped) break;
-          }
-        } catch {
-          // A keep-alive or a partial line; the next read completes it.
-        }
+    // One call, with the two retries it has always had: a model that rejects the reasoning field, and a router that is busy.
+    const open = async (msgs: Msg[]): Promise<Response | null> => {
+      let res = await request(false, msgs);
+      // A model that rejects the reasoning field is asked again without it, rather than failing the turn.
+      if (res.status === 400) res = await request(true, msgs);
+      /*
+       * A router that times out or is busy (5xx, 429) usually answers a moment
+       * later. One more try after a short pause, only if nobody stopped it.
+       * Seen 2026-11-12: a single 503 `control_authorize_timeout` ended a turn.
+       */
+      if ((res.status >= 500 || res.status === 429) && !t.signal?.aborted) {
+        console.error('[spicy] provider', res.status, 'retrying once');
+        await new Promise((r) => setTimeout(r, 900));
+        res = await request(false, msgs);
       }
-      if (capped) { await reader.cancel().catch(() => undefined); break; }
+      if (!res.ok || !res.body) {
+        console.error('[spicy] provider', res.status, (await res.text().catch(() => '')).slice(0, 300));
+        return null;
+      }
+      return res;
+    };
+    const first = await open(history);
+    if (!first) return say(t, 'Something went wrong on my side. Say that again?', 'model_failed');
+    t.emit('writing');
+
+    /*
+     * Their length setting. 'detailed' streams as it is written. Short and
+     * balanced hold the draft until it is known to fit, because a bubble that
+     * has started cannot be taken back. A draft that fits is sent as it is. One
+     * that runs past the limit is not cut: the model is asked to say the same
+     * thing again in the length they chose, and that is what they see. Only if
+     * even that runs over is it ended on its last whole sentence.
+     */
+    const drafted = await readReply(first, caps ? undefined : t.emitDelta, caps?.hard);
+    reply = drafted.text;
+    if (caps) {
+      if (drafted.over) {
+        console.log('[spicy] draft over the limit, asking for it shorter');
+        const draft = takeMood(reply).text.trim();
+        const again = await open([...history, { role: 'assistant', content: draft }, { role: 'user', content: shorterPlease(caps.soft) }]);
+        const second = again ? await readReply(again, undefined, caps.hard) : null;
+        const text = takeMood(second ? second.text : reply).text.trim();
+        const cut = !second || second.over ? cutPoint(text, caps) : -1;
+        reply = cut >= 0 ? text.slice(0, cut).trim() : text;
+      }
+      t.emitDelta(takeMood(reply).text.trim());
     }
   } catch (cause) {
     if (t.signal?.aborted) return { status: 200, body: { stopped: true } };
