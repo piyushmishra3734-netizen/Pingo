@@ -90,6 +90,29 @@ const LIMITS = [
   'Never help with anything illegal or harmful to anyone.',
 ].join('\n');
 
+/** The person's output-length setting, as Spicy reads it. Unknown or unset is 'short', like everywhere else. */
+function lengthSetting(v: string | null | undefined): 'short' | 'balanced' | 'detailed' {
+  return v === 'detailed' || v === 'balanced' ? v : 'short';
+}
+
+export function spicyLength(v: string | null | undefined): string {
+  const l = lengthSetting(v);
+  if (l === 'detailed') {
+    return '## LENGTH LAW: detailed (their setting - this overrides any length hint above)\nCasual chat: two to four lines. A roleplay scene: a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.';
+  }
+  if (l === 'balanced') {
+    return '## LENGTH LAW: balanced (their setting - this overrides any length hint above)\nCasual chat: two to three lines. A roleplay scene: one short paragraph per turn, about three to five lines. Finish your last sentence.';
+  }
+  return '## LENGTH LAW: short (their setting - this overrides any length hint above)\nCasual chat: one or two short lines. A roleplay scene: two or three lines per turn, no more - move the scene a step, then hand it back. Finish your last sentence.';
+}
+
+/** The ceiling on one reply, so a model that ignores the prompt still cannot run on. Roomy enough that a sentence is not cut off. */
+export function spicyMaxTokens(v: string | null | undefined, groupNotAdult: boolean): number {
+  if (groupNotAdult) return 300;
+  const l = lengthSetting(v);
+  return l === 'detailed' ? 900 : l === 'balanced' ? 450 : 260;
+}
+
 function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: string, adultRoom = false): string {
   const parts = [
     group
@@ -124,15 +147,13 @@ function systemPrompt(p: SpicyProfile, known: string[], group: boolean, asker?: 
     parts.push(['What you know about them - tease and flirt with it now and then, not every reply:', ...known].join('\n'));
   }
   /*
-   * Not the chat-wide length rule: "short" is one or two lines, and a scene
-   * played in one or two lines is a scene that never happens - the one thing
-   * people said Spicy could not do. Short flirting stays short by itself.
+   * Their own output-length setting decides (short / balanced / detailed), the
+   * same one every other personality obeys. It used to be ignored here, with one
+   * fixed "as long as the moment needs" for everybody. A scene still gets a
+   * little more room than a chat line (a scene in one line never happens), but
+   * never more than they asked for. A group that is not all adults stays short.
    */
-  parts.push(
-    group && !adultRoom
-      ? lengthBlock('short')
-      : 'Length: casual flirting - one to three short lines. A roleplay scene - a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.',
-  );
+  parts.push(group && !adultRoom ? lengthBlock('short') : spicyLength(p.response_length));
   const own = instructionsBlock(p);
   if (own) parts.push(own);
   parts.push('End the reply with a hidden tag for your face, one of [[mood:happy]], [[mood:excited]], [[mood:surprised]], [[mood:sleepy]] or [[mood:sad]]. It is removed before they see it.');
@@ -249,7 +270,7 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
         stream: true,
         temperature: 0.9,
         // Room for a full roleplay turn in a one-to-one chat; a group reply stays a few lines.
-        max_tokens: t.isGroup && !t.adultRoom ? 300 : 900,
+        max_tokens: spicyMaxTokens(t.profile.response_length, !!t.isGroup && !t.adultRoom),
         // Its own earlier lines are in the window; without these it echoes them back ("kaamchori" three times).
         /*
          * Light in a scene: a strong penalty on repeated words pushed a roleplay
