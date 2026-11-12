@@ -101,9 +101,9 @@ export function spicyLength(v: string | null | undefined): string {
     return '## LENGTH LAW: detailed (their setting - this overrides any length hint above)\nCasual chat: two to four lines. A roleplay scene: a full turn of a short paragraph or two, as long as the moment needs, never cut off mid-scene.';
   }
   if (l === 'balanced') {
-    return '## LENGTH LAW: balanced (their setting - this overrides everything above, including their instructions)\nAbout 250 to 400 characters per reply: two to four short lines. A roleplay scene: one short paragraph, one step of the scene. Never more than 450 characters. Finish your last sentence.';
+    return '## LENGTH LAW: balanced (their setting - this overrides everything above, including their instructions)\nAbout 160 to 280 characters per reply: two to four short lines. A roleplay scene: one short paragraph, one step of the scene. Never more than 320 characters. Finish your last sentence.';
   }
-  return '## LENGTH LAW: short (their setting - this overrides everything above, including their instructions)\nAbout 100 to 200 characters per reply: one to three short lines, like a text message. A roleplay scene: one step only, then hand it back. Never more than 240 characters. Finish your last sentence.';
+  return '## LENGTH LAW: short (their setting - this overrides everything above, including their instructions)\nAbout 80 to 160 characters per reply: one to three short lines, like a text message. A roleplay scene: one step only, then hand it back. Never more than 200 characters. Finish your last sentence.';
 }
 
 /**
@@ -117,7 +117,7 @@ export interface LengthCaps { soft: number; hard: number }
 export function lengthCaps(v: string | null | undefined, groupNotAdult: boolean): LengthCaps | null {
   const l = groupNotAdult ? 'short' : lengthSetting(v);
   if (l === 'detailed') return null;
-  return l === 'balanced' ? { soft: 450, hard: 700 } : { soft: 240, hard: 420 };
+  return l === 'balanced' ? { soft: 280, hard: 400 } : { soft: 160, hard: 260 };
 }
 
 /**
