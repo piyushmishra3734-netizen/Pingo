@@ -265,6 +265,17 @@ export async function spicyTurn(t: SpicyTurn): Promise<{ status: number; body: R
     let res = await request(false);
     // A model that rejects the reasoning field is asked again without it, rather than failing the turn.
     if (res.status === 400) res = await request(true);
+    /*
+     * A router that times out or is busy (5xx, 429) usually answers a moment
+     * later, and "Something went wrong" for a group waiting on one reply is the
+     * worse outcome. One more try after a short pause, only if nobody stopped it.
+     * Seen 2026-11-12: a single 503 `control_authorize_timeout` ended a turn.
+     */
+    if ((res.status >= 500 || res.status === 429) && !t.signal?.aborted) {
+      console.error('[spicy] provider', res.status, 'retrying once');
+      await new Promise((r) => setTimeout(r, 900));
+      res = await request(false);
+    }
     if (!res.ok || !res.body) {
       console.error('[spicy] provider', res.status, (await res.text().catch(() => '')).slice(0, 300));
       return say(t, 'Something went wrong on my side. Say that again?', 'model_failed');
