@@ -453,6 +453,9 @@ function isTransientSendError(error: { code?: string; message?: string } | null 
   return /jwt expired|timeout|timed out|network|fetch/i.test(error.message ?? '');
 }
 
+/** How long a file already on R2 may be reused by the retry of the send it was uploaded for. The reaper waits two hours. */
+const UPLOAD_REUSE_MS = 30 * 60_000;
+
 const RETRY_FIRST_MS = 2000;
 const RETRY_MAX_MS = 30_000;
 
@@ -4485,6 +4488,25 @@ export class SupabaseChatService implements ChatService {
     return onR2.path;
   }
 
+  /** Files already on R2 for a send whose message does not exist yet, by the file the person picked. */
+  readonly #uploaded = new Map<Blob, { path: string; at: number }>();
+
+  /** The path of a file that already went up for this send, or the upload (remembered). */
+  async #uploadOnce(source: Blob, upload: () => Promise<string>): Promise<string> {
+    const now = Date.now();
+    for (const [blob, hit] of this.#uploaded) if (now - hit.at > UPLOAD_REUSE_MS) this.#uploaded.delete(blob);   // old entries go
+    const hit = this.#uploaded.get(source);
+    if (hit) return hit.path;
+    const path = await upload();
+    this.#uploaded.set(source, { path, at: Date.now() });
+    return path;
+  }
+
+  /** Once the message exists its files belong to it (and are released on receipt), so a later send must upload its own. */
+  #forgetUploaded(paths: (string | undefined)[]): void {
+    for (const [blob, hit] of this.#uploaded) if (paths.includes(hit.path)) this.#uploaded.delete(blob);
+  }
+
   /** The message that owns these objects exists now; they are not orphans. */
   async #releaseUploadClaims(paths: (string | undefined)[]): Promise<void> {
     const real = paths.filter((path): path is string => Boolean(path));
@@ -5255,14 +5277,27 @@ export class SupabaseChatService implements ChatService {
     const keptPing = draft.ping && draft.ping.views === null ? draft.ping : undefined;
     const ephemeralPing = draft.ping && draft.ping.views !== null ? draft.ping : undefined;
 
-    const snapPath = ephemeralPing ? await this.#uploadSnap(ephemeralPing.image, draft.conversationId) : undefined;
+    /*
+     * Each file goes up once per send, not once per try.
+     *
+     * The upload comes before the insert, so a try that uploaded and then failed
+     * on the insert (a dropped line, a restart of the database) left the bytes
+     * on R2 and the next try - the outbox, or Retry on a failed bubble - sent the
+     * whole file up again: the same photo or video twice, a second orphan for the
+     * reaper, and on a phone the upload bill again. `#uploadOnce` remembers the
+     * path against the file the person picked, so the retry goes straight to the
+     * insert. It is forgotten the moment the message exists (see below), and
+     * after half an hour, well inside the two hours the reaper leaves a fresh
+     * upload alone (`media_upload_grace`).
+     */
+    const snapPath = ephemeralPing ? await this.#uploadOnce(ephemeralPing.image, () => this.#uploadSnap(ephemeralPing.image, draft.conversationId)) : undefined;
     const photoPath = draft.photo
-      ? await this.#uploadPhoto(draft.photo.image, draft.conversationId)
+      ? await this.#uploadOnce(draft.photo.image, () => this.#uploadPhoto(draft.photo!.image, draft.conversationId))
       : keptPing
-        ? await this.#uploadPhoto(keptPing.image, draft.conversationId)
+        ? await this.#uploadOnce(keptPing.image, () => this.#uploadPhoto(keptPing.image, draft.conversationId))
         : undefined;
-    const voicePath = draft.voice ? await this.#uploadVoice(draft.voice.audio, draft.conversationId) : undefined;
-    const filePath = draft.document ? await this.#uploadDocument(draft.document.file, draft.conversationId) : undefined;
+    const voicePath = draft.voice ? await this.#uploadOnce(draft.voice.audio, () => this.#uploadVoice(draft.voice!.audio, draft.conversationId)) : undefined;
+    const filePath = draft.document ? await this.#uploadOnce(draft.document.file, () => this.#uploadDocument(draft.document!.file, draft.conversationId)) : undefined;
     const snapExpiry = snapPath
       ? new Date(Date.now() + SNAP_EXPIRY_MS).toISOString()
       : undefined;
@@ -5559,6 +5594,7 @@ export class SupabaseChatService implements ChatService {
      * Released after the insert and not before: the claim's whole purpose is
      * to survive an insert that never happened.
      */
+    this.#forgetUploaded([snapPath, photoPath, voicePath, filePath]);          // the message exists: these files are its own now, never reused
     void this.#releaseUploadClaims([snapPath, photoPath, voicePath, filePath]);
 
     /*
