@@ -25,6 +25,10 @@ export interface TmdbMedia {
    * this is what makes the backup links possible at all.
    */
   imdb_id?: string;
+  /** Trending in India only: why the title is on the list ("In cinemas now", "New episodes"). */
+  trend_note?: string;
+  /** Trending in India only: its place on the list, from 1. */
+  trend_rank?: number;
 }
 
 export interface TmdbGenre {

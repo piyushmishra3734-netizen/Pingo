@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Film, Loader2, Search, Tv, X } from 'lucide-react';
 import { cn } from '@pingo/ui';
 import type { MediaType, TmdbMedia } from '../types.js';
-import { fetchByGenre, searchMedia } from '../api/tmdb.js';
+import { fetchByGenreIndiaFirst, searchMedia } from '../api/tmdb.js';
+import { fetchTrendingIndia } from '../api/trending-india.js';
 import { getTmdbPosterUrl } from '../api/tmdb.js';
 
 interface TvSearchProps {
@@ -12,6 +13,9 @@ interface TvSearchProps {
 const GENRE_CHIPS = [
   { label: 'All', id: 0, type: 'all' },
   { label: 'Action', id: 28, type: 'movie' },
+  { label: 'Romance', id: 10749, type: 'movie' },
+  { label: 'Crime', id: 80, type: 'tv' },
+  { label: 'Horror', id: 27, type: 'movie' },
   { label: 'Animation / Anime', id: 16, type: 'tv' },
   { label: 'Sci-Fi', id: 878, type: 'movie' },
   { label: 'Drama', id: 18, type: 'tv' },
@@ -49,7 +53,7 @@ export function TvSearch({ onSelect }: TvSearchProps) {
       setLoading(true);
       const chip = GENRE_CHIPS.find((c) => c.id === selectedGenre);
       const mediaType: MediaType = chip?.type === 'tv' ? 'tv' : 'movie';
-      void fetchByGenre(mediaType, selectedGenre).then((res) => {
+      void fetchByGenreIndiaFirst(mediaType, selectedGenre).then((res) => {
         if (!active) return;
         setResults(res);
         setLoading(false);
@@ -59,9 +63,9 @@ export function TvSearch({ onSelect }: TvSearchProps) {
       };
     }
 
-    // Default: fetch popular discover results
+    // Default: what India is watching now (it used to search for the letter 'a').
     setLoading(true);
-    void searchMedia('a').then((res) => {
+    void fetchTrendingIndia().then((res) => {
       if (!active) return;
       setResults(res);
       setLoading(false);

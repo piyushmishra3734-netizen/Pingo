@@ -16,6 +16,9 @@ export function getTmdbBackdropUrl(path: string | null | undefined, size: 'w780'
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
+/** One TMDB call through the Supabase proxy, cached for an hour in memory. Null when it cannot be read. */
+export const tmdbGet = <T,>(endpoint: string, params: Record<string, string | number> = {}) => callProxy<T>(endpoint, params);
+
 async function callProxy<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T | null> {
   const query = new URLSearchParams();
   query.set('endpoint', endpoint);
@@ -350,6 +353,142 @@ const FALLBACK_TOP10_HINDI: TmdbMedia[] = [
   },
 ];
 
+/*
+ * ---------- India first ----------
+ *
+ * Pingo TV is an Indian platform before it is anything else (owner, 2026-11-14):
+ * Hindi and Indian titles lead every tab, and the rest of the world comes after.
+ * Everything here is TMDB `discover` with Indian filters, through the same proxy.
+ *
+ * `with_origin_country=IN` also returns foreign co-productions (an Italian
+ * cartoon with an Indian studio credit), so results are kept to titles whose
+ * original language is an Indian one.
+ */
+export const INDIAN_LANGUAGES = ['hi', 'ta', 'te', 'ml', 'kn', 'bn', 'mr', 'pa', 'gu', 'or', 'as', 'ur'] as const;
+const INDIAN_LANGUAGE_SET = new Set<string>(INDIAN_LANGUAGES);
+const SOUTH_LANGUAGES = 'ta|te|ml|kn';
+
+/** Titles TMDB does not flag as adult but that do not belong on a front page. */
+const NOT_ON_THE_FRONT_PAGE = ['gandii baat', 'x.x.x', 'xxx uncensored', 'charmsukh', 'palang tod'];
+
+export function isIndianTitle(media: TmdbMedia): boolean {
+  return INDIAN_LANGUAGE_SET.has(media.original_language ?? '') || isHindiTitle(media);
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+function cleanIndian(items: TmdbMedia[], mediaType: MediaType, needBackdrop = false): TmdbMedia[] {
+  return items
+    .filter((m) => INDIAN_LANGUAGE_SET.has(m.original_language ?? ''))
+    .filter((m) => (needBackdrop ? Boolean(m.backdrop_path) : Boolean(m.poster_path || m.backdrop_path)))
+    .filter((m) => {
+      const name = (m.title || m.name || '').toLowerCase();
+      return !NOT_ON_THE_FRONT_PAGE.some((bad) => name.includes(bad));
+    })
+    .map((m) => ({ ...m, media_type: mediaType }));
+}
+
+async function discoverIndian(
+  mediaType: MediaType,
+  params: Record<string, string | number>,
+  opts: { needBackdrop?: boolean; fallback?: TmdbMedia[] } = {},
+): Promise<TmdbMedia[]> {
+  const resp = await callProxy<TmdbResponse>(`/discover/${mediaType}`, {
+    sort_by: 'popularity.desc',
+    include_adult: 'false',
+    region: 'IN',
+    watch_region: 'IN',
+    ...params,
+  });
+  const items = resp && Array.isArray(resp.results) ? cleanIndian(resp.results, mediaType, opts.needBackdrop) : [];
+  return items.length > 0 ? items : (opts.fallback ?? FALLBACK_TOP10_HINDI);
+}
+
+/** Interleave two lists (a, b, a, b, ...), dropping repeats. */
+function interleave(a: TmdbMedia[], b: TmdbMedia[]): TmdbMedia[] {
+  const out: TmdbMedia[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    for (const m of [a[i], b[i]]) {
+      if (!m) continue;
+      const key = `${m.media_type}:${m.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+    }
+  }
+  return out;
+}
+
+/* Trending in India is worked out in `trending-india.ts`. */
+
+/** New Hindi films, the last eight months. */
+export const fetchNewHindiMovies = () =>
+  discoverIndian('movie', { with_original_language: 'hi', 'primary_release_date.gte': isoDaysAgo(240), 'primary_release_date.lte': isoDaysAgo(0) });
+
+/** The Indian web series people actually rate: Scam 1992, Panchayat, Kota Factory. */
+export const fetchIndianWebSeries = () =>
+  discoverIndian('tv', { with_origin_country: 'IN', sort_by: 'vote_average.desc', 'vote_count.gte': 40 });
+
+/** New Indian series, the last year and a half. */
+export const fetchNewIndianSeries = () =>
+  discoverIndian('tv', { with_origin_country: 'IN', 'first_air_date.gte': isoDaysAgo(540), 'vote_count.gte': 2 });
+
+/** Crime and mystery series: Mirzapur, Sacred Games, Paatal Lok, Delhi Crime. */
+export const fetchDesiCrimeSeries = () =>
+  discoverIndian('tv', { with_origin_country: 'IN', with_genres: '80|9648', 'first_air_date.gte': '2016-01-01', 'vote_count.gte': 8 });
+
+/** The serials on every family TV: Anupamaa, CID, Kapil Sharma. */
+export const fetchTvSerials = () => discoverIndian('tv', { with_original_language: 'hi', 'vote_count.gte': 5 });
+
+/** Tamil, Telugu, Malayalam and Kannada hits. */
+export const fetchSouthBlockbusters = () =>
+  discoverIndian('movie', { with_original_language: SOUTH_LANGUAGES, 'vote_count.gte': 50 });
+
+/** Hindi films of one genre (28 action, 35 comedy, 10749 romance, ...). */
+export const fetchHindiByGenre = (genreId: number, minVotes = 40) =>
+  discoverIndian('movie', { with_original_language: 'hi', with_genres: genreId, 'vote_count.gte': minVotes });
+
+/** Indian horror in every language: Tumbbad, Stree, Bramayugam. */
+export const fetchIndianHorror = () => discoverIndian('movie', { with_origin_country: 'IN', with_genres: 27, 'vote_count.gte': 20 });
+
+/** The Bollywood everyone has seen twice: DDLJ, 3 Idiots, Dangal. */
+export const fetchBollywoodClassics = () =>
+  discoverIndian('movie', { with_original_language: 'hi', sort_by: 'vote_average.desc', 'vote_count.gte': 300 });
+
+/** Indian films that did best, all time and all languages. */
+export const fetchIndianBlockbusters = () => discoverIndian('movie', { with_origin_country: 'IN', 'vote_count.gte': 100 });
+
+/** Indian cartoons: Motu Patlu, Baalveer, Chhota Bheem. */
+export const fetchIndianKidsShows = () => discoverIndian('tv', { with_origin_country: 'IN', with_genres: '16|10762' }, { fallback: [] });
+
+/** Indian animated films: Ramayana, Mahavatar Narsimha. */
+export const fetchIndianAnimatedMovies = () => discoverIndian('movie', { with_origin_country: 'IN', with_genres: 16 }, { fallback: [] });
+
+/** A genre with Indian titles first and the world after, for browsing. */
+export async function fetchByGenreIndiaFirst(mediaType: MediaType, genreId: number): Promise<TmdbMedia[]> {
+  const [desi, world] = await Promise.all([
+    discoverIndian(mediaType, { with_origin_country: 'IN', with_genres: genreId, 'vote_count.gte': 5 }, { fallback: [] }),
+    fetchByGenre(mediaType, genreId),
+  ]);
+  const seen = new Set(desi.map((m) => m.id));
+  return [...desi, ...world.filter((m) => !seen.has(m.id))];
+}
+
+const LANGUAGE_LABEL: Record<string, string> = {
+  hi: 'हिन्दी',
+  ta: 'தமிழ்',
+  te: 'తెలుగు',
+  ml: 'മലയാളം',
+  kn: 'ಕನ್ನಡ',
+  bn: 'বাংলা',
+  mr: 'मराठी',
+  pa: 'ਪੰਜਾਬੀ',
+  gu: 'ગુજરાતી',
+};
+
 export function isHindiTitle(media: TmdbMedia): boolean {
   if (media.original_language === 'hi') return true;
   const title = (media.title || media.name || '').toLowerCase();
@@ -363,6 +502,9 @@ export function isHindiTitle(media: TmdbMedia): boolean {
 
 export function getSubDubLabel(media: TmdbMedia): string {
   if (isHindiTitle(media)) return 'हिन्दी';
+  // Tamil, Telugu, Malayalam ... in their own script: the language is the selling point.
+  const own = LANGUAGE_LABEL[media.original_language ?? ''];
+  if (own) return own;
   if (media.media_type === 'tv' || media.genre_ids?.includes(16)) return 'Sub | Dub';
   const isDubCandidate =
     media.media_type === 'movie' ||
@@ -382,20 +524,16 @@ export async function fetchTrending(mediaType: 'all' | 'movie' | 'tv' = 'all', t
   return FALLBACK_TRENDING;
 }
 
-export async function fetchTop10Hindi(lang = 'hi'): Promise<TmdbMedia[]> {
-  const resp = await callProxy<TmdbResponse>('/discover/movie', {
-    with_original_language: lang,
-    sort_by: 'popularity.desc',
-    'vote_count.gte': 30,
-  });
-  if (resp && Array.isArray(resp.results) && resp.results.length > 0) {
-    return resp.results.slice(0, 10).map((m) => ({
-      ...m,
-      media_type: 'movie',
-      original_language: m.original_language || lang,
-    }));
-  }
-  return FALLBACK_TOP10_HINDI;
+/**
+ * Top 10 in India: the most popular Indian films and series of the last two
+ * years, every Indian language, films and series taking turns.
+ */
+export async function fetchTop10Hindi(): Promise<TmdbMedia[]> {
+  const [movies, shows] = await Promise.all([
+    discoverIndian('movie', { with_origin_country: 'IN', 'primary_release_date.gte': isoDaysAgo(730), 'vote_count.gte': 20 }),
+    discoverIndian('tv', { with_origin_country: 'IN', 'first_air_date.gte': isoDaysAgo(1095), 'vote_count.gte': 10 }, { fallback: [] }),
+  ]);
+  return interleave(movies, shows).slice(0, 10);
 }
 
 export async function fetchNowPlaying(page = 1): Promise<TmdbMedia[]> {

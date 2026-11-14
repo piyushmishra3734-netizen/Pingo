@@ -5,15 +5,27 @@ import { Toggle, cn } from '@pingo/ui';
 import type { TmdbMedia, TvTab } from './types.js';
 import { TAB_PATH, parseTvPath, titlePath, trailerPath, useRouteMedia, watchPath, type TvNavState } from './routes.js';
 import {
+  fetchBollywoodClassics,
   fetchByGenre,
+  fetchDesiCrimeSeries,
+  fetchHindiByGenre,
+  fetchIndianAnimatedMovies,
+  fetchIndianBlockbusters,
+  fetchIndianHorror,
+  fetchIndianKidsShows,
+  fetchIndianWebSeries,
+  fetchNewHindiMovies,
+  fetchNewIndianSeries,
   fetchNowPlaying,
-  fetchOnTheAirTv,
   fetchPopularMovies,
   fetchPopularTv,
+  fetchSouthBlockbusters,
   fetchTop10Hindi,
   fetchTopRated,
   fetchTrending,
+  fetchTvSerials,
 } from './api/tmdb.js';
+import { fetchTrendingIndia } from './api/trending-india.js';
 import { useWatchlist } from './hooks/useWatchlist.js';
 import { closeMini, currentMini, openMini } from './mini-player.js';
 import { clearWatched, recordWatched, removeWatched, useWatchHistory, watchedAsMedia, type WatchedItem } from './hooks/useWatchHistory.js';
@@ -109,58 +121,32 @@ export function PingoTv() {
   }, [along]);
   const [loading, setLoading] = useState(true);
 
-  // Exact 9 rails matching e:\pingo tv\server.js
-  const [trending, setTrending] = useState<TmdbMedia[]>([]);
-  const [top10Hindi, setTop10Hindi] = useState<TmdbMedia[]>([]);
-  const [nowPlaying, setNowPlaying] = useState<TmdbMedia[]>([]);
-  const [latestEpisodes, setLatestEpisodes] = useState<TmdbMedia[]>([]);
-  const [actionMovies, setActionMovies] = useState<TmdbMedia[]>([]);
-  const [horrorMovies, setHorrorMovies] = useState<TmdbMedia[]>([]);
-  const [comedyMovies, setComedyMovies] = useState<TmdbMedia[]>([]);
-  const [blockbusters, setBlockbusters] = useState<TmdbMedia[]>([]);
-  const [topRated, setTopRated] = useState<TmdbMedia[]>([]);
-  const [animeShows, setAnimeShows] = useState<TmdbMedia[]>([]);
-  const [popularShows, setPopularShows] = useState<TmdbMedia[]>([]);
+  /*
+   * India first (owner, 2026-11-14): Pingo TV should feel like an Indian
+   * platform. Hindi and Indian rails lead every tab; Hollywood, anime and the
+   * rest of the world come after them. The first few rails are waited for (the
+   * skeleton stays until then), the rest fill in as they arrive - an empty rail
+   * draws nothing.
+   */
+  const [rails, setRails] = useState<Partial<Record<RailKey, TmdbMedia[]>>>({});
+  const r = (key: RailKey): TmdbMedia[] => rails[key] ?? [];
 
   const { watchlist } = useWatchlist();
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-
-    Promise.all([
-      fetchTrending('all', 'week'),
-      fetchTop10Hindi('hi'),
-      fetchNowPlaying(),
-      fetchOnTheAirTv(),
-      fetchByGenre('movie', 53), // Action & Thrillers
-      fetchByGenre('movie', 27), // Edge-of-the-Seat Horror
-      fetchByGenre('movie', 35), // Comedy Carnival
-      fetchPopularMovies(), // Blockbuster Cinema
-      fetchTopRated('movie'), // Top Rated on IMDb
-      fetchByGenre('tv', 16), // Anime & Asian Dramas
-      fetchPopularTv(),
-    ])
-      .then(([trend, top10, nowP, onAir, action, horror, comedy, popM, topM, anime, popT]) => {
-        if (!active) return;
-        setTrending(trend);
-        setTop10Hindi(top10);
-        setNowPlaying(nowP);
-        setLatestEpisodes(onAir);
-        setActionMovies(action);
-        setHorrorMovies(horror);
-        setComedyMovies(comedy);
-        setBlockbusters(popM);
-        setTopRated(topM);
-        setAnimeShows(anime);
-        setPopularShows(popT);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoading(false);
-      });
-
+    const load = (key: RailKey) =>
+      RAIL_LOADERS[key]()
+        .catch(() => [] as TmdbMedia[])
+        .then((items) => {
+          if (active) setRails((was) => ({ ...was, [key]: items }));
+        });
+    void Promise.all(FIRST_RAILS.map(load)).finally(() => {
+      if (!active) return;
+      setLoading(false);
+      for (const key of Object.keys(RAIL_LOADERS) as RailKey[]) if (!FIRST_RAILS.includes(key)) void load(key);
+    });
     return () => {
       active = false;
     };
@@ -182,12 +168,16 @@ export function PingoTv() {
   const [animeMovies, setAnimeMovies] = useState<TmdbMedia[]>([]);
   const [kidsMovies, setKidsMovies] = useState<TmdbMedia[]>([]);
   const [kidsShows, setKidsShows] = useState<TmdbMedia[]>([]);
+  const [desiKidsShows, setDesiKidsShows] = useState<TmdbMedia[]>([]);
+  const [desiAnimated, setDesiAnimated] = useState<TmdbMedia[]>([]);
   useEffect(() => {
     let live = true;
-    if (tab === 'anime' && animeMovies.length === 0) void fetchByGenre('movie', 16).then((r) => live && setAnimeMovies(r));
+    if (tab === 'anime' && animeMovies.length === 0) void fetchByGenre('movie', 16).then((m) => live && setAnimeMovies(m));
     if (tab === 'kids' && kidsMovies.length === 0) {
-      void fetchByGenre('movie', 10751).then((r) => live && setKidsMovies(r));
-      void fetchByGenre('tv', 10762).then((r) => live && setKidsShows(r));
+      void fetchIndianKidsShows().then((m) => live && setDesiKidsShows(m));
+      void fetchIndianAnimatedMovies().then((m) => live && setDesiAnimated(m));
+      void fetchByGenre('movie', 10751).then((m) => live && setKidsMovies(m));
+      void fetchByGenre('tv', 10762).then((m) => live && setKidsShows(m));
     }
     return () => {
       live = false;
@@ -237,7 +227,7 @@ export function PingoTv() {
   const hero = (items: TmdbMedia[]) => (
     <TvHeroBanner items={items} onPlayStream={play} onPlayTrailer={trailer} onOpenDetails={open} paused={route.kind !== 'tab'} />
   );
-  const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean; landscape?: boolean }) => (
+  const rail = (title: string, items: TmdbMedia[], extra?: { sub?: string; isTop10?: boolean; landscape?: boolean; caption?: (m: TmdbMedia) => string | undefined }) => (
     <TvMediaRail title={title} items={items} onSelect={open} {...extra} />
   );
 
@@ -345,7 +335,7 @@ export function PingoTv() {
             <>
               {tab === 'home' && (
                 <>
-                  {hero(trending)}
+                  {hero(r('trendingIndia'))}
                   <div className="relative z-10 -mt-6 md:-mt-10">
                     <div className="min-w-0">
                       {history.length > 0 &&
@@ -365,16 +355,21 @@ export function PingoTv() {
                             }}
                           />
                         )}
-                      {rail('Trending Now', trending, { landscape: true })}
-                      {rail('Top 10 in India', top10Hindi, { sub: 'Most watched Hindi movies and series right now', isTop10: true })}
-                      {rail('Latest Episodes and Dubs', latestEpisodes, { sub: 'Fresh drops with Hindi audio and multi-language dubs', landscape: true })}
-                      {rail('Latest Releases', nowPlaying)}
-                      {rail('Action and Thrillers', actionMovies)}
-                      {rail('Comedy Carnival', comedyMovies)}
-                      {rail('Blockbuster Cinema', blockbusters)}
-                      {rail('Anime and Asian Dramas', animeShows)}
-                      {rail('Edge of the Seat Horror', horrorMovies)}
-                      {rail('Top Rated on IMDb', topRated)}
+                      {rail('Trending in India', r('trendingIndia'), { landscape: true, caption: (m) => (m.trend_rank ? `#${m.trend_rank} · ${m.trend_note ?? ''}` : '') })}
+                      {rail('Top 10 in India Today', r('top10'), { sub: 'Sabse zyada dekhe ja rahe Indian movies aur series', isTop10: true })}
+                      {rail('Must-watch Indian Web Series', r('webSeries'), { sub: 'Scam 1992 se Panchayat tak' })}
+                      {rail('New Hindi Releases', r('newHindi'))}
+                      {rail('South Blockbusters', r('south'), { sub: 'Tamil, Telugu, Malayalam aur Kannada ke hits' })}
+                      {rail('Desi Crime and Thrillers', r('crime'), { landscape: true })}
+                      {rail('Bollywood Action', r('hiAction'))}
+                      {rail('Bollywood Comedy', r('hiComedy'))}
+                      {rail('Pyaar, Ishq aur Romance', r('hiRomance'))}
+                      {rail('Desi Horror', r('desiHorror'))}
+                      {rail('Ghar Ghar ke TV Serials', r('serials'), { landscape: true })}
+                      {rail('All-time Bollywood Classics', r('classics'))}
+                      {rail('Hollywood Hits', r('hollywood'), { sub: 'Duniya bhar ki badi films' })}
+                      {rail('Trending Worldwide', r('trendingWorld'), { landscape: true })}
+                      {rail('Anime and Asian Dramas', r('anime'))}
                     </div>
                   </div>
                 </>
@@ -382,35 +377,42 @@ export function PingoTv() {
 
               {tab === 'movies' && (
                 <>
-                  {hero(blockbusters)}
+                  {hero(r('indianHits').length ? r('indianHits') : r('newHindi'))}
                   <div className="relative z-10 -mt-6 md:-mt-10">
-                    {rail('Top 10 Movies in India', top10Hindi, { isTop10: true })}
-                    {rail('Now in Theatres and Streaming', nowPlaying)}
-                    {rail('Blockbuster Cinema', blockbusters)}
-                    {rail('Critically Acclaimed', topRated)}
-                    {rail('Action and Thrillers', actionMovies)}
-                    {rail('Comedy Carnival', comedyMovies)}
-                    {rail('Edge of the Seat Horror', horrorMovies)}
+                    {rail('New Hindi Releases', r('newHindi'))}
+                    {rail('Indian Blockbusters', r('indianHits'), { sub: 'Har bhasha, sabse badi hits' })}
+                    {rail('South Blockbusters', r('south'))}
+                    {rail('Bollywood Action', r('hiAction'))}
+                    {rail('Bollywood Comedy', r('hiComedy'))}
+                    {rail('Pyaar, Ishq aur Romance', r('hiRomance'))}
+                    {rail('Desi Horror', r('desiHorror'))}
+                    {rail('All-time Bollywood Classics', r('classics'))}
+                    {rail('Hollywood Hits', r('hollywood'))}
+                    {rail('Now in Theatres Worldwide', r('nowPlaying'))}
+                    {rail('Critically Acclaimed Worldwide', r('topRated'))}
                   </div>
                 </>
               )}
 
               {tab === 'shows' && (
                 <>
-                  {hero(popularShows)}
+                  {hero(r('newSeries').length ? r('newSeries') : r('webSeries'))}
                   <div className="relative z-10 -mt-6 md:-mt-10">
-                    {rail('Latest Episodes and Dubs', latestEpisodes)}
-                    {rail('Trending Series', popularShows)}
-                    {rail('Anime and Asian Series', animeShows)}
+                    {rail('Must-watch Indian Web Series', r('webSeries'))}
+                    {rail('New Indian Series', r('newSeries'), { landscape: true })}
+                    {rail('Desi Crime and Thrillers', r('crime'))}
+                    {rail('Ghar Ghar ke TV Serials', r('serials'))}
+                    {rail('International Series', r('worldSeries'))}
+                    {rail('Anime and Asian Series', r('anime'))}
                   </div>
                 </>
               )}
 
               {tab === 'anime' && (
                 <>
-                  {hero(animeShows)}
+                  {hero(r('anime'))}
                   <div className="relative z-10 -mt-6 md:-mt-10">
-                    {rail('Trending Anime', animeShows, { landscape: true })}
+                    {rail('Trending Anime', r('anime'), { landscape: true })}
                     {rail('Anime Movies', animeMovies)}
                   </div>
                 </>
@@ -418,8 +420,10 @@ export function PingoTv() {
 
               {tab === 'kids' && (
                 <>
-                  {hero(kidsMovies.length ? kidsMovies : animeShows)}
+                  {hero(desiAnimated.length ? desiAnimated : kidsMovies.length ? kidsMovies : r('anime'))}
                   <div className="relative z-10 -mt-6 md:-mt-10">
+                    {rail('Desi Cartoons', desiKidsShows, { sub: 'Motu Patlu, Baalveer aur saare favourites', landscape: true })}
+                    {rail('Indian Animated Movies', desiAnimated)}
                     {rail('Family Movies', kidsMovies)}
                     {rail('Kids Shows', kidsShows, { landscape: true })}
                   </div>
@@ -616,3 +620,30 @@ function HistoryCard({ item, onPlay }: { item: WatchedItem; onPlay: () => void }
 
 
 export default PingoTv;
+
+/** Every rail Pingo TV loads up front, India first. */
+const RAIL_LOADERS = {
+  trendingIndia: () => fetchTrendingIndia().then((list) => (list.length > 0 ? list : fetchIndianBlockbusters())),
+  top10: fetchTop10Hindi,
+  webSeries: fetchIndianWebSeries,
+  newHindi: fetchNewHindiMovies,
+  south: fetchSouthBlockbusters,
+  crime: fetchDesiCrimeSeries,
+  hiAction: () => fetchHindiByGenre(28),
+  hiComedy: () => fetchHindiByGenre(35),
+  hiRomance: () => fetchHindiByGenre(10749),
+  desiHorror: fetchIndianHorror,
+  serials: fetchTvSerials,
+  classics: fetchBollywoodClassics,
+  indianHits: fetchIndianBlockbusters,
+  newSeries: fetchNewIndianSeries,
+  hollywood: () => fetchPopularMovies(),
+  trendingWorld: () => fetchTrending('all', 'week'),
+  anime: () => fetchByGenre('tv', 16),
+  worldSeries: () => fetchPopularTv(),
+  nowPlaying: () => fetchNowPlaying(),
+  topRated: () => fetchTopRated('movie'),
+} satisfies Record<string, () => Promise<TmdbMedia[]>>;
+type RailKey = keyof typeof RAIL_LOADERS;
+/** Waited for before the page shows: the hero and what is above the fold on Home. */
+const FIRST_RAILS: RailKey[] = ['trendingIndia', 'top10', 'webSeries', 'newHindi'];
