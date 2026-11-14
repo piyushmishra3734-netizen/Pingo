@@ -449,7 +449,7 @@ function isTransientSendError(error: { code?: string; message?: string } | null 
   const code = error.code ?? '';
   if (!code) return true;
   if (code === 'PGRST301' || code === 'PGRST302') return true;
-  if (/^(57014|57P0[1-3]|53300|53400|40001|40P01|55P03|08.{3})$/.test(code)) return true;
+  if (/^(57014|57P0[1-3]|53300|53400|40001|40P01|55P03|08.{3}|PGRST00[0-3]|XX000)$/.test(code)) return true;   // PGRST000-003: the API could not reach or read the database for a moment
   return /jwt expired|timeout|timed out|network|fetch/i.test(error.message ?? '');
 }
 
@@ -5441,6 +5441,27 @@ export class SupabaseChatService implements ChatService {
         const found = await this.#client.from('messages').select('*').eq('id', id).single();
         if (found.data) attempt = found as typeof attempt;
       }
+    }
+    /*
+     * "That id already exists" is a message that WENT, not one that failed.
+     *
+     * The id is ours (the bubble has shown it since the first tap). A first try
+     * that reached the server but whose answer was lost on a bad line leaves the
+     * row behind; the next try - the outbox resending it, or the loop above when
+     * its read of the row failed too - then meets `messages_pkey` (409, code
+     * 23505). That was classed as the server refusing the message: the bubble
+     * went "Not sent" and the text came back into the composer, so the sender
+     * pressed send again and one message became two. Seen in the logs
+     * 2026-11-14, three `messages_pkey` violations in a few hours.
+     *
+     * So the row is read back and it is the send. If even that read fails, it is
+     * the network again: the error loses its code, which makes it transient, and
+     * the outbox tries once more (and finds the row then).
+     */
+    if (attempt.error?.code === '23505') {
+      const found = await this.#client.from('messages').select('*').eq('id', id).maybeSingle();
+      if (found.data) attempt = found as typeof attempt;
+      else if (found.error) attempt = { ...attempt, error: { message: 'network: could not confirm the message' } } as typeof attempt;
     }
     const { error } = attempt;
 
