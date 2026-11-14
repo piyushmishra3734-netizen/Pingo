@@ -1,11 +1,7 @@
-import { cn } from '@pingo/ui';
-import { ShieldCheck } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { AppLogo } from '../components/AppLogo.js';
-import { FunnelBackdrop } from '../features/auth/FunnelBackdrop.js';
-import { FunnelTextLink } from '../features/auth/FunnelCta.js';
+import { AuraCta, AuraFriends, AuraShell } from '../features/auth/AuraShell.js';
 import { GoogleMark } from '../features/auth/GoogleMark.js';
 import { useT } from '../features/i18n/useT.js';
 import { applyPageSeo } from '../lib/seo.js';
@@ -20,17 +16,12 @@ import { applyPageSeo } from '../lib/seo.js';
  * and nothing else, the middle screen offered two rows - and a screen that
  * exists to show two buttons is a screen those two buttons can live on.
  *
- * ## Why phone still says "new here" rather than just "continue"
+ * ## One button
  *
- * Google is the same action either way: it returns a session whether or not the
- * account existed. Phone is not. Sign-up sends an SMS and sign-in takes a
- * password, and one button cannot choose between them without either spending
- * an SMS on every sign-in - the cost that made phone OTP affordable in the
- * first place - or asking the server whether a number is registered, which is
- * an enumeration oracle this codebase deliberately does not offer.
- *
- * So the split stays, and it is honest: this screen is for arriving, and the
- * quiet line underneath is for coming back.
+ * Accounts are made with Google and nothing else (2026-11-14). Google is the
+ * same action either way - it returns a session whether or not the account
+ * existed - so it is the only button, and the quiet line underneath is for the
+ * people who made an account some other way and come back by username.
  *
  * ## The account sentence
  *
@@ -55,113 +46,42 @@ export function OnboardingScreen() {
   );
 
   /*
-   * PINGO paper: the same scrapbook as the onboarding art, kept quiet - two
-   * small marks, one note, one marker swipe - so the two buttons are still the
-   * loudest thing here. See `features/auth/paper.css`.
+   * The aura card (owner's reference, 2026-11-14): painted art with a torn edge,
+   * a large serif, typewriter labels, two friends drawn in light, and one action
+   * underlined by hand. See `features/auth/aura.css`.
    */
   return (
-    <FunnelBackdrop>
-      <Doodle className="right-[12%] top-[max(6.5rem,calc(env(safe-area-inset-top)+5rem))] size-6" path={SPARKLE} />
-      <Doodle className="right-[6%] top-[max(9rem,calc(env(safe-area-inset-top)+7.5rem))] size-3.5 rotate-12" path={STAR} />
-      <main
-        className={cn(
-          'mx-auto flex w-full max-w-sm flex-1 flex-col',
-          'px-6 pt-[max(3.5rem,calc(env(safe-area-inset-top)+2rem))]',
-          'pb-[max(1.5rem,env(safe-area-inset-bottom))]',
-        )}
-      >
-        <div className="funnel-enter flex items-center gap-2.5">
-          <AppLogo size={44} alt="" fetchPriority="high" />
-          <span className="text-[22px] font-bold tracking-[-0.02em] text-ink">PINGO</span>
-        </div>
-
-        <h1
-          className="funnel-enter mt-9 text-[42px] font-medium leading-[1.02] tracking-[-0.03em] text-balance text-ink"
-          style={{ animationDelay: '30ms' }}
-        >
-          Your friends, all in <span className="paper-marker">one place.</span>
+    <AuraShell>
+      <main className="flex min-h-0 flex-1 flex-col">
+        <h1 className="aura-title funnel-enter">
+          Your friends, all in <em>one place.</em>
         </h1>
-
-        <p
-          className="funnel-enter mt-4 max-w-[19rem] text-[16.5px] leading-[1.45] text-text-secondary"
-          style={{ animationDelay: '50ms' }}
-        >
+        <p className="aura-lede funnel-enter" style={{ animationDelay: '30ms' }}>
           Chats, calls and stories with the ones who actually matter.
         </p>
 
-        <div
-          className="funnel-enter paper-note mt-7 max-w-[20rem] self-start px-[18px] pt-[18px] pb-4"
-          style={{ animationDelay: '60ms', rotate: '-1deg' }}
-        >
-          <span className="paper-tape left-[84px] -top-[11px] w-[76px] rotate-3" aria-hidden />
-          <p className="flex items-center gap-2.5 text-[14.5px] font-semibold text-ink">
-            <ShieldCheck size={18} aria-hidden />
-            No ads, no spam, nothing sold.
-          </p>
-          <p className="paper-hand mt-1 text-[21px] leading-tight">just your people</p>
-        </div>
+        <AuraFriends delayMs={50} />
 
-        <div className="min-h-8 flex-1" aria-hidden />
+        {/* Google is the only way in now (owner's decision, 2026-11-14): phone sign-up is gone. Accounts made with a phone
+            number come back through `Have an account` -> username and password. */}
+        <AuraCta
+          icon={<GoogleMark size={22} />}
+          label={t('welcome.continueGoogle')}
+          onClick={() => navigate('/auth/google')}
+          style={{ animationDelay: '70ms' }}
+        />
 
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/auth/google')}
-            className={cn(
-              'funnel-enter focus-ring flex h-14 w-full items-center justify-center gap-3 rounded-[18px]',
-              'bg-ink text-[17px] font-semibold text-page transition-transform duration-instant active:scale-[0.985]',
-            )}
-            style={{ animationDelay: '70ms' }}
-          >
-            <span className="grid size-[30px] place-items-center rounded-[9px] bg-white">
-              <GoogleMark size={19} />
-            </span>
-            {t('welcome.continueGoogle')}
+        <p className="aura-mono funnel-enter mt-3 text-center" style={{ animationDelay: '100ms' }}>
+          <button type="button" className="aura-link focus-ring rounded-sm" onClick={() => navigate('/login')}>
+            {t('welcome.haveAccount')}
           </button>
-          {/* Google is the only way in now (owner's decision, 2026-11-14): phone sign-up is gone. Accounts made with a phone
-              number come back through `Have an account` -> username and password. */}
-        </div>
+        </p>
 
-        <div className="funnel-enter mt-4 text-center" style={{ animationDelay: '110ms' }}>
-          <FunnelTextLink onClick={() => navigate('/login')}>{t('welcome.haveAccount')}</FunnelTextLink>
-        </div>
-
-        <p
-          className="funnel-enter mt-3 text-center text-caption leading-relaxed text-text-tertiary"
-          style={{ animationDelay: '130ms' }}
-        >
-          {t('welcome.legal')}{' '}
-          <Link to="/terms" className="font-medium text-ink underline underline-offset-2">
-            {t('welcome.terms')}
-          </Link>{' '}
-          and{' '}
-          <Link to="/privacy" className="font-medium text-ink underline underline-offset-2">
-            {t('welcome.privacy')}
-          </Link>
-          .
+        <p className="aura-legal funnel-enter mt-3" style={{ animationDelay: '120ms' }}>
+          {t('welcome.legal')} <Link to="/terms">{t('welcome.terms')}</Link> and{' '}
+          <Link to="/privacy">{t('welcome.privacy')}</Link>.
         </p>
       </main>
-    </FunnelBackdrop>
-  );
-}
-
-const SPARKLE = 'M16 2 C16.8 11 21 15.2 30 16 C21 16.8 16.8 21 16 30 C15.2 21 11 16.8 2 16 C11 15.2 15.2 11 16 2 Z';
-const STAR = 'M16 3 L19.2 12.2 L29 12.6 L21.4 18.6 L24.2 28 L16 22.4 L7.8 28 L10.6 18.6 L3 12.6 L12.8 12.2 Z';
-
-/** A hand-drawn mark in the margin. Decoration only. */
-function Doodle({ className, path }: { className: string; path: string }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 32 32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={cn('paper-doodle', className)}
-    >
-      <path d={path} />
-    </svg>
+    </AuraShell>
   );
 }

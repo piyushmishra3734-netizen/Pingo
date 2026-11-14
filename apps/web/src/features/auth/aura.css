@@ -1,0 +1,540 @@
+/**
+ * PINGO "aura" - the ground the way in stands on (Welcome and Log in).
+ *
+ * One card on a cloudy page. Painted art on one side with a torn edge, the
+ * words on paper on the other: a large serif, small typewriter labels, two
+ * friends drawn in light, and a single action underlined by hand. The art is
+ * generated (see public/auth/README.md), nothing in it is licensed from anyone.
+ *
+ * Phone: the paint sits on top and the paper below it. From 820px wide the card
+ * turns on its side: paper on the left, paint on the right.
+ */
+
+@font-face {
+  font-family: 'Aura Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Aura Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/instrument-serif-italic-latin.woff2') format('woff2');
+}
+/* The same file the story stickers use (Courier Prime, bold). */
+@font-face {
+  font-family: 'Aura Mono';
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/courier-prime-latin.woff2') format('woff2');
+}
+
+.aura-ground {
+  --aura-card: #fffdfa;
+  --aura-fibre: rgb(255 253 250 / 0.72);
+  --aura-ink: #141217;
+  --aura-soft: rgb(20 18 23 / 0.62);
+  --aura-faint: rgb(20 18 23 / 0.44);
+  --aura-line: rgb(20 18 23 / 0.14);
+  --aura-shadow: 0 40px 90px -50px rgb(90 40 70 / 0.45), 0 2px 6px -2px rgb(60 30 50 / 0.08);
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  background: #f4efee url('/auth/clouds.webp') center / cover no-repeat;
+  color: var(--aura-ink);
+}
+:root[data-theme='dark'] .aura-ground {
+  --aura-card: #17141c;
+  --aura-fibre: rgb(23 20 28 / 0.6);
+  --aura-ink: #f6f2ee;
+  --aura-soft: rgb(246 242 238 / 0.66);
+  --aura-faint: rgb(246 242 238 / 0.46);
+  --aura-line: rgb(246 242 238 / 0.16);
+  --aura-shadow: 0 40px 90px -40px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.04);
+  background: #121016 url('/auth/clouds-dark.webp') center / cover no-repeat;
+}
+
+/* Film grain over everything, the card included. */
+.aura-ground::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.45 0 0 0 0 0.45 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  opacity: 0.22;
+}
+:root[data-theme='dark'] .aura-ground::after {
+  mix-blend-mode: screen;
+  opacity: 0.08;
+}
+
+.aura-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--aura-card);
+  box-shadow: var(--aura-shadow);
+}
+
+/* ---------- the painted side ---------- */
+.aura-art {
+  position: relative;
+  flex: 0 0 auto;
+  height: clamp(200px, 40%, 380px);
+  overflow: hidden;
+  background: #27336f;
+}
+.aura-art--compact {
+  height: clamp(170px, 31%, 300px);
+}
+.aura-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 42%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.aura-brand {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-family: 'Aura Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-shadow: 0 1px 10px rgb(20 10 40 / 0.35);
+}
+
+.aura-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 7px 3px 3px;
+  background: rgb(255 253 250 / 0.94);
+  color: #2a2530;
+  font-family: 'Aura Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px -8px rgb(20 10 40 / 0.5);
+}
+.aura-chip i {
+  display: block;
+  width: 13px;
+  height: 13px;
+  background: var(--chip, #ef5a76);
+}
+.aura-chip--a {
+  left: 7%;
+  bottom: 24%;
+  --chip: #ef5a76;
+}
+.aura-chip--b {
+  right: 7%;
+  top: 22%;
+  --chip: #ffd23f;
+}
+.aura-art--compact .aura-chip--b {
+  display: none;
+}
+.aura-art--strip {
+  height: clamp(92px, 14%, 132px);
+}
+.aura-art--strip .aura-chip,
+.aura-art--strip .aura-foot {
+  display: none;
+}
+.aura-art--strip .aura-art-img {
+  object-position: 60% 30%;
+}
+
+.aura-foot {
+  position: absolute;
+  right: 18px;
+  bottom: 30px;
+  color: rgb(255 255 255 / 0.82);
+  font-family: 'Aura Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* The torn paper edge: the card's own colour, drawn over the paint. */
+.aura-torn {
+  position: absolute;
+  color: var(--aura-card);
+  pointer-events: none;
+}
+.aura-torn--h {
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  width: 100%;
+  height: 22px;
+}
+.aura-torn--v {
+  display: none;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 22px;
+  height: 100%;
+}
+
+/* ---------- the paper side ---------- */
+.aura-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 16px;
+}
+
+.aura-title {
+  font-family: 'Aura Serif', 'Iowan Old Style', 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: clamp(40px, 11.5vw, 52px);
+  line-height: 0.98;
+  letter-spacing: -0.012em;
+  color: var(--aura-ink);
+  text-wrap: balance;
+}
+.aura-title em {
+  font-style: italic;
+}
+
+.aura-lede {
+  margin-top: 12px;
+  max-width: 21rem;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--aura-soft);
+}
+
+.aura-mono {
+  font-family: 'Aura Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Two friends drawn in light. Takes whatever room is left, and gives it up first. */
+.aura-friends {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+}
+.aura-friends img {
+  display: block;
+  height: 100%;
+  max-height: 260px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+@media (max-height: 640px) {
+  .aura-friends img {
+    display: none;
+  }
+}
+
+/* The one action: a label with a hand-drawn line under it. */
+.aura-cta {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 64px;
+  color: var(--aura-ink);
+  border-radius: 16px;
+  transition: transform var(--duration-instant, 90ms) ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.aura-cta:active {
+  transform: scale(0.98);
+}
+.aura-cta-label {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.aura-wave {
+  display: block;
+  width: min(78%, 300px);
+  height: 12px;
+  overflow: visible;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.aura-cta:hover .aura-wave {
+  transform: scaleX(1.06);
+}
+.aura-cta-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--aura-line);
+  color: var(--aura-soft);
+}
+
+/* Anything that is not the main way in: quiet, outlined, round. */
+.aura-alt {
+  position: relative;
+  display: flex;
+  height: 50px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--aura-line);
+  color: var(--aura-ink);
+  font-size: 15.5px;
+  font-weight: 500;
+  transition: background-color 120ms ease-out, transform 90ms ease-out;
+}
+.aura-alt:hover {
+  background: color-mix(in srgb, var(--aura-ink) 4%, transparent);
+}
+.aura-alt:active {
+  transform: scale(0.985);
+}
+.aura-alt .aura-cta-badge {
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+}
+
+.aura-link {
+  color: var(--aura-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.aura-legal {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--aura-faint);
+  text-align: center;
+}
+.aura-legal a {
+  color: var(--aura-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- on its side ---------- */
+@media (min-width: 820px) {
+  .aura-ground {
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .aura-card {
+    flex: 0 1 auto;
+    flex-direction: row;
+    width: min(1080px, 100%);
+    height: min(700px, 100%);
+    border-radius: 36px;
+  }
+  .aura-art,
+  .aura-art--compact,
+  .aura-art--strip {
+    order: 1;
+    flex: 1 1 0;
+    height: auto;
+  }
+  .aura-art-img {
+    object-position: 60% 50%;
+  }
+  .aura-art--compact .aura-chip--b,
+  .aura-art--strip .aura-chip {
+    display: inline-flex;
+  }
+  .aura-art--strip .aura-foot {
+    display: block;
+  }
+  .aura-art--strip .aura-art-img {
+    object-position: 60% 50%;
+  }
+  .aura-brand {
+    left: 40px;
+    top: 26px;
+  }
+  .aura-foot {
+    right: 26px;
+    bottom: 24px;
+  }
+  .aura-torn--h {
+    display: none;
+  }
+  .aura-torn--v {
+    display: block;
+  }
+  .aura-body {
+    order: 0;
+    flex: 0 0 47%;
+    padding: 56px 52px 34px 60px;
+  }
+  .aura-title {
+    font-size: 66px;
+  }
+  .aura-lede {
+    font-size: 16px;
+  }
+  .aura-friends img {
+    max-height: 300px;
+  }
+}
+
+/* ---------- forms (every screen between Google and the chat list) ---------- */
+.aura-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.aura-back {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  margin-left: -6px;
+  border-radius: 999px;
+  border: 1px solid var(--aura-line);
+  color: var(--aura-ink);
+  transition: background-color 120ms ease-out, transform 90ms ease-out;
+}
+.aura-back:hover {
+  background: color-mix(in srgb, var(--aura-ink) 5%, transparent);
+}
+.aura-back:active {
+  transform: scale(0.95);
+}
+
+.aura-progress {
+  position: relative;
+  width: 76px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--aura-line);
+}
+.aura-progress > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--aura-ink);
+  transition: width 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.aura-title--form {
+  font-size: clamp(36px, 10vw, 44px);
+}
+@media (min-width: 820px) {
+  .aura-title--form {
+    font-size: 54px;
+  }
+}
+
+/* Labels set like the typewriter tags on the paint. */
+.aura-form label {
+  font-family: 'Aura Mono', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--aura-faint);
+}
+
+/* Fields are a line to write on, not a box. (The @pingo/ui TextField: its wrapper is the .group around the input.) */
+.aura-form .group:has(> input) {
+  height: 54px;
+  padding-inline: 0;
+  border: 0;
+  border-bottom: 1.5px solid var(--aura-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.aura-form .group:has(> input):focus-within {
+  border-bottom-color: var(--aura-ink);
+  background: transparent;
+  box-shadow: none;
+}
+.aura-form .group:has(> input[aria-invalid='true']) {
+  border-bottom-color: #d4405f;
+  background: transparent;
+}
+.aura-form .group > input {
+  font-size: 19px;
+  color: var(--aura-ink);
+}
+
+/* Buttons: the filled one is ink, round; the rest are outlined; text buttons are underlined. */
+.aura-form button.bg-brand-gradient {
+  height: 54px;
+  border-radius: 999px;
+  background: var(--aura-ink);
+  color: var(--aura-card);
+  box-shadow: none;
+  font-size: 16px;
+}
+.aura-form button.bg-brand-gradient:hover {
+  box-shadow: none;
+  opacity: 0.92;
+}
+.aura-form button.bg-surface.border-line {
+  height: 50px;
+  border-radius: 999px;
+  border-color: var(--aura-line);
+  background: transparent;
+  box-shadow: none;
+  color: var(--aura-ink);
+}
+.aura-form button.text-brand {
+  color: var(--aura-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}

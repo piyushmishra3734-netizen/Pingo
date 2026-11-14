@@ -2,7 +2,7 @@ import { cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { FunnelBackdrop } from './FunnelBackdrop.js';
+import { AuraShell } from './AuraShell.js';
 
 /**
  * The chrome every sign-up and sign-in screen sits in.
@@ -77,29 +77,19 @@ export function AuthScreen({
   const navigate = useNavigate();
   const goBack = onBack ?? (() => navigate(-1));
 
+  /*
+   * The aura card (2026-11-14), like Welcome: a strip of paint over the paper on
+   * a phone, the paint as the right half on a wide screen. Fields, buttons and
+   * labels are restyled inside `.aura-form` (see aura.css), so the screens
+   * keep using the shared primitives.
+   */
+  const split = title.lastIndexOf(' ');
   return (
-    <FunnelBackdrop>
-      {alert}
-
-      <div
-        className={cn(
-          'mx-auto flex w-full max-w-sm flex-1 flex-col overflow-y-auto',
-          'px-5 pt-[max(0.75rem,env(safe-area-inset-top))]',
-          'pb-[max(1.5rem,env(safe-area-inset-bottom))]',
-        )}
-      >
-        <div className="mb-7 flex h-11 shrink-0 items-center justify-between gap-3">
+    <AuraShell size="strip" overlay={alert}>
+      <div className="aura-form">
+        <div className="mb-6 flex h-10 shrink-0 items-center justify-between gap-3">
           {showBack ? (
-            <button
-              type="button"
-              onClick={goBack}
-              aria-label="Back"
-              className={cn(
-                'focus-ring -ml-2 grid size-11 shrink-0 place-items-center rounded-full',
-                'text-text-secondary transition-colors duration-instant ease-standard',
-                'hover:bg-hover hover:text-ink active:bg-pressed',
-              )}
-            >
+            <button type="button" onClick={goBack} aria-label="Back" className="aura-back focus-ring">
               <ChevronLeft />
             </button>
           ) : (
@@ -108,43 +98,40 @@ export function AuthScreen({
 
           {progress !== undefined && (
             <div
-              className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-line"
+              className="aura-progress"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(progress * 100)}
               aria-label="Progress"
             >
-              <div
-                className="h-full rounded-full bg-brand transition-[width] duration-base ease-standard"
-                style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }}
-              />
+              <div style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }} />
             </div>
           )}
         </div>
 
         {/* A picture above the heading, for the code screens. */}
-        {art && <div className="funnel-enter -mt-3 mb-3 flex justify-center">{art}</div>}
+        {art && <div className="funnel-enter -mt-2 mb-3 flex justify-center">{art}</div>}
 
         <header className="funnel-enter">
-          <h1 className="text-h1 text-ink">
-            {/* With a picture above it the heading is set as in the reference: all but the last word bold, the last one regular. */}
-            {art && title.includes(' ') ? (
+          {/* The last word in italic, as on Welcome ("all in one place."). */}
+          <h1 className="aura-title aura-title--form">
+            {split > 0 ? (
               <>
-                {title.slice(0, title.lastIndexOf(' '))} <span className="font-normal">{title.slice(title.lastIndexOf(' ') + 1)}</span>
+                {title.slice(0, split)} <em>{title.slice(split + 1)}</em>
               </>
             ) : (
               title
             )}
           </h1>
-          {subtitle && <p className="mt-2 text-body text-text-secondary">{subtitle}</p>}
+          {subtitle && <p className="aura-lede">{subtitle}</p>}
         </header>
 
-        <div className="funnel-enter mt-8" style={{ animationDelay: '40ms' }}>
+        <div className="funnel-enter mt-7" style={{ animationDelay: '40ms' }}>
           {children}
         </div>
 
-        <div className="flex-1" aria-hidden />
+        <div className="min-h-4 flex-1" aria-hidden />
 
         {message && (
           <div className="funnel-enter mt-6" style={{ animationDelay: '50ms' }}>
@@ -154,16 +141,11 @@ export function AuthScreen({
 
         {footer && (
           <div className="funnel-enter mt-6" style={{ animationDelay: '55ms' }}>
-            {/*
-              Primary Buttons use bg-brand-gradient - the accent chosen in
-              Appearance retints them. Never hardcode a colour here, or a purple
-              user gets a black button.
-            */}
             {footer}
           </div>
         )}
       </div>
-    </FunnelBackdrop>
+    </AuraShell>
   );
 }
 

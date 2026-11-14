@@ -1,10 +1,9 @@
 import { useAuth } from '@pingo/core';
-import { PingoDot, cn } from '@pingo/ui';
+import { PingoDot } from '@pingo/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { FunnelBackdrop } from '../../features/auth/FunnelBackdrop.js';
-import { FunnelTextLink } from '../../features/auth/FunnelCta.js';
+import { AuraFriends, AuraShell } from '../../features/auth/AuraShell.js';
 import { writeLastMethod } from '../../features/auth/last-method.js';
 import { authErrorMessage } from '../../features/auth/messages.js';
 
@@ -71,43 +70,46 @@ export function GoogleConnectingScreen() {
   }, [providerError, returning, service, navigate, params]);
 
   return (
-    <FunnelBackdrop>
-      <div className="grid h-full place-items-center px-6">
-        <div
-          className={cn(
-            'funnel-enter flex w-full max-w-[22rem] flex-col items-center rounded-2xl',
-            'border border-line bg-surface px-6 py-10 text-center',
-            'shadow-[0_8px_28px_rgba(0,0,0,0.05)]',
-          )}
-        >
-          {error ? (
-            <>
-              <h1 className="text-[1.75rem] font-semibold tracking-[-0.03em] text-ink">
-                Couldn't connect
-              </h1>
-              <p role="alert" className="mt-3 text-[0.8125rem] text-danger">
-                {error}
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.03em] text-ink">
-                Connecting
-                <br />
-                to Google
-              </h1>
-              <div className="mt-10">
-                <PingoDot state="loading" size={8} label="Connecting" />
-              </div>
-            </>
-          )}
-          <div className="mt-10">
-            <FunnelTextLink onClick={() => navigate('/welcome', { replace: true })}>
-              Cancel
-            </FunnelTextLink>
+    <AuraShell size="compact">
+      <main className="flex min-h-0 flex-1 flex-col">
+        {error ? (
+          <>
+            <h1 className="aura-title aura-title--form funnel-enter">
+              Couldn't <em>connect</em>
+            </h1>
+            <p role="alert" className="aura-lede funnel-enter" style={{ color: '#d4405f' }}>
+              {error}
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="aura-title aura-title--form funnel-enter">
+              Connecting to <em>Google</em>
+            </h1>
+            <p className="aura-lede funnel-enter" style={{ animationDelay: '30ms' }}>
+              One moment. You will be right back here.
+            </p>
+          </>
+        )}
+
+        <AuraFriends delayMs={40} />
+
+        {!error && (
+          <div className="mb-6 flex justify-center">
+            <PingoDot state="loading" size={8} label="Connecting" />
           </div>
-        </div>
-      </div>
-    </FunnelBackdrop>
+        )}
+
+        <p className="aura-mono funnel-enter text-center" style={{ animationDelay: '80ms' }}>
+          <button
+            type="button"
+            className="aura-link focus-ring rounded-sm"
+            onClick={() => navigate('/welcome', { replace: true })}
+          >
+            {error ? 'Back' : 'Cancel'}
+          </button>
+        </p>
+      </main>
+    </AuraShell>
   );
 }

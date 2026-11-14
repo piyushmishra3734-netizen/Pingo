@@ -98,3 +98,7 @@ License 1.1 above): Oswald (The Oswald Project Authors), Yellowtail (Astigmatic)
 Courier Prime (The Courier Prime Project Authors), Anton (The Anton Project
 Authors), Playfair Display (The Playfair Display Project Authors), Poppins (The
 Poppins Project Authors).
+
+Sign-in display face (latin subsets, from Fontsource, under the SIL Open Font
+License 1.1 above): Instrument Serif, regular and italic (The Instrument Serif
+Project Authors, https://github.com/Instrument/instrument-serif).
