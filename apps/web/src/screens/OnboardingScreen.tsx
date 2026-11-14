@@ -1,4 +1,4 @@
-import { PhoneIcon, cn } from '@pingo/ui';
+import { cn } from '@pingo/ui';
 import { ShieldCheck } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -118,19 +118,8 @@ export function OnboardingScreen() {
             </span>
             {t('welcome.continueGoogle')}
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/signup/phone')}
-            className={cn(
-              'funnel-enter focus-ring flex h-14 w-full items-center justify-center gap-3 rounded-[18px]',
-              'border-[1.5px] border-line bg-surface text-[17px] font-semibold text-ink',
-              'transition-transform duration-instant active:scale-[0.985]',
-            )}
-            style={{ animationDelay: '90ms' }}
-          >
-            <PhoneIcon size={20} />
-            {t('welcome.continuePhone')}
-          </button>
+          {/* Google is the only way in now (owner's decision, 2026-11-14): phone sign-up is gone. Accounts made with a phone
+              number come back through `Have an account` -> username and password. */}
         </div>
 
         <div className="funnel-enter mt-4 text-center" style={{ animationDelay: '110ms' }}>

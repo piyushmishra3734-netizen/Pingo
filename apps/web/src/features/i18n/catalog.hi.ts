@@ -72,6 +72,7 @@ export const hi: Record<MessageKey, string> = {
   'login.username': 'यूज़रनेम',
   'login.email': 'ईमेल',
   'login.phone': 'फ़ोन नंबर',
+  'login.phoneRetired': 'फ़ोन से साइन-इन बंद हो गया है। अपने यूज़रनेम और पासवर्ड से आएँ, या Google से जारी रखें।',
   'auth.emailTitle': 'आपका ईमेल क्या है?',
   'auth.emailSubtitle': 'साइन इन करने में यही काम आएगा।',
   'auth.emailLabel': 'ईमेल',

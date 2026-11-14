@@ -1,5 +1,5 @@
 import { useAuth, type AuthMethodKind } from '@pingo/core';
-import { PhoneIcon, UserIcon, cn } from '@pingo/ui';
+import { UserIcon, cn } from '@pingo/ui';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,8 +23,11 @@ interface MethodRow {
  *
  * Google is here as well as on Welcome, deliberately: a returning person looks
  * for the way they got in, and finding it only on the screen for new arrivals
- * would be a small cruelty. Email is not here at all - accounts are Google or
- * phone now, and the addresses that already exist sign in by username.
+ * would be a small cruelty. Email is not here at all, and neither is the phone
+ * number any more (2026-11-14): accounts are made with Google, and the ones made
+ * with a phone number (or an email) come back by username and password. Somebody
+ * whose last sign-in was by phone is told so, in one line, rather than left
+ * looking for a button that is gone.
  */
 export function LoginMethodScreen() {
   const navigate = useNavigate();
@@ -44,12 +47,6 @@ export function LoginMethodScreen() {
       label: t('login.username'),
       icon: <UserIcon size={18} />,
       path: '/login/username',
-    },
-    {
-      kind: 'phone',
-      label: t('login.phone'),
-      icon: <PhoneIcon size={18} />,
-      path: '/login/phone',
     },
   ];
 
@@ -92,6 +89,12 @@ export function LoginMethodScreen() {
               />
             ))}
           </div>
+
+          {lastUsed === 'phone' && (
+            <p className="funnel-enter text-center text-caption leading-relaxed text-text-secondary" style={{ animationDelay: `${60 + ordered.length * 28}ms` }}>
+              {t('login.phoneRetired')}
+            </p>
+          )}
 
           <div
             className="funnel-enter flex flex-col items-center gap-0.5"

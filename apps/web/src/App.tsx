@@ -128,14 +128,10 @@ const StoryLab = lazyScreen(() => import('./screens/dev/StoryLab.js'), 'StoryLab
 const CameraLab = lazyScreen(() => import('./screens/dev/CameraLab.js'), 'CameraLab');
 const ToastFeelLab = lazyScreen(() => import('./screens/dev/ToastFeelLab.js'), 'ToastFeelLab');const RecoverCodeScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'RecoverCodeScreen');
 const ResetPasswordScreen = lazyScreen(() => import('./screens/auth/RecoverScreens.js'), 'ResetPasswordScreen');
-const CreatePasswordScreen = lazyScreen(() => import('./screens/auth/CreatePasswordScreen.js'), 'CreatePasswordScreen');
 const GoogleConnectingScreen = lazyScreen(() => import('./screens/auth/GoogleConnectingScreen.js'), 'GoogleConnectingScreen');
 const LoginMethodScreen = lazyScreen(() => import('./screens/auth/LoginMethodScreen.js'), 'LoginMethodScreen');
 const LoginPasswordScreen = lazyScreen(() => import('./screens/auth/LoginPasswordScreen.js'), 'LoginPasswordScreen');
-const LoginPhoneScreen = lazyScreen(() => import('./screens/auth/LoginPhoneScreen.js'), 'LoginPhoneScreen');
 const LoginUsernameScreen = lazyScreen(() => import('./screens/auth/LoginUsernameScreen.js'), 'LoginUsernameScreen');
-const SignUpPhoneScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneScreen.js'), 'SignUpPhoneScreen');
-const SignUpPhoneCodeScreen = lazyScreen(() => import('./screens/auth/SignUpPhoneCodeScreen.js'), 'SignUpPhoneCodeScreen');
 const LiveSetupScreen = lazyScreen(() => import('./features/live/LiveSetupScreen.js'), 'LiveSetupScreen');
 const LiveHostScreen = lazyScreen(() => import('./features/live/LiveHostScreen.js'), 'LiveHostScreen');
 const LiveGuestScreen = lazyScreen(() => import('./features/live/LiveGuestScreen.js'), 'LiveGuestScreen');
@@ -472,38 +468,25 @@ export function App() {
                 links and anything still in somebody's history land there
                 rather than on a dead route.
               */}
+              {/*
+                Phone sign-up and phone sign-in are gone (2026-11-14): Google is the only way to make an account. Old links
+                and history entries land on Welcome; an account made with a phone number comes back by username and
+                password (`username-login` falls back to the number for the accounts that have no email).
+              */}
+              <Route path="/signup/*" element={<Navigate to="/welcome" replace />} />
               <Route path="/signup" element={<Navigate to="/welcome" replace />} />
               <Route path="/login" element={<LoginMethodScreen />} />
-
-              <Route
-                path="/signup"
-                element={
-                  <IdentityFlow
-                    entryPaths={['/signup/phone']}
-                    fallback="/welcome"
-                  />
-                }
-              >
-                <Route path="phone" element={<SignUpPhoneScreen />} />
-                {/*
-                  § 6.2's verification step. Not an entry path: reaching it
-                  means a code has already been sent, and `IdentityFlow` sends
-                  anybody who arrives without an identity back to the start.
-                */}
-                <Route path="code" element={<SignUpPhoneCodeScreen />} />
-                <Route path="password" element={<CreatePasswordScreen />} />
-              </Route>
+              <Route path="/login/phone" element={<Navigate to="/login/username" replace />} />
 
               <Route
                 path="/login"
                 element={
                   <IdentityFlow
-                    entryPaths={['/login/phone', '/login/username']}
+                    entryPaths={['/login/username']}
                     fallback="/login"
                   />
                 }
               >
-                <Route path="phone" element={<LoginPhoneScreen />} />
                 <Route path="username" element={<LoginUsernameScreen />} />
                 <Route path="password" element={<LoginPasswordScreen />} />
               </Route>
