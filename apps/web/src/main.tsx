@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { Capacitor } from '@capacitor/core';
 
+import { runBackHandlers } from './features/native/back-stack.js';
 import { initNativeShell } from './features/native/shell.js';
 import { trackVisibleViewport } from './features/native/visible-viewport.js';
 import { requestPersistentStorage } from './lib/local/db.js';
@@ -70,11 +71,11 @@ if (navigator.onLine === false && hasMusicDownloads()) {
  * hiding it earlier would reveal an empty root. On the web every call inside
  * is skipped, so this costs a function call and nothing else.
  *
- * The back handler returns false for now: nothing has claimed the gesture, so
- * history and then backgrounding are the correct fallbacks. Screens that open
- * a sheet will claim it here rather than each binding their own listener.
+ * Screens that want the back button first (the TV player) claim it through
+ * `native/back-stack.ts`; when none does, history and then backgrounding are
+ * the fallbacks.
  */
-void initNativeShell(() => false);
+void initNativeShell(runBackHandlers);
 
 /*
  * The keyboard, in a mobile browser: keep the layout the height of what is on

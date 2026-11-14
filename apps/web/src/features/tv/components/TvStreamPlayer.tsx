@@ -20,9 +20,19 @@ import { TvEpisodePanel } from './TvEpisodePanel.js';
 import { TvHlsPlayer } from './TvHlsPlayer.js';
 import { TvLogo } from './TvLogo.js';
 import { setPopupGuard } from '../../native/popup-guard.js';
+import { pushBackHandler } from '../../native/back-stack.js';
 import { TvFindingScreen } from './TvFindingScreen.js';
 import { TvSourceMenu } from './TvSourceMenu.js';
 import { TvChatDrawer } from './TvChatDrawer.js';
+import {
+  checkServers,
+  crowdLikes,
+  crowdRejects,
+  fetchCrowdScores,
+  voteSource,
+  type CheckAnswer,
+  type CrowdScore,
+} from '../source-intel.js';
 import {
   probeIframe,
   probeResolver,
@@ -154,6 +164,7 @@ export const STREAM_PROVIDERS: StreamProvider[] = [
     name: 'EmbedWave',
     // Its page opens on "Multi HD" unless told otherwise, and that server mostly fails (JAV especially).
     // `?server=` takes a server id; Cinesrc is the one that plays.
+    // It has the most titles of any source here and the least Hindi, so it is the last resort (see LAST_RESORT).
     badge: 'No ads',
     buildUrl: (type, id, s, e) =>
       type === 'movie'
@@ -283,7 +294,6 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'vidfast',
     'nontongo',
     'embedmaster',
-    'embedwave',
     'autoembed',
     'vidrock',
     'fx-super',
@@ -294,6 +304,8 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'fx-valkyrie',
     'fx-hogrider',
     'fx-lavahound',
+    // Last resort (owner, 2026-11-14): only when nothing above it will play. See LAST_RESORT.
+    'embedwave',
   ],
   /*
    * Shows lead with the iframes, which is the opposite of films, and the reason
@@ -313,7 +325,6 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
    */
   tv: [
     'embedmaster',
-    'embedwave',
     'nontongo',
     'autoembed',
     'vidfast',
@@ -326,8 +337,66 @@ const SOURCE_ORDER: Record<MediaType, readonly string[]> = {
     'fx-valkyrie',
     'fx-hogrider',
     'fx-lavahound',
+    'embedwave',
   ],
 };
+
+/**
+ * Sources used only when nothing else can play (owner, 2026-11-14: EmbedWave).
+ *
+ * Being last in SOURCE_ORDER is not enough on its own: the ranking puts status,
+ * language, quality and speed before list position, so a last-resort source
+ * that answers quickly would still win. Here it does not take part at all while
+ * any other source is usable; once every other one has failed, it is the answer.
+ */
+const LAST_RESORT = new Set(['embedwave']);
+
+/**
+ * Auto (Best): the order the player tries sources in.
+ *
+ * On top of `rankProbes` (status, audio, quality, speed, SOURCE_ORDER), what
+ * other viewers found decides (see `source-intel.ts`). Best first:
+ *
+ *   1. usable at all (a playlist, or a page that answered)
+ *   2. not rejected by viewers (two or more left it quickly, nobody stayed)
+ *   3. Hindi audio confirmed in the stream, when Hindi is the preference
+ *   4. viewers kept watching this title on it
+ *   5. confirmed: a playlist in hand, or the server said it has the title
+ *
+ * Then LAST_RESORT (EmbedWave) only when nothing else is left that could play.
+ */
+function rankSources(
+  probes: SourceProbe[],
+  order: readonly string[],
+  preference: AudioPreference,
+  /** True while some other source has not answered yet: it may still be the one. */
+  othersPending = false,
+  crowd: Record<string, CrowdScore> = {},
+): SourceProbe[] {
+  const usable = (p: SourceProbe) => p.status === 'ready' || p.status === 'reachable';
+  const hindi = (p: SourceProbe) => (p.audio ?? []).some((label) => /hindi|hin\b/i.test(label));
+  const key = (p: SourceProbe) => [
+    usable(p) ? 1 : 0,
+    crowdRejects(crowd[p.id]) ? 0 : 1,
+    preference === 'hi' && hindi(p) ? 1 : 0,
+    crowdLikes(crowd[p.id]) ? 1 : 0,
+    p.status === 'ready' ? 1 : 0,
+  ];
+  // A stable sort, so rankProbes' order decides between equals.
+  const ranked = rankProbes(probes, order, preference).sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    for (let i = 0; i < ka.length; i++) if (kb[i]! !== ka[i]!) return kb[i]! - ka[i]!;
+    return 0;
+  });
+  const othersUsable =
+    othersPending || ranked.some((p) => usable(p) && !LAST_RESORT.has(p.id) && !crowdRejects(crowd[p.id]));
+  return [
+    ...ranked.filter((p) => !LAST_RESORT.has(p.id)),
+    // Behind everything, and only offered at all once nothing else can play.
+    ...(othersUsable ? [] : ranked.filter((p) => LAST_RESORT.has(p.id))),
+  ];
+}
 
 const LAST_SOURCE_KEY = 'pingo:lastSource';
 
@@ -486,6 +555,12 @@ export function TvStreamPlayer({
   }, [season, episode]);
 
   const [isTheater, setIsTheater] = useState<boolean>(false);
+  const theaterRef = useRef<boolean>(false);
+  useEffect(() => {
+    theaterRef.current = isTheater;
+  }, [isTheater]);
+  /** "Not playing? Pick another server": shown every time a title starts, until it is used or times out. */
+  const [hintOpen, setHintOpen] = useState<boolean>(!mini);
   const [chatOpen, setChatOpen] = useState<boolean>(false);
   /** Where the own player's audio, subtitle and quality button is drawn. */
   const [trackSlot, setTrackSlot] = useState<HTMLElement | null>(null);
@@ -554,6 +629,11 @@ export function TvStreamPlayer({
   const playingRef = useRef<boolean>(false);
   /** Only a real tap on a source chip stops the automatic choice. */
   const manualPickRef = useRef<boolean>(false);
+  /** What other viewers found for this title, per source (see source-intel.ts). */
+  const crowdRef = useRef<Record<string, CrowdScore>>({});
+  const [crowdVersion, setCrowdVersion] = useState<number>(0);
+  /** When the source now on screen was put there, for the viewer's verdict on it. */
+  const shownAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     audioPrefValue.current = audioPref;
@@ -631,8 +711,20 @@ export function TvStreamPlayer({
     [rememberChoice],
   );
 
+  /*
+   * Leaving a source by hand within a minute and a half of it appearing (but not
+   * in the first few seconds, which is a misclick or impatience) says it did not
+   * play for this person. That is their vote against it for this title.
+   */
+  const judgeLeaving = () => {
+    const onScreen = Date.now() - shownAtRef.current;
+    if (onScreen >= 8000 && onScreen < 90000) voteSource(mediaType, media.id, season, episode, selectedIdRef.current, false);
+  };
+
   // Manual pick: the viewer knows better than the heuristic, so stop guessing.
   const handleSelectProvider = (id: string) => {
+    if (id !== selectedIdRef.current) judgeLeaving();
+    setHintOpen(false);
     setAutoMode(false);
     requestedSource.current = null;
     manualPickRef.current = true;
@@ -667,6 +759,17 @@ export function TvStreamPlayer({
     const resolverSources = available.filter((p) => p.kind === 'hls' && p.apiProvider);
     const iframeSources = available.filter((p) => p.kind !== 'hls');
 
+    // What other viewers found. Usually here before the first source answers; if
+    // it is later, the effect "0d" below re-picks with it.
+    crowdRef.current = {};
+    void fetchCrowdScores(mediaType, media.id, season, episode).then((scores) => {
+      if (!live) return;
+      crowdRef.current = scores;
+      if (Object.keys(scores).length) setCrowdVersion((v) => v + 1);
+    });
+    // And the servers that can say for themselves whether they have it.
+    const checked: Promise<Record<string, CheckAnswer>> = checkServers(mediaType, media.id, season, episode);
+
     // Every source is asked in the same tick, and the answers are applied as
     // they arrive rather than all at once — a batch that waits for the slowest
     // provider is a batch that sits on "checking" for ten seconds while a
@@ -694,7 +797,8 @@ export function TvStreamPlayer({
       }
 
       const answers = Object.values(collected);
-      const ranked = rankProbes(answers, SOURCE_ORDER[mediaType] ?? [], audioPrefValue.current);
+      const othersPending = available.some((p) => !LAST_RESORT.has(p.id) && !collected[p.id]);
+      const ranked = rankSources(answers, SOURCE_ORDER[mediaType] ?? [], audioPrefValue.current, othersPending, crowdRef.current);
       const best = ranked[0];
 
       // The viewer may have picked a source while the answers were arriving.
@@ -716,8 +820,10 @@ export function TvStreamPlayer({
           best.status === 'ready' &&
           best.id !== selectedIdRef.current &&
           // Never swap a film that is already running: the new playlist starts
-          // at 0:00, which is the restart loop people notice.
-          !playingRef.current
+          // at 0:00, which is the restart loop people notice. A page that has
+          // loaded (a confirmed server can now be a page) is left alone too.
+          !playingRef.current &&
+          !loadedRef.current
         ) {
           setSelectedProviderId(best.id);
         } else if (!openedReady && !loadedRef.current) {
@@ -746,9 +852,12 @@ export function TvStreamPlayer({
     }
     for (const p of iframeSources) {
       const started = Date.now();
-      void probeIframe(p.buildUrl(mediaType, media.id, season, episode)).then((status) =>
-        settle({ id: p.id, status, ms: Date.now() - started }),
-      );
+      void Promise.all([probeIframe(p.buildUrl(mediaType, media.id, season, episode)), checked]).then(([status, answers]) => {
+        // "has" turns "the site answered" into "the film is there"; "missing" takes it out.
+        const said = answers[p.id];
+        const final = said === 'has' ? 'ready' : said === 'missing' ? 'empty' : status;
+        settle({ id: p.id, status: final, ms: Date.now() - started });
+      });
     }
 
     return () => {
@@ -764,7 +873,7 @@ export function TvStreamPlayer({
 
     // Changing the language preference is a request to re-pick, so it overrides
     // an earlier manual choice — unlike the batch probe, which never does.
-    const ranked = rankProbes(answers, SOURCE_ORDER[mediaType] ?? [], audioPref);
+    const ranked = rankSources(answers, SOURCE_ORDER[mediaType] ?? [], audioPref, false, crowdRef.current);
     const best = ranked[0];
     if (best) setSelectedProviderId(best.id);
   }, [audioPref, probing, probes, mediaType]);
@@ -775,13 +884,46 @@ export function TvStreamPlayer({
     if (provider.kind !== 'hls') return;
     if (probes[provider.id]?.status === 'ready') return;
 
-    const ready = rankProbes(
+    const ready = rankSources(
       Object.values(probes).filter((probe) => probe.status === 'ready'),
       SOURCE_ORDER[mediaType] ?? [],
       audioPref,
+      false,
+      crowdRef.current,
     )[0];
     if (ready) setSelectedProviderId(ready.id);
   }, [provider.id, provider.kind, probes, mediaType, audioPref]);
+
+  /* -- 0d. Viewers' verdicts arrived after the picking: pick again, if nothing has started -- */
+  useEffect(() => {
+    if (!crowdVersion || manualPickRef.current || playingRef.current || loadedRef.current) return;
+    const answers = Object.values(probes);
+    if (!answers.length) return;
+    const pending = available.some((p) => !LAST_RESORT.has(p.id) && !probes[p.id]);
+    const best = rankSources(answers, SOURCE_ORDER[mediaType] ?? [], audioPrefValue.current, pending, crowdRef.current)[0];
+    if (best && best.id !== selectedIdRef.current && (best.status === 'ready' || best.status === 'reachable')) setSelectedProviderId(best.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crowdVersion]);
+
+  /*
+   * -- 0e. "It worked": two minutes on one source with the picture up ---------
+   *
+   * For our own player that is two minutes after it started playing; for a page,
+   * two minutes after it loaded with the tab in front. That is this viewer's
+   * vote for the source on this title, and the next viewer starts there.
+   */
+  useEffect(() => {
+    shownAtRef.current = Date.now();
+  }, [provider.id, season, episode, reloadKey]);
+  useEffect(() => {
+    const up = provider.kind === 'hls' ? hasStarted : frameLoaded && loadedRef.current;
+    if (mini || !up || !tabVisible) return;
+    const id = provider.id;
+    const t = window.setTimeout(() => {
+      if (selectedIdRef.current === id) voteSource(mediaType, media.id, season, episode, id, true);
+    }, 120000);
+    return () => window.clearTimeout(t);
+  }, [mini, provider.id, provider.kind, hasStarted, frameLoaded, tabVisible, mediaType, media.id, season, episode]);
 
   /* -- 0b. A resolver source picked by hand may not have been asked yet ----- */
   useEffect(() => {
@@ -832,6 +974,8 @@ export function TvStreamPlayer({
     };
   }, [streamUrl, provider.name, providerIndex, available, selectSource, notify, holdFrame]);
 
+  const confirmedPage = provider.kind !== 'hls' && probes[provider.id]?.status === 'ready';
+
   /* -- 2. A frame that never loads is left after the grace period ---------- */
   useEffect(() => {
     setCountdown(null);
@@ -848,6 +992,10 @@ export function TvStreamPlayer({
      * banner was still counting down to VidFast.
      */
     if (provider.kind === 'hls') return;
+
+    // A page the server itself said has this title is not second-guessed either:
+    // "Not starting? Trying ..." over a film that is there is the wrong message.
+    if (confirmedPage) return;
 
     // Nobody is watching a hidden tab, and Chrome will not run an iframe's
     // `load` promptly in one. Judging sources from there is how a working
@@ -927,6 +1075,7 @@ export function TvStreamPlayer({
     notify,
     rememberedKey,
     holdFrame,
+    confirmedPage,
   ]);
 
   // Reaching the end of the lineup means the fallback did its job; the next
@@ -960,15 +1109,19 @@ export function TvStreamPlayer({
       return;
     }
 
+    // Every stream it offered died: it did not play here.
+    voteSource(mediaType, media.id, season, episode, provider.id, false);
     setProbes((current) => ({
       ...current,
       [provider.id]: { ...(current[provider.id] ?? { id: provider.id }), status: 'empty', url: undefined },
     }));
 
-    const nextReady = rankProbes(
+    const nextReady = rankSources(
       Object.values(probes).filter((probe) => probe.status === 'ready' && probe.id !== provider.id),
       SOURCE_ORDER[mediaType] ?? [],
       audioPrefValue.current,
+      false,
+      crowdRef.current,
     )[0];
 
     if (nextReady) {
@@ -1026,13 +1179,16 @@ export function TvStreamPlayer({
 
   // Back to automatic: the same ranking the batch probe used, over what it found.
   const handleAutoSource = () => {
+    setHintOpen(false);
     setAutoMode(true);
     requestedSource.current = null;
     manualPickRef.current = false;
-    const best = rankProbes(
+    const best = rankSources(
       Object.values(probes).filter((p) => p.status === 'ready' || p.status === 'reachable'),
       SOURCE_ORDER[mediaType] ?? [],
       audioPrefValue.current,
+      false,
+      crowdRef.current,
     )[0];
     if (best && best.id !== activeId) selectSource(best.id, false);
   };
@@ -1094,6 +1250,133 @@ export function TvStreamPlayer({
     return () => window.clearTimeout(t);
   }, [settled, provider.kind, hasStarted]);
 
+  /*
+   * -- Back, the way a streaming app does it ----------------------------------
+   *
+   * Back used to close the film at once: one press of the Android back button,
+   * or the browser's, and the whole thing was gone, full screen included. Now,
+   * as on Netflix, JioHotstar and the rest:
+   *
+   *   full screen   back leaves full screen, the film keeps playing
+   *   theater mode  back leaves theater mode
+   *   otherwise     the first back says "Press back again to exit"; a second
+   *                 one within 2.5 s closes the player
+   *
+   * In the Android app the back button is taken before it ever reaches history
+   * (native/back-stack.ts). That matters: the film is often another site's page
+   * in a frame, its own navigations join the tab's history, and `history.back()`
+   * would go back inside the frame instead.
+   *
+   * In a browser, one extra history entry (same URL, marked `pingoPlayer`) sits
+   * on top while the player is open, and its `popstate` runs the same rule.
+   * Buttons that leave on purpose (close, mini player, trailer, another title)
+   * take the extra entry off first, through `leave`.
+   */
+  const leavingRef = useRef<boolean>(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  /** `history.length` before the extra entry went on: everything above it is the guard and the frame's own steps. */
+  const baseLengthRef = useRef<number>(0);
+
+  /**
+   * Leave on purpose: step back to the player's own entry, then do `then`.
+   *
+   * One `history.back()` is not enough: a framed site's navigations sit on top
+   * of the guard, and back would only move inside the frame. So it steps over
+   * all of them at once. If no `popstate` comes (nothing to step over), it goes
+   * on after a moment anyway; if the step somehow left the film already, `then`
+   * is not needed and is skipped.
+   */
+  const leave = useCallback((then: () => void) => {
+    leavingRef.current = true;
+    const steps = baseLengthRef.current > 0 ? window.history.length - baseLengthRef.current : 0;
+    if (steps <= 0) {
+      then();
+      return;
+    }
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener('popstate', finish);
+      if (window.location.pathname.startsWith('/tv/watch')) then();
+    };
+    window.addEventListener('popstate', finish);
+    window.history.go(-steps);
+    window.setTimeout(finish, 600);
+  }, []);
+
+  useEffect(() => {
+    if (mini) return;
+    const onGuard = () => (window.history.state as { pingoPlayer?: boolean } | null)?.pingoPlayer === true;
+    if (!onGuard()) baseLengthRef.current = window.history.length;
+    const push = () => {
+      if (!onGuard()) window.history.pushState({ ...((window.history.state as object | null) ?? {}), pingoPlayer: true }, '');
+    };
+    push();
+    let armedUntil = 0;
+    /** One back press. True: the player stays (and the guard goes back on top). */
+    const stay = (): boolean => {
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => undefined);
+        return true;
+      }
+      if (theaterRef.current) {
+        setIsTheater(false);
+        return true;
+      }
+      if (Date.now() < armedUntil) return false;
+      armedUntil = Date.now() + 2500;
+      notify('Press back again to exit', 2500);
+      return true;
+    };
+    const onPop = () => {
+      if (leavingRef.current || onGuard()) return;
+      if (stay()) push();
+      else {
+        leavingRef.current = true;
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    // The Android back button: handled here, before it becomes history.back().
+    const offNative = pushBackHandler(() => {
+      if (leavingRef.current) return false;
+      if (!stay()) leave(onCloseRef.current);
+      return true;
+    });
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      offNative();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mini, notify]);
+
+  /* Full screen on a phone turns sideways, and back again on the way out. */
+  useEffect(() => {
+    if (mini) return;
+    const orientation = (typeof screen !== 'undefined' ? screen.orientation : undefined) as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void> })
+      | undefined;
+    const onChange = () => {
+      if (!orientation?.lock || !window.matchMedia('(pointer: coarse)').matches) return;
+      if (document.fullscreenElement) void orientation.lock('landscape').catch(() => undefined);
+      else orientation.unlock?.();
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [mini]);
+
+  /* The source hint stays 9 s after the picture shows (or 20 s at most), then goes. */
+  useEffect(() => {
+    if (!hintOpen) return;
+    const t = window.setTimeout(() => setHintOpen(false), settled ? 9000 : 20000);
+    return () => window.clearTimeout(t);
+  }, [hintOpen, settled]);
+
   useEffect(() => {
     setFrameLoaded(false);
     // A frame that never fires `load` must not hide the picture forever.
@@ -1126,7 +1409,7 @@ export function TvStreamPlayer({
           <button
             type="button"
             aria-label="Close player"
-            onClick={onClose}
+            onClick={() => leave(onClose)}
             className="order-2 grid size-8 shrink-0 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95 sm:order-3"
           >
             <X className="size-5" />
@@ -1195,6 +1478,7 @@ export function TvStreamPlayer({
               type="button"
               onClick={() => {
                 const next = available[(providerIndex + 1) % available.length]!;
+                judgeLeaving();
                 claimedRef.current = true;
                 selectSource(next.id, true);
                 notify(`Switched to ${next.name}`);
@@ -1230,7 +1514,7 @@ export function TvStreamPlayer({
             {onOpenTrailer && (
               <button
                 type="button"
-                onClick={() => onOpenTrailer(media)}
+                onClick={() => leave(() => onOpenTrailer(media))}
                 className="hidden sm:flex items-center gap-1.5 rounded-lg bg-white/10 border border-white/20 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-white/20"
               >
                 <Play className="size-3.5 fill-current text-brand" />
@@ -1243,7 +1527,7 @@ export function TvStreamPlayer({
                 type="button"
                 aria-label="Mini player"
                 title="Keep watching in a small window"
-                onClick={() => onMinimize(season, episode)}
+                onClick={() => leave(() => onMinimize(season, episode))}
                 className="grid size-8 place-items-center rounded-full text-text-secondary hover:bg-white/10 hover:text-white transition-colors active:scale-95"
               >
                 <PictureInPicture2 className="size-4" />
@@ -1299,6 +1583,7 @@ export function TvStreamPlayer({
                     <button
                       type="button"
                       onClick={() => {
+                        judgeLeaving();
                         autoVisitedRef.current.add(nextProvider.id);
                         selectSource(nextProvider.id, true);
                         notify(`Switched to ${nextProvider.name}`);
@@ -1485,6 +1770,28 @@ export function TvStreamPlayer({
                 </div>
               )}
 
+              {/* "Not playing? Change the source": points at the Source menu right above it. */}
+              {!mini && hintOpen && !showExternal && (
+                <div role="status" className="absolute right-3 top-[3.4rem] z-40 w-[min(17rem,calc(100%-1.5rem))] animate-fadeIn">
+                  <span aria-hidden className="absolute -top-1.5 right-6 size-3 rotate-45 rounded-[2px] bg-white" />
+                  <div className="relative flex items-start gap-2.5 rounded-xl bg-white px-3.5 py-3 text-[#111] shadow-2xl">
+                    <RefreshCw className="mt-0.5 size-4 shrink-0 text-brand" />
+                    <p className="text-[12.5px] leading-snug">
+                      <strong className="font-bold">Not playing?</strong> Pick another server from{' '}
+                      <strong className="font-bold">Source</strong> above.
+                    </p>
+                    <button
+                      type="button"
+                      aria-label="Got it"
+                      onClick={() => setHintOpen(false)}
+                      className="-mr-1 -mt-1 grid size-6 shrink-0 place-items-center rounded-full text-black/50 hover:bg-black/5 hover:text-black"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* The corner of the picture: chat (full screen only), audio and subtitles (own player only), then the source. */}
               {!mini && (
                 <div className="absolute right-3 top-3 z-30 flex items-start gap-2">
@@ -1532,7 +1839,7 @@ export function TvStreamPlayer({
                 setSeason(s);
                 setEpisode(e);
               }}
-              onOpenMedia={(m) => onOpenMedia?.(m)}
+              onOpenMedia={(m) => leave(() => onOpenMedia?.(m))}
               {...(alongId ? { alongId } : {})}
             />
           )}
