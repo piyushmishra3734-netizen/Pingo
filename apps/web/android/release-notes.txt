@@ -1,2 +1,4 @@
-Update PINGO right inside the app
-A calmer, clearer update screen
+A new look for sign-in, from welcome to your profile
+Pingo TV now leads with Indian movies and series
+Back no longer closes your movie: press back twice to exit
+Sign in with Google only; username login stays for older accounts
