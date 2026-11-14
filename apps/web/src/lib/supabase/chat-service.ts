@@ -455,6 +455,8 @@ function isTransientSendError(error: { code?: string; message?: string } | null 
 
 /** How long a file already on R2 may be reused by the retry of the send it was uploaded for. The reaper waits two hours. */
 const UPLOAD_REUSE_MS = 30 * 60_000;
+/** And for how long after its first message exists, for the other chats of the same share. */
+const SHARED_REUSE_MS = 2 * 60_000;
 
 const RETRY_FIRST_MS = 2000;
 const RETRY_MAX_MS = 30_000;
@@ -4488,23 +4490,45 @@ export class SupabaseChatService implements ChatService {
     return onR2.path;
   }
 
-  /** Files already on R2 for a send whose message does not exist yet, by the file the person picked. */
-  readonly #uploaded = new Map<Blob, { path: string; at: number }>();
+  /**
+   * Files on R2 by the file the person picked: the upload (so a second send of the same file that starts while the
+   * first is still uploading waits for it instead of uploading again), its path once known, and until when it may be
+   * reused.
+   */
+  readonly #uploaded = new Map<Blob, { upload: Promise<string>; path?: string; until: number }>();
 
-  /** The path of a file that already went up for this send, or the upload (remembered). */
+  /**
+   * The path of this file on R2, uploading it only if nobody has.
+   *
+   * Three callers reach for the same file: the retry of a send whose insert failed (the file is already there), and
+   * a share to several chats (ShareScreen sends the one file to every chat at once, which was one upload per chat).
+   * The messages then name the same object, as WhatsApp does when one file goes to many chats. That is safe on the
+   * server since `20261114000000_shared_media_survives`: the object is only removed when no live message names it.
+   */
   async #uploadOnce(source: Blob, upload: () => Promise<string>): Promise<string> {
     const now = Date.now();
-    for (const [blob, hit] of this.#uploaded) if (now - hit.at > UPLOAD_REUSE_MS) this.#uploaded.delete(blob);   // old entries go
+    for (const [blob, hit] of this.#uploaded) if (hit.until < now) this.#uploaded.delete(blob);   // old entries go
     const hit = this.#uploaded.get(source);
-    if (hit) return hit.path;
-    const path = await upload();
-    this.#uploaded.set(source, { path, at: Date.now() });
-    return path;
+    if (hit) return hit.upload;
+    const entry: { upload: Promise<string>; path?: string; until: number } = { upload: upload(), until: now + UPLOAD_REUSE_MS };
+    this.#uploaded.set(source, entry);
+    try {
+      entry.path = await entry.upload;
+      return entry.path;
+    } catch (cause) {
+      if (this.#uploaded.get(source) === entry) this.#uploaded.delete(source);   // a failed upload is not reused
+      throw cause;
+    }
   }
 
-  /** Once the message exists its files belong to it (and are released on receipt), so a later send must upload its own. */
+  /**
+   * The message exists, so the file belongs to it. It stays available to the other sends of the same share for a
+   * couple of minutes, and then a send of that file uploads its own: a message deleted for everyone parks its file
+   * at once, and a later send must not name an object the collector is about to remove.
+   */
   #forgetUploaded(paths: (string | undefined)[]): void {
-    for (const [blob, hit] of this.#uploaded) if (paths.includes(hit.path)) this.#uploaded.delete(blob);
+    const soon = Date.now() + SHARED_REUSE_MS;
+    for (const hit of this.#uploaded.values()) if (hit.path && paths.includes(hit.path)) hit.until = Math.min(hit.until, soon);
   }
 
   /** The message that owns these objects exists now; they are not orphans. */
