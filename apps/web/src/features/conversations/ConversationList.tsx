@@ -3,7 +3,7 @@ import { usePullToOpenLocked } from '../lock/usePullToOpenLocked.js';
 import { PinGate } from '../lock/PinGate.js';
 import { hasPin, loadLocks, lockChats, useLockedIds } from '../lock/lock-store.js';
 import { ActivityTopPop } from '../notifications/ActivityTopPop.js';
-import { EllipsisVertical, Gamepad2, Lock, Search } from 'lucide-react';
+import { EllipsisVertical, Lock, Search } from 'lucide-react';
 import {
   conversationFilterLabels,
   conversationFilters,
@@ -679,7 +679,7 @@ export function ConversationList({
                       onCreate={() => setCreating(true)}
                       onManageMine={() => setManagingStory(true)}
                       uploading={storyUploading > 0}
-                      extra={<ArcadeCircle onOpen={() => navigate('/arcade')} />}
+                      extra={<ComingSoonCircle />}
                       notes={notes}
                       onNoteMine={() => setWritingNote(true)}
                       onNoteOther={setViewingNote}
@@ -1037,35 +1037,33 @@ function FolderTab({
 }
 
 /**
- * The Arcade, in the seat beside your own story.
- *
- * Shaped like a story circle so the rail reads as one row, with a small note
- * on top where a note would sit. It says "Play" rather than a count: nothing
- * yet tells the app how many friends are in the Arcade, and a number it made
- * up would be the first thing somebody noticed was wrong.
+ * The seat beside your own story, where the Arcade used to be: "The Last
+ * Stitch", coming soon. It is a teaser, not a door - tapping it opens nothing,
+ * and the Arcade itself is closed (see `/arcade` in App.tsx).
  */
-function ArcadeCircle({ onOpen }: { onOpen: () => void }) {
+function ComingSoonCircle() {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label="PINGO Arcade"
-      className={cn(
-        'relative flex w-[74px] shrink-0 flex-col items-center gap-[5px] rounded-xl',
-        'focus-ring transition-transform duration-[160ms] ease-standard active:scale-[0.96]',
-      )}
+    <div
+      role="img"
+      aria-label="The Last Stitch, coming soon"
+      className="relative flex w-[74px] shrink-0 select-none flex-col items-center gap-[5px] rounded-xl"
     >
-      <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
-        Play
+      <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
+        Soon
       </span>
-      <span className="bg-sweep-ring grid size-[70px] place-items-center rounded-full p-[3px]">
-        <span className="bg-sweep grid size-full place-items-center rounded-full border-[3px] border-page text-white">
-          <Gamepad2 size={26} strokeWidth={1.9} aria-hidden />
-        </span>
+      <span className="grid size-[70px] place-items-center rounded-full bg-[linear-gradient(135deg,#7a0d12,#2a0507)] p-[3px]">
+        <img
+          src="/coming-soon/the-last-stitch.webp"
+          alt=""
+          width={64}
+          height={64}
+          draggable={false}
+          className="size-full rounded-full border-[3px] border-page bg-black object-cover"
+        />
       </span>
       <span className="w-full truncate text-center text-[12px] text-ink">
-        Arcade
+        Coming soon
       </span>
-    </button>
+    </div>
   );
 }
