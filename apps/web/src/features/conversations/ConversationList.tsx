@@ -1036,20 +1036,34 @@ function FolderTab({
   );
 }
 
+/** The phone test build of the game (iPhone Safari testers; Android testers get the app). */
+// ?mobile=1: the phone asset set even where the device check is unsure (iPadOS reports itself as a Mac)
+const LAST_STITCH_URL = 'https://last-stitch.dubesminecraft.workers.dev/game/?mobile=1';
+
+/** iPhone / iPad, including iPadOS that reports itself as a Mac. */
+function isAppleMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 /**
  * The seat beside your own story, where the Arcade used to be: "The Last
- * Stitch", coming soon. It is a teaser, not a door - tapping it opens nothing,
- * and the Arcade itself is closed (see `/arcade` in App.tsx).
+ * Stitch". On iPhone and iPad it is the door to the test build (opens the game
+ * in Safari); everywhere else it is still a "coming soon" teaser. The Arcade
+ * itself stays closed (see `/arcade` in App.tsx).
  */
 function ComingSoonCircle() {
+  const playable = isAppleMobile();
+  const Tag = playable ? 'a' : 'div';
   return (
-    <div
-      role="img"
-      aria-label="The Last Stitch, coming soon"
-      className="relative flex w-[74px] shrink-0 select-none flex-col items-center gap-[5px] rounded-xl"
+    <Tag
+      {...(playable
+        ? { href: LAST_STITCH_URL, target: '_blank', rel: 'noopener', 'aria-label': 'Play The Last Stitch (test)' }
+        : { role: 'img', 'aria-label': 'The Last Stitch, coming soon' })}
+      className="focus-ring relative flex w-[74px] shrink-0 select-none flex-col items-center gap-[5px] rounded-xl"
     >
       <span className="absolute top-0 left-1/2 z-[1] -translate-x-1/2 -translate-y-1.5 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] font-bold text-ink shadow-md">
-        Soon
+        {playable ? 'Play' : 'Soon'}
       </span>
       <span className="grid size-[70px] place-items-center rounded-full bg-[linear-gradient(135deg,#7a0d12,#2a0507)] p-[3px]">
         <img
@@ -1062,8 +1076,8 @@ function ComingSoonCircle() {
         />
       </span>
       <span className="w-full truncate text-center text-[12px] text-ink">
-        Coming soon
+        {playable ? 'Last Stitch' : 'Coming soon'}
       </span>
-    </div>
+    </Tag>
   );
 }
